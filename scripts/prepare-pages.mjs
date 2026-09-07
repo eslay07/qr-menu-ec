@@ -8,7 +8,7 @@ await fs.mkdir(path.join(output, 'demo'), { recursive: true });
 await fs.copyFile('public/demo/encebollado.jpg', path.join(output, 'demo/encebollado.jpg'));
 await fs.copyFile('public/icon.svg', path.join(output, 'icon.svg'));
 for (const size of [192, 512]) await sharp('public/icon.svg').resize(size, size).png().toFile(path.join(output, `icon-${size}.png`));
-const files = (await fs.readdir(output, { recursive: true })).filter(file => !file.startsWith('_') && file !== 'sw.js');
+const files = (await fs.readdir(output, { recursive: true })).filter(file => !file.startsWith('_') && file !== 'sw.js' && file !== 'android.html' && !file.startsWith('downloads'));
 const urls = [];
 const hash = createHash('sha256');
 hash.update(await fs.readFile(new URL(import.meta.url)));
@@ -35,6 +35,7 @@ self.addEventListener('activate', event => event.waitUntil((async () => {
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
   if (url.origin !== self.location.origin || event.request.method !== 'GET') return;
+  if (url.pathname.startsWith('/downloads/')) return;
   if (event.request.mode === 'navigate') {
     event.respondWith(fetch(event.request).catch(async () => (await caches.open(CACHE)).match('/')));
   } else if (URLS.includes(url.pathname)) {
@@ -43,3 +44,7 @@ self.addEventListener('fetch', event => {
 });
 `);
 console.log(`Pages: ${urls.length} recursos offline; ${cache}`);
+// Installers are downloadable, never part of the diner's offline cache.
+await fs.mkdir(path.join(output, 'downloads'), { recursive: true });
+await fs.copyFile('deployment/android/qr-menu-android.apk', path.join(output, 'downloads/qr-menu-android.apk'));
+await fs.copyFile('deployment/android/SHA256SUMS.txt', path.join(output, 'downloads/SHA256SUMS.txt'));
