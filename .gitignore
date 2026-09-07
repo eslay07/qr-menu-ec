@@ -49,3 +49,5 @@ next-env.d.ts
 *.keystore
 
 /native/go/outputs/
+
+/dist-pages/

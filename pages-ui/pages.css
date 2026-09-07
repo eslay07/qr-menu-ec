@@ -1,0 +1,16 @@
+.pages-edition .customer-brand {font-size:clamp(16px,4vw,22px);min-width:0;overflow-wrap:anywhere}
+.pages-edition .customer-brand>svg,.pages-edition .bag-icon{flex-shrink:0}
+.pages-edition .customer-brand small{font-size:12px;letter-spacing:.5px}
+.pages-edition .customer-header{gap:16px}
+.pages-edition .dish-body p,.pages-edition .customer-intro p{font-size:16px}
+.pages-edition .customer-meta,.pages-edition .no-photo span,.pages-edition .customer-footer small{font-size:14px}
+.pages-edition .add-dish,.pages-edition .quantity button,.pages-edition .bag-icon{min-width:44px;min-height:44px}
+.pages-edition .dish-title{min-height:44px}
+.pages-edition .customer-footer{padding-bottom:30px}
+.pages-status{padding:20px 24px 100px;text-align:center;font-size:14px;background:#edf2e7}
+.pages-status a{text-decoration:underline;display:inline-block;padding:16px}
+.print-card{max-width:650px;margin:40px auto;padding:24px;text-align:center;background:white}
+.print-card h1{font-size:28px;overflow-wrap:anywhere}.print-card p{margin:16px 0}
+.print-card img{max-width:100%;height:auto}.print-card .actions{justify-content:center}.qr-url{overflow-wrap:anywhere}
+@media(max-width:600px){.pages-edition .dish-grid{grid-template-columns:1fr}.pages-edition .dish-photo{height:210px}.pages-edition .dish-body p{min-height:0}.pages-edition .customer-intro h1{font-size:34px}.pages-edition .selection-row{flex-wrap:wrap}.pages-edition .modal{padding:18px}.pages-edition .customer-meta{flex-wrap:wrap}}
+@media print{.print-card{margin:0;max-width:100%}.print-card img{width:8cm;height:8cm}}

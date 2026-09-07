@@ -15,7 +15,12 @@
     "test": "tsx --test tests/*.test.ts",
     "build:local": "vite build --config vite.local.config.ts",
     "check": "tsc --noEmit",
-    "db:local": "wrangler d1 execute site-creator-d1 --local --config wrangler.local.json --file drizzle/0000_even_inhumans.sql"
+    "db:local": "wrangler d1 execute site-creator-d1 --local --config wrangler.local.json --file drizzle/0000_even_inhumans.sql",
+    "build:pages": "vite build --config vite.pages.config.ts && node scripts/prepare-pages.mjs",
+    "dev:pages": "npm run build:pages && vite preview --config vite.pages.config.ts --host 127.0.0.1 --port 4173",
+    "preview:pages": "vite preview --config vite.pages.config.ts --host 127.0.0.1 --port 4173",
+    "deploy:pages": "npm run build:pages && wrangler pages deploy --config wrangler.pages.jsonc",
+    "test:pages": "node scripts/pages-qa.mjs"
   },
   "dependencies": {
     "@base-ui/react": "1.7.0",
@@ -42,8 +47,8 @@
     "zod": "^4.5.4"
   },
   "devDependencies": {
-    "@cloudflare/vite-plugin": "1.37.1",
-    "@cloudflare/workers-types": "4.20260515.1",
+    "@cloudflare/vite-plugin": "1.54.4",
+    "@cloudflare/workers-types": "5.20260907.1",
     "@openai/sites-vite-plugin": "0.2.0",
     "@playwright/test": "^1.63.0",
     "@tailwindcss/postcss": "4.2.1",
@@ -54,6 +59,7 @@
     "@vitejs/plugin-react": "6.0.2",
     "@vitejs/plugin-rsc": "^0.5.34",
     "drizzle-kit": "0.31.10",
+    "jsqr": "^1.4.0",
     "oxfmt": "0.61.0",
     "oxlint": "1.76.0",
     "oxlint-tsgolint": "7.0.2001",
@@ -62,7 +68,7 @@
     "tsx": "^4.23.13",
     "typescript": "5.9.3",
     "vite": "^8.2.2",
-    "wrangler": "4.92.0"
+    "wrangler": "4.129.0"
   },
   "type": "module",
   "overrides": {

@@ -1,5 +1,16 @@
 # QR Menú
 
+## QR Menu Resuelven · Cloudflare Pages
+
+Edición estática independiente: `npm ci`, `npm run build:pages`, `npm run preview:pages`.
+Abre `http://127.0.0.1:4173/restaurante-demo`. El QR está en `/restaurante-demo/qr`.
+Salida: `dist-pages`. Node recomendado: 22.16.0. Sin variables, D1, R2 ni cuenta ChatGPT.
+Catálogo: `data/restaurants/restaurante-demo.json`; precios en centavos (`500` = $5.00).
+Pruebas: `npm run check`, `npm test`, `npm run test:pages` (con preview activo).
+La edición Pages publica cartas desde Git; el panel con contraseñas, licencias y respaldos
+se conserva en las ediciones Sites/Worker/local y requiere su servidor. No se exportan datos privados.
+Manual completo: [Migración a Pages](docs/CLOUDFLARE-PAGES.md).
+
 Aplicación central para editar y publicar menús de restaurantes, con servidor web, Windows, Android y router OpenWrt. Español, Ecuador, USD. Edición piloto: la apertura de portales y compatibilidad física siguen pendientes de certificación.
 
 ## Desarrollo

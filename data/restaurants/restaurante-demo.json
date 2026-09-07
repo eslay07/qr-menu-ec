@@ -1,0 +1,112 @@
+{
+  "name": "RESTAURANTE DEMO RESUELVEN",
+  "tagline": "Sabores ecuatorianos para compartir. Menú ficticio de demostración.",
+  "color": "#244130",
+  "logo": "",
+  "categories": [
+    {
+      "id": "entradas",
+      "name": "Entradas"
+    },
+    {
+      "id": "principales",
+      "name": "Platos principales"
+    },
+    {
+      "id": "bebidas",
+      "name": "Bebidas"
+    }
+  ],
+  "dishes": [
+    {
+      "id": "empanadas",
+      "name": "Empanadas",
+      "description": "Dos empanadas doradas rellenas de queso.",
+      "categoryId": "entradas",
+      "priceCents": 250,
+      "available": true,
+      "image": ""
+    },
+    {
+      "id": "patacones",
+      "name": "Patacones con queso",
+      "description": "Verde crocante con queso fresco rallado.",
+      "categoryId": "entradas",
+      "priceCents": 350,
+      "available": true,
+      "image": ""
+    },
+    {
+      "id": "hamburguesa-clasica",
+      "name": "Hamburguesa clásica",
+      "description": "Carne de res, lechuga, tomate y salsa de la casa.",
+      "categoryId": "principales",
+      "priceCents": 500,
+      "available": true,
+      "image": ""
+    },
+    {
+      "id": "hamburguesa-doble",
+      "name": "Hamburguesa doble",
+      "description": "Doble carne, queso y papas fritas.",
+      "categoryId": "principales",
+      "priceCents": 750,
+      "available": true,
+      "image": ""
+    },
+    {
+      "id": "pollo",
+      "name": "Pollo a la plancha",
+      "description": "Pechuga con arroz, ensalada y papas.",
+      "categoryId": "principales",
+      "priceCents": 650,
+      "available": true,
+      "image": ""
+    },
+    {
+      "id": "churrasco",
+      "name": "Churrasco",
+      "description": "Carne de res con huevo, arroz, papas y aguacate.",
+      "categoryId": "principales",
+      "priceCents": 850,
+      "available": true,
+      "image": ""
+    },
+    {
+      "id": "coca-cola",
+      "name": "Coca-Cola",
+      "description": "Botella personal de 300 ml.",
+      "categoryId": "bebidas",
+      "priceCents": 150,
+      "available": true,
+      "image": ""
+    },
+    {
+      "id": "agua",
+      "name": "Agua",
+      "description": "Agua sin gas de 500 ml.",
+      "categoryId": "bebidas",
+      "priceCents": 100,
+      "available": true,
+      "image": ""
+    },
+    {
+      "id": "limonada",
+      "name": "Limonada",
+      "description": "Limón fresco preparado al momento.",
+      "categoryId": "bebidas",
+      "priceCents": 200,
+      "available": true,
+      "image": ""
+    },
+    {
+      "id": "encebollado-demo",
+      "name": "Encebollado de la casa",
+      "description": "Albacora y yuca. Foto ilustrativa generada; producto de prueba.",
+      "categoryId": "principales",
+      "priceCents": 650,
+      "available": false,
+      "image": "/demo/encebollado.jpg"
+    }
+  ]
+}
