@@ -1,0 +1,24 @@
+import { z } from 'zod';
+export const Mode = z.enum(['web','text','local']);
+export type Mode = z.infer<typeof Mode>;
+const id = z.string().regex(/^[a-zA-Z0-9_-]{1,80}$/);
+export const Asset = z.string().regex(/^(|\/demo\/encebollado\.jpg|\/api\/v1\/media\/[a-f0-9-]{36})$/);
+export const Catalog = z.object({
+  name:z.string().trim().min(1).max(80), tagline:z.string().max(180), color:z.string().regex(/^#[a-fA-F0-9]{6}$/), logo:Asset,
+  categories:z.array(z.object({id,name:z.string().trim().min(1).max(50)})).min(1).max(30),
+  dishes:z.array(z.object({id,name:z.string().trim().min(1).max(90),description:z.string().max(500),categoryId:id,priceCents:z.number().int().min(0).max(9999999),available:z.boolean(),image:Asset})).max(150),
+}).superRefine((v,c)=>{const cats=new Set(v.categories.map(x=>x.id));if(cats.size!==v.categories.length||new Set(v.dishes.map(x=>x.id)).size!==v.dishes.length)c.addIssue({code:'custom',message:'Hay identificadores duplicados.'});if(v.dishes.some(x=>!cats.has(x.categoryId)))c.addIssue({code:'custom',message:'Un plato tiene una categoría inexistente.'});});
+export type Catalog = z.infer<typeof Catalog>;
+export const Settings=z.object({mode:Mode,server:z.enum(['router','windows10','windows7','android']),accessExperience:z.enum(['automatic_preferred','guided']),ssid:z.string().min(1).max(32).refine(x=>new TextEncoder().encode(x).length<=32,'El nombre de red supera 32 bytes.'),wifiPassword:z.string().regex(/^[\x20-\x7e]{8,63}$/),localUrl:z.string().url().refine(x=>{const u=new URL(x);return u.protocol==='http:'&&!u.username&&!u.password&&!u.search&&!u.hash&&(/^192\.168\.\d{1,3}\.\d{1,3}$|^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$|^172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}$/.test(u.hostname)||u.hostname==='menu.lan')},'Usa una dirección HTTP de la red privada.'),webUrl:z.union([z.literal(''),z.string().url().refine(x=>{const u=new URL(x);return u.protocol==='https:'&&!u.username&&!u.password},'La dirección web debe usar HTTPS.')])});
+export type Settings=z.infer<typeof Settings>;
+export const LicensePayload=z.object({schemaVersion:z.literal(1),restaurantId:id,licenseId:id,modes:z.array(Mode).min(1).max(3),issuedAt:z.string().datetime(),customer:z.string().min(1).max(120)});
+export type LicensePayload=z.infer<typeof LicensePayload>;
+export const License=z.object({payload:z.string().max(4096),signature:z.string().max(256)});
+export type License=z.infer<typeof License>;
+export const Backup=z.object({schemaVersion:z.literal(1),sourceId:id,exportedAt:z.string().datetime(),draft:Catalog,settings:Settings,media:z.array(z.object({id:z.string().uuid(),type:z.enum(['image/jpeg','image/png','image/webp']),data:z.string().max(1500000)})).max(151)});
+export const defaultSettings:Settings={mode:'local',server:'router',accessExperience:'automatic_preferred',ssid:'QR-Menu',wifiPassword:'menu-invitados',localUrl:'http://192.168.8.1:8080/menu',webUrl:''};
+export const blankCatalog:Catalog={name:'Mi restaurante',tagline:'Sabores que nos reúnen.',color:'#244130',logo:'',categories:[{id:'principales',name:'Platos principales'},{id:'bebidas',name:'Bebidas'}],dishes:[]};
+export const demoCatalog:Catalog={...blankCatalog,name:'La Mesa',tagline:'Cocina ecuatoriana, hecha con cariño.',categories:[{id:'principales',name:'Nuestra cocina'},{id:'bebidas',name:'Para acompañar'}],dishes:[{id:'encebollado',name:'Encebollado de la casa',description:'Albacora, yuca suave, cebolla encurtida y el toque fresco del limón.',categoryId:'principales',priceCents:650,available:true,image:'/demo/encebollado.jpg'},{id:'seco',name:'Seco de pollo',description:'Cocción lenta con especias, arroz amarillo y maduro.',categoryId:'principales',priceCents:750,available:true,image:''},{id:'bolon',name:'Bolón de verde',description:'Verde dorado, queso fresco y café pasado para acompañar.',categoryId:'principales',priceCents:400,available:true,image:''},{id:'jugo',name:'Jugo de maracuyá',description:'Fruta natural, preparado al momento.',categoryId:'bebidas',priceCents:250,available:true,image:''}]};
+export const money=(n:number)=>new Intl.NumberFormat('es-EC',{style:'currency',currency:'USD'}).format(n/100);
+export function wifiPayload(s:Settings){const esc=(s:string)=>s.replace(/([\\;,:" ])/g,'\\$1');return `WIFI:T:WPA;S:${esc(s.ssid)};P:${esc(s.wifiPassword)};;`;}
+export function textPages(c:Catalog,maxBytes=900){const pages:string[]=[];let text=`${c.name}\nUSD · Precios publicados\n`;const enc=new TextEncoder();for(const cat of c.categories){for(const d of c.dishes.filter(d=>d.categoryId===cat.id&&d.available)){const line=`\n${cat.name} · ${d.name}: ${money(d.priceCents)}`;if(enc.encode(text+line).length>maxBytes){pages.push(text);text=`${c.name}\nUSD · Continuación\n`;}text+=line;}}if(text)pages.push(text);return pages.map((p,i)=>`${p}\n\n${i+1}/${pages.length}`);}

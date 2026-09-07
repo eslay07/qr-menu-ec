@@ -1,0 +1,8 @@
+import { License, LicensePayload } from './contracts';
+export function b64(bytes:Uint8Array){let s='';for(const b of bytes)s+=String.fromCharCode(b);return btoa(s);}
+export function unb64(s:string){return Uint8Array.from(atob(s),c=>c.charCodeAt(0));}
+export function randomToken(){return b64(crypto.getRandomValues(new Uint8Array(32))).replace(/[^a-zA-Z0-9]/g,'');}
+export async function digest(s:string){return b64(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s))));}
+export async function passwordHash(password:string,salt:string){const k=await crypto.subtle.importKey('raw',new TextEncoder().encode(password),'PBKDF2',false,['deriveBits']);return b64(new Uint8Array(await crypto.subtle.deriveBits({name:'PBKDF2',hash:'SHA-256',salt:new TextEncoder().encode(salt),iterations:100000},k,256)));}
+export function constantEqual(a:string,b:string){if(a.length!==b.length)return false;let diff=0;for(let i=0;i<a.length;i++)diff|=a.charCodeAt(i)^b.charCodeAt(i);return diff===0;}
+export async function verifyLicense(input:unknown,publicKey:string,restaurantId:string):Promise<LicensePayload>{const lic=License.parse(input);if(!publicKey)throw Error('El instalador debe configurar la clave pública del vendedor.');const key=await crypto.subtle.importKey('raw',unb64(publicKey),{name:'Ed25519'},false,['verify']);if(!await crypto.subtle.verify('Ed25519',key,unb64(lic.signature),unb64(lic.payload)))throw Error('Firma de licencia inválida.');const p=LicensePayload.parse(JSON.parse(new TextDecoder().decode(unb64(lic.payload))));if(p.restaurantId!==restaurantId)throw Error('La licencia pertenece a otro restaurante.');return p;}

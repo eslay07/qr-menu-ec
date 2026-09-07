@@ -1,0 +1,9 @@
+{
+ "name":"qr-menu-restaurante",
+ "main":"worker.ts",
+ "compatibility_date":"2026-05-15",
+ "compatibility_flags":["nodejs_compat"],
+ "assets":{"directory":"../../dist-local","binding":"ASSETS","run_worker_first":true},
+ "d1_databases":[{"binding":"DB","database_name":"qr-menu","database_id":"REEMPLAZAR_ID_D1"}],
+ "r2_buckets":[{"binding":"MEDIA","bucket_name":"qr-menu-fotos"}]
+}
