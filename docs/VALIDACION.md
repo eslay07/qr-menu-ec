@@ -20,6 +20,6 @@ Ejecutar la matriz de VENTA-Y-CERTIFICACION.md con Android e iPhone reales: red 
 
 Probar físicamente el router GL-MT3000, cada versión de Windows y Android 10 o posterior; treinta clientes simultáneos y una jornada completa del servidor Android. Verificar aislamiento de red y recuperación tras corte eléctrico. Probar el despliegue web con una cuenta de restaurante y la descarga offline en sus navegadores objetivo.
 
-Windows usa una tarea de inicio automático bajo SYSTEM, no un servicio registrado en el administrador SCM. Esta diferencia debe resolverse si un cliente exige un servicio SCM. El perfil OpenWrt se aplica mediante el instalador con el JSON exportado; el panel no administra remotamente el router por SSH.
+La fase 2 implementa un servicio Windows SCM, con pruebas del ciclo de estados y cierre de ambos puertos; el registro, reinicio y recuperación del servicio en Windows físico siguen pendientes. El perfil OpenWrt se aplica mediante el instalador con el JSON exportado; el panel no administra remotamente el router por SSH.
 
 No anunciar apertura silenciosa universal ni presentar estas verificaciones de software como certificación física.

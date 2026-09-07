@@ -12,7 +12,7 @@ Requiere Node 22.13 o superior. `npm ci`, `npm run db:local`, `npm run dev`. Par
 
 - `app/ui`: interfaz compartida del dueño y comensal.
 - `lib`: contratos versionados, servicio web, D1/R2 y seguridad.
-- `native/go`: servidor Windows/OpenWrt sin dependencias externas. Compilar con Go actual para Windows 10 y Linux arm64, y Go 1.20.14 para Windows 7.
+- `native/go`: servidor Windows/OpenWrt; el adaptador SCM usa golang.org/x/sys v0.20.0, fijado para el compilador heredado. Compilar con Go actual para Windows 10 y Linux arm64, y Go 1.20.14 para Windows 7.
 - `native/android`: aplicación Kotlin y servidor persistente en primer plano. Gradle 8.13, JDK 17 o posterior y Android SDK 35. Copiar dist-local a app/src/main/assets/ui antes de compilar. El archivo seller-public.txt es público; la clave privada nunca forma parte del APK.
 - `deployment`: instaladores y configuración de red, más despliegue independiente en Cloudflare.
 - `tools/license.mjs`: herramienta privada del vendedor para emitir licencias firmadas.
@@ -25,6 +25,7 @@ Los artefactos se generan en outputs y no se versionan. `scripts/package-local.p
 
 ## Manuales
 
+- [Segunda fase y pruebas de campo](docs/FASE-2.md)
 - [Instalación y uso](docs/INSTALACION.md)
 - [Venta y certificación](docs/VENTA-Y-CERTIFICACION.md)
 - [Despliegue en la cuenta del restaurante](deployment/cloudflare/README.md)

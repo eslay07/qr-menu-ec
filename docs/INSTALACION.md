@@ -6,12 +6,12 @@ Estado: edición piloto. La compilación y las pruebas de software no certifican
 
 1. Descomprime el paquete adecuado en una carpeta nueva. Windows 7 utiliza un ejecutable de 32 bits compatible también con Windows 7 de 64 bits; no usa Internet Explorer como editor.
 2. Reserva una dirección fija para la PC en el router (por defecto el instalador espera 192.168.8.100). La red debe ser de perfil privado.
-3. Ejecuta PowerShell como administrador y `./Install.ps1 -ServerIP 192.168.8.100`. El instalador copia el programa a ProgramData/QRMenu, conserva los datos, crea una tarea de arranque como SYSTEM y abre únicamente los puertos 8080 y 8443 en red privada. No instala un controlador ni modifica el acceso WAN.
+3. Ejecuta PowerShell como administrador y `./Install.ps1 -ServerIP 192.168.8.100`. El instalador copia el programa a ProgramData/QRMenu, conserva los datos, registra un servicio Windows SCM con inicio automático como SYSTEM y recuperación ante fallos y abre únicamente los puertos 8080 y 8443 en red privada. No instala un controlador ni modifica el acceso WAN.
 4. Abre el certificado público `ProgramData/QRMenu/data/server.crt`, verifica que procede de esta instalación y confía en él solo en los equipos administradores. No distribuyas `server.key`.
 5. Lee el código de `data/installation-code.txt`, abre `https://192.168.8.100:8443/`, crea el dueño y guarda el código de recuperación.
 6. Importa la licencia firmada, edita, guarda y publica. Los clientes usan `http://192.168.8.100:8080/menu` desde la red dedicada.
 
-Para parar: ejecuta Stop.ps1 como administrador. Para impedir el siguiente arranque: `schtasks /Change /TN QRMenu-Servidor /Disable`. Los datos se conservan. Actualiza binario e interfaz con el servidor detenido y un respaldo previo.
+Para parar: ejecuta Stop.ps1 como administrador. Para impedir el siguiente arranque: `Set-Service QRMenu-Servidor -StartupType Disabled`. Para actualizar: ejecuta Install.ps1 del nuevo paquete; detiene el servicio y guarda binario, interfaz, clave pública y datos anteriores en ProgramData/QRMenu/backups antes de sustituir archivos. Para desinstalar el servicio: Uninstall.ps1; conserva todos los archivos y datos. Una instalación fallida conserva el respaldo e informa su ubicación, pero no restaura automáticamente los datos.
 
 Si cambia la IP, actualiza la reserva DHCP o renueva los certificados con el servidor detenido y reconfigura la confianza. El certificado generado tiene las IP suministradas al primer arranque; no se reescribe automáticamente.
 
