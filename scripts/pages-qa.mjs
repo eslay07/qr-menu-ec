@@ -85,8 +85,21 @@ try {
   const newcomer = await fresh.newPage();
   await assert.rejects(() => newcomer.goto(base + '/restaurante-demo'));
   passed.push('Cliente nuevo sin Internet no puede descargar el menú');
+  const slow = await browser.newContext({ ...devices['Pixel 7'] });
+  const slowPage = await slow.newPage();
+  const network = await slow.newCDPSession(slowPage);
+  await network.send('Network.enable');
+  await network.send('Network.emulateNetworkConditions', {
+    offline: false, latency: 150, downloadThroughput: 200000, uploadThroughput: 64000,
+  });
+  const started = Date.now();
+  await slowPage.goto(base + '/restaurante-demo');
+  await slowPage.getByText('RESTAURANTE DEMO RESUELVEN').waitFor();
+  const slowLoadMs = Date.now() - started;
+  passed.push(`Red limitada simulada: carta visible en ${slowLoadMs} ms (1.6 Mbps, latencia 150 ms)`);
+  await slow.close();
   assert.deepEqual(errors, []);
-  const result = { base, passed, errors, physicalAndroid: false, testedAt: new Date().toISOString() };
+  const result = { base, passed, errors, slowLoadMs, physicalAndroid: false, testedAt: new Date().toISOString() };
   await fs.writeFile(`${output}/results.json`, JSON.stringify(result, null, 2));
   console.log(JSON.stringify(result, null, 2));
 } finally { await browser.close(); }

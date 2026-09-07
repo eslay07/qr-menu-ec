@@ -78,15 +78,18 @@ Documentación oficial consultada: [integración Git](https://developers.cloudfl
 
 ## 6. URL PÚBLICA
 
-Pendiente de verificar al finalizar el despliegue. La URL válida será la que Cloudflare muestre en producción.
+Publicado y verificado: https://qr-menu-resuelven.pages.dev
+
+Cloudflare confirmó producción y la segunda publicación automática desde GitHub tras el commit
+`1c6f0ce`. Pruebas públicas completadas el 7 de septiembre de 2026.
 
 ## 7. URL RESTAURANTE DEMO
 
-A la URL verificada de producción añade `/restaurante-demo`.
+https://qr-menu-resuelven.pages.dev/restaurante-demo
 
 ## 8. QR DE PRUEBA
 
-Abre `/restaurante-demo/qr` en el dominio público. Pulsa **Descargar PNG** o **Imprimir QR**.
+Abre https://qr-menu-resuelven.pages.dev/restaurante-demo/qr. Pulsa **Descargar PNG** o **Imprimir QR**.
 El generador usa el origen actual: nunca imprimas un QR generado desde localhost o desde un preview temporal.
 El archivo de prueba decodificado se guarda en `outputs/pages-qa/restaurante-demo-qr.png`.
 
@@ -97,18 +100,26 @@ precio de hamburguesa, búsqueda, detalle, selección, agotado, imagen, 5 anchos
 manifest, iconos, SW, QR decodificado, recarga y pestaña nueva offline, y cliente nuevo sin red.
 No confundir emulación de Pixel/Chromium con un Android físico.
 
+Resultado público: batería completa aprobada, cero errores de consola. Red limitada simulada
+(1.6 Mbps y 150 ms de latencia): carta visible en 1269 ms. HTTPS y cabeceras se verificaron por HTTP.
+Build Pages, build Sites, build local, comprobación TypeScript y seis tests originales completados.
+La actualización de tipos Cloudflare requirió convertir explícitamente las firmas a Buffer en tests.
+
 ## 10. ERRORES ENCONTRADOS
 
 El proyecto original requiere API y bindings, por lo que copiar su salida a Pages no bastaba.
 Su SW original solo descarga `/offline.html` y API bajo petición: no hacía offline la navegación SPA.
 El QR y panel originales requieren configuración/licencia del servidor.
 Se encontraron cinco vulnerabilidades altas y cuatro moderadas en herramientas de desarrollo.
+La primera prueba pública detectó un 308 de index.html que impedía la recarga offline.
 
 ## 11. ERRORES CORREGIDOS
 
 La edición Pages tiene entrada y datos propios, sin solicitudes a API; mantiene los componentes existentes.
 Su propio SW cubre la carta SPA completa. Su QR usa la URL real del navegador sin exigir servidor.
 Wrangler, su plugin y tipos compatibles se actualizaron y eliminaron los hallazgos altos.
+El SW ahora guarda la respuesta canónica /, evitando reutilizar una respuesta redirigida durante
+la navegación offline. La corrección se desplegó automáticamente y pasó las pruebas públicas.
 
 ## 12. LIMITACIONES ACTUALES
 
@@ -259,8 +270,25 @@ en `scripts/pages-qa.mjs` si decides cambiar permanentemente el fixture a $5.50.
 
 ## 14. CHECKLIST FINAL
 
-Ver el informe de cierre para los resultados de la URL pública. Una comprobación no ejecutada
-no se marca PASS; FAIL significa que no se aprobó, con el motivo indicado (incluido pendiente físico).
+Resultados contra https://qr-menu-resuelven.pages.dev. FAIL indica no aprobado, incluyendo pruebas físicas pendientes; no implica que se haya observado un fallo de Android.
+
+| Prueba | Resultado | Observaciones |
+|---|---|---|
+| Build | PASS | Pages, Sites y local terminados |
+| Cloudflare Pages | PASS | Producción y segundo despliegue automático verificados |
+| HTTPS | PASS | Certificado aceptado por Chromium y respuesta 200 |
+| Página móvil | PASS | Emulación Pixel 7 / Chromium |
+| QR | PASS | PNG decodificado: URL pública exacta; cámara física pendiente |
+| Categorías | PASS | Entradas, principales, bebidas y navegación |
+| Productos | PASS | 10 productos; agotado no seleccionable |
+| Precios | PASS | Hamburguesa $5.00 y total de selección |
+| Imágenes | PASS | Foto e iconos cargados; foto también offline |
+| Responsive | PASS | 320, 390, 412, 768 y 1440 px; sin overflow de página |
+| PWA | PASS | Manifest, iconos, SW y caché funcional; instalación física pendiente |
+| Offline previamente cargado | PASS | Recarga, nueva pestaña, carta y foto en producción |
+| Android | FAIL | No se dispone de teléfono físico; emulación aprobada |
+| Errores consola | PASS | Cero errores en la batería pública |
+
 
 ## 15. SIGUIENTES MEJORAS RECOMENDADAS
 
