@@ -11,9 +11,12 @@ for (const size of [192, 512]) await sharp('public/icon.svg').resize(size, size)
 const files = (await fs.readdir(output, { recursive: true })).filter(file => !file.startsWith('_') && file !== 'sw.js');
 const urls = [];
 const hash = createHash('sha256');
+hash.update(await fs.readFile(new URL(import.meta.url)));
 for (const file of files.sort()) {
   if (!(await fs.stat(path.join(output, file))).isFile()) continue;
-  urls.push('/' + file.replaceAll('\\', '/'));
+  // Pages redirects /index.html to /. Cache the canonical response so an offline
+  // navigation never receives a redirected response (which Chromium rejects).
+  urls.push(file === 'index.html' ? '/' : '/' + file.replaceAll('\\', '/'));
   hash.update(file).update(await fs.readFile(path.join(output, file)));
 }
 const cache = 'qrmenu-pages-' + hash.digest('hex').slice(0, 16);
@@ -33,7 +36,7 @@ self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
   if (url.origin !== self.location.origin || event.request.method !== 'GET') return;
   if (event.request.mode === 'navigate') {
-    event.respondWith(fetch(event.request).catch(async () => (await caches.open(CACHE)).match('/index.html')));
+    event.respondWith(fetch(event.request).catch(async () => (await caches.open(CACHE)).match('/')));
   } else if (URLS.includes(url.pathname)) {
     event.respondWith((async () => (await (await caches.open(CACHE)).match(url.pathname)) || fetch(event.request))());
   }
