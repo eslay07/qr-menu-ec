@@ -41,9 +41,9 @@ El perfil no aplica a cualquier router doméstico, a otras subredes o a polític
 
 ## Dueño: operación diaria
 
-Edita platos, categorías, fotos o disponibilidad y pulsa Guardar borrador. Publicar crea una versión íntegra visible para nuevos accesos; las sesiones ya abiertas pueden requerir recargar. Al cambiar nombre o clave Wi-Fi, configura la red y reimprime el QR. Cambiar la experiencia Automática/Guiada no suprime los avisos del sistema operativo.
+Edita platos, categorías, fotos o disponibilidad y pulsa Guardar borrador. Publicar crea una versión íntegra. La modalidad principal genera QR de texto con categorías, platos disponibles y precios: el primer escaneo no necesita internet ni una visita previa. Después de cualquier cambio publicado, genera e imprime nuevamente todas las partes. Las modalidades web y red local continúan disponibles para licencias existentes.
 
-La selección del cliente calcula un total para enseñar al mesero; no envía pedidos. La modalidad texto genera varias partes si el contenido no cabe y requiere reimpresión al cambiar precios. Su lectura depende de las capacidades del lector del cliente.
+La selección del cliente calcula un total para enseñar al mesero; no envía pedidos. El texto se divide en varias partes cuando no cabe dentro del límite de lectura segura. La forma de mostrarlo depende del lector del celular.
 
 ## Respaldo y cambio de servidor
 

@@ -93,3 +93,26 @@ func TestHTTPAuthorizationAndSetup(t *testing.T) {
 		t.Fatal("private state leaked")
 	}
 }
+
+func TestTextPagesAreOfflineDeterministic(t *testing.T) {
+	c := Catalog{
+		Name:       "La Mesa",
+		Categories: []Category{{ID: "principales", Name: "Nuestra cocina"}, {ID: "bebidas", Name: "Bebidas"}},
+		Dishes: []Dish{
+			{ID: "sopa", Name: "Sopa", CategoryID: "principales", PriceCents: 250, Available: true},
+			{ID: "agotado", Name: "Agotado", CategoryID: "principales", PriceCents: 300, Available: false},
+			{ID: "jugo", Name: "Jugo", CategoryID: "bebidas", PriceCents: 175, Available: true},
+		},
+	}
+	pages, err := textPages(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "La Mesa\nMENÚ · PRECIOS EN USD\n\nNuestra cocina\n- Sopa: $2.50\n\nBebidas\n- Jugo: $1.75\n\nPARTE 1 DE 1"
+	if len(pages) != 1 || pages[0] != want {
+		t.Fatalf("unexpected text QR: %#v", pages)
+	}
+	if strings.Contains(pages[0], "Agotado") || len([]byte(pages[0])) > 900 {
+		t.Fatal("unavailable dish or oversized payload")
+	}
+}

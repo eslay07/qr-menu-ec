@@ -16,9 +16,28 @@ export type LicensePayload=z.infer<typeof LicensePayload>;
 export const License=z.object({payload:z.string().max(4096),signature:z.string().max(256)});
 export type License=z.infer<typeof License>;
 export const Backup=z.object({schemaVersion:z.literal(1),sourceId:id,exportedAt:z.string().datetime(),draft:Catalog,settings:Settings,media:z.array(z.object({id:z.string().uuid(),type:z.enum(['image/jpeg','image/png','image/webp']),data:z.string().max(1500000)})).max(151)});
-export const defaultSettings:Settings={mode:'local',server:'router',accessExperience:'automatic_preferred',ssid:'QR-Menu',wifiPassword:'menu-invitados',localUrl:'http://192.168.8.1:8080/menu',webUrl:''};
+export const defaultSettings:Settings={mode:'text',server:'router',accessExperience:'automatic_preferred',ssid:'QR-Menu',wifiPassword:'menu-invitados',localUrl:'http://192.168.8.1:8080/menu',webUrl:''};
 export const blankCatalog:Catalog={name:'Mi restaurante',tagline:'Sabores que nos reúnen.',color:'#244130',logo:'',categories:[{id:'principales',name:'Platos principales'},{id:'bebidas',name:'Bebidas'}],dishes:[]};
 export const demoCatalog:Catalog={...blankCatalog,name:'La Mesa',tagline:'Cocina ecuatoriana, hecha con cariño.',categories:[{id:'principales',name:'Nuestra cocina'},{id:'bebidas',name:'Para acompañar'}],dishes:[{id:'encebollado',name:'Encebollado de la casa',description:'Albacora, yuca suave, cebolla encurtida y el toque fresco del limón.',categoryId:'principales',priceCents:650,available:true,image:'/demo/encebollado.jpg'},{id:'seco',name:'Seco de pollo',description:'Cocción lenta con especias, arroz amarillo y maduro.',categoryId:'principales',priceCents:750,available:true,image:''},{id:'bolon',name:'Bolón de verde',description:'Verde dorado, queso fresco y café pasado para acompañar.',categoryId:'principales',priceCents:400,available:true,image:''},{id:'jugo',name:'Jugo de maracuyá',description:'Fruta natural, preparado al momento.',categoryId:'bebidas',priceCents:250,available:true,image:''}]};
 export const money=(n:number)=>new Intl.NumberFormat('es-EC',{style:'currency',currency:'USD'}).format(n/100);
 export function wifiPayload(s:Settings){const esc=(s:string)=>s.replace(/([\\;,:" ])/g,'\\$1');return `WIFI:T:WPA;S:${esc(s.ssid)};P:${esc(s.wifiPassword)};;`;}
-export function textPages(c:Catalog,maxBytes=900){const pages:string[]=[];let text=`${c.name}\nUSD · Precios publicados\n`;const enc=new TextEncoder();for(const cat of c.categories){for(const d of c.dishes.filter(d=>d.categoryId===cat.id&&d.available)){const line=`\n${cat.name} · ${d.name}: ${money(d.priceCents)}`;if(enc.encode(text+line).length>maxBytes){pages.push(text);text=`${c.name}\nUSD · Continuación\n`;}text+=line;}}if(text)pages.push(text);return pages.map((p,i)=>`${p}\n\n${i+1}/${pages.length}`);}
+export const TEXT_QR_MAX_BYTES=900;
+const textBytes=(value:string)=>new TextEncoder().encode(value).length;
+const textFooter=(part:number,total:number)=>`\n\nPARTE ${part} DE ${total}`;
+const qrMoney=(cents:number)=>`$${(cents/100).toFixed(2)}`;
+export function textPages(c:Catalog,maxBytes=TEXT_QR_MAX_BYTES){
+ const pages:string[]=[],firstHeader=`${c.name}\nMENÚ · PRECIOS EN USD`,nextHeader=`${c.name}\nMENÚ · CONTINUACIÓN`,contentLimit=maxBytes-textBytes(textFooter(150,150));
+ let text=firstHeader,hasDish=false,currentCategory='';
+ for(const cat of c.categories){for(const dish of c.dishes.filter(d=>d.categoryId===cat.id&&d.available)){
+  const item=`- ${dish.name}: ${qrMoney(dish.priceCents)}`;
+  let addition=currentCategory===cat.id?`\n${item}`:`\n\n${cat.name}\n${item}`;
+  if(textBytes(text+addition)>contentLimit){
+   if(!hasDish)throw Error(`El texto de “${dish.name}” es demasiado largo para un QR legible.`);
+   pages.push(text);text=nextHeader;hasDish=false;currentCategory='';addition=`\n\n${cat.name}\n${item}`;
+   if(textBytes(text+addition)>contentLimit)throw Error(`El texto de “${dish.name}” es demasiado largo para un QR legible.`);
+  }
+  text+=addition;hasDish=true;currentCategory=cat.id;
+ }}
+ if(hasDish)pages.push(text);
+ return pages.map((page,index)=>`${page}${textFooter(index+1,pages.length)}`);
+}

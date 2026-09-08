@@ -9,8 +9,9 @@
 .pages-edition .customer-footer{padding-bottom:30px}
 .pages-status{padding:20px 24px 100px;text-align:center;font-size:14px;background:#edf2e7}
 .pages-status a{text-decoration:underline;display:inline-block;padding:16px}
-.print-card{max-width:650px;margin:40px auto;padding:24px;text-align:center;background:white}
+.print-cards{max-width:760px;margin:40px auto;padding:0 24px}.print-card-heading{text-align:center;margin-bottom:24px}.print-card-heading p{margin:16px 0}.print-card-heading .actions{justify-content:center}
+.print-card{max-width:650px;margin:24px auto;padding:32px;text-align:center;background:white;border:1px solid var(--border);border-radius:14px;break-inside:avoid}
 .print-card h1{font-size:28px;overflow-wrap:anywhere}.print-card p{margin:16px 0}
-.print-card img{max-width:100%;height:auto}.print-card .actions{justify-content:center}.qr-url{overflow-wrap:anywhere}
+.print-card img{max-width:100%;height:auto}.qr-payload{text-align:left;margin:18px 0}.qr-payload summary{cursor:pointer;font-weight:700}.qr-payload pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f4f6f1;border-radius:8px;padding:16px;font:14px/1.55 ui-monospace,monospace}
 @media(max-width:600px){.pages-edition .dish-grid{grid-template-columns:1fr}.pages-edition .dish-photo{height:210px}.pages-edition .dish-body p{min-height:0}.pages-edition .customer-intro h1{font-size:34px}.pages-edition .selection-row{flex-wrap:wrap}.pages-edition .modal{padding:18px}.pages-edition .customer-meta{flex-wrap:wrap}}
-@media print{.print-card{margin:0;max-width:100%}.print-card img{width:8cm;height:8cm}}
+@media print{.print-cards{margin:0;max-width:100%;padding:0}.print-card-heading{display:none}.print-card{margin:0;max-width:100%;border:0;page-break-after:always}.print-card:last-child{page-break-after:auto}.print-card img{width:9cm;height:9cm}}

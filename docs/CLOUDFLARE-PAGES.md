@@ -11,7 +11,7 @@ Android y OpenWrt se conserva. Pages es la edición de consulta de cartas editad
 - Entrada React/Vite independiente; ningún código de Sites ni API se incluye en esta edición.
 - Catálogo demo separado, validado al compilar, sin sobrescribir la base existente.
 - Rutas `/restaurante-demo`, `/restaurante-demo/qr`, inicio y aliases `/menu`, `/demo`.
-- QR PNG descargable e imprimible con la URL del sitio donde se abre.
+- QR PNG descargable e imprimible con platos y precios dentro del propio código, sin conexión previa.
 - Caché completa versionada por contenido; estado listo solo tras terminar la instalación.
 - Manifest e iconos PNG, cabeceras de seguridad y caché, fallback SPA.
 - Textos legibles, botones de al menos 44 px y tarjetas de una columna en móviles.
@@ -90,7 +90,7 @@ https://qr-menu-resuelven.pages.dev/restaurante-demo
 ## 8. QR DE PRUEBA
 
 Abre https://qr-menu-resuelven.pages.dev/restaurante-demo/qr. Pulsa **Descargar PNG** o **Imprimir QR**.
-El generador usa el origen actual: nunca imprimas un QR generado desde localhost o desde un preview temporal.
+El QR contiene la carta de texto publicada en el catálogo: no contiene localhost, un dominio ni una dirección temporal.
 El archivo de prueba decodificado se guarda en `outputs/pages-qa/restaurante-demo-qr.png`.
 
 ## 9. PRUEBAS EJECUTADAS
@@ -116,7 +116,7 @@ La primera prueba pública detectó un 308 de index.html que impedía la recarga
 ## 11. ERRORES CORREGIDOS
 
 La edición Pages tiene entrada y datos propios, sin solicitudes a API; mantiene los componentes existentes.
-Su propio SW cubre la carta SPA completa. Su QR usa la URL real del navegador sin exigir servidor.
+Su propio SW cubre la carta SPA completa. Su QR principal contiene texto y no exige servidor ni conexión en el primer escaneo.
 Wrangler, su plugin y tipos compatibles se actualizaron y eliminaron los hallazgos altos.
 El SW ahora guarda la respuesta canónica /, evitando reutilizar una respuesta redirigida durante
 la navegación offline. La corrección se desplegó automáticamente y pasó las pruebas públicas.
@@ -130,7 +130,7 @@ la navegación offline. La corrección se desplegó automáticamente y pasó las
   no forma parte del JavaScript entregado al comensal. No se forzó una regresión de Drizzle para ocultarlos.
 - Offline funciona después de una descarga completa, en el mismo navegador y origen. Puede perderse
   si el usuario borra datos, usa incógnito o el navegador elimina caché por falta de espacio.
-- El cliente nuevo necesita Internet. Escanear un QR no descarga mágicamente el menú sin red.
+- El QR de texto funciona para un cliente nuevo sin Internet. El menú visual con fotos sí necesita una primera visita con conexión para quedar guardado en ese navegador.
 - La carta descargada puede mostrar precios/disponibilidad anteriores. La selección no persiste al recargar.
 - No se ha certificado cámara, instalación PWA ni navegación en Android físico; requiere prueba humana.
 - No hay pedidos, pagos ni sincronización de cambios entre dispositivos en la edición estática.
@@ -215,9 +215,9 @@ Usa normalmente GitHub: cada push a main dispara la publicación automática. Un
 
 1. En la computadora abre la URL pública con `/restaurante-demo/qr`.
 2. Pulsa **Descargar PNG**. La imagen contiene la dirección de ese dominio.
-3. En otro celular con Internet abre **Cámara**. Apunta al QR completo y toca el enlace que aparezca.
-4. Debe abrir la carta pública. Si el teléfono no reconoce el QR, prueba Google Lens, más luz y mayor tamaño.
-5. Nunca imprimas el QR que contenga `127.0.0.1`, `localhost` o una dirección de preview temporal.
+3. En otro celular, incluso sin Internet, abre **Cámara**. Apunta al QR completo y toca el aviso de texto si el sistema lo solicita.
+4. Deben aparecer el nombre del restaurante, las categorías, los platos disponibles y sus precios. Si el teléfono no reconoce el QR, prueba Google Lens, más luz y mayor tamaño.
+5. Comprueba que el contenido no sea una URL y que los platos agotados no aparezcan.
 
 ### ETAPA H — Simular restaurante real
 
@@ -225,7 +225,7 @@ Usa normalmente GitHub: cada push a main dispara la publicación automática. Un
 2. Imprime en blanco y negro, con margen blanco, sin recortar; el QR se propone a 8 cm.
 3. Colócalo sobre una mesa, plano y con buena iluminación.
 4. Aléjate y vuelve como cliente. Escanea a unos 20–40 cm, ajustando distancia si hace falta.
-5. Abre **Entradas**: deben aparecer Empanadas $2.50 y Patacones con queso $3.50.
+5. En el texto deben aparecer **Entradas**, Empanadas $2.50 y Patacones con queso $3.50.
 6. Abre **Platos principales**: Hamburguesa clásica $5.00, doble $7.50, pollo $6.50, churrasco $8.50.
 7. El encebollado de prueba debe verse agotado y con foto ilustrativa, sin botón para añadirlo.
 8. Toca un plato para ver el detalle. Añádelo a la selección, comprueba el total y pulsa **Volver al menú**.

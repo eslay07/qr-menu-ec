@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import QRCode from 'qrcode';
 import Menu from '../app/ui/menu';
-import { Catalog } from '../lib/contracts';
+import { Catalog, textPages } from '../lib/contracts';
 import demo from '../data/restaurants/restaurante-demo.json';
 import '../app/globals.css';
 import '../app/product.css';
@@ -18,8 +18,8 @@ const validRoute = ['/', '/menu', '/demo', `/${slug}`, `/${slug}/qr`].includes(p
 
 function App() {
   const [status, setStatus] = useState('Preparando copia para consultar sin conexión…');
-  const [qr, setQr] = useState('');
-  const menuUrl = `${location.origin}/${slug}`;
+  const [qrs, setQrs] = useState<string[]>([]);
+  const payloads = catalog ? textPages(catalog) : [];
   useEffect(() => {
     if (!catalog || !validRoute) return;
     document.title = `${catalog.name} · QR Menu Resuelven`;
@@ -34,11 +34,11 @@ function App() {
     }).catch(() => setStatus('No se pudo guardar el menú completo. Vuelve a abrirlo con conexión.'));
   }, []);
   useEffect(() => {
-    if (isQr && catalog) QRCode.toDataURL(menuUrl, { width: 768, margin: 4, errorCorrectionLevel: 'M' })
-      .then(setQr).catch(() => setStatus('No se pudo generar el QR. Recarga la página.'));
-  }, [menuUrl]);
+    if (isQr && payloads.length) Promise.all(payloads.map(payload => QRCode.toDataURL(payload, { width: 768, margin: 4, errorCorrectionLevel: 'M' })))
+      .then(setQrs).catch(() => setStatus('No se pudo generar el QR. Recarga la página.'));
+  }, [isQr]);
   if (!catalog || !validRoute) return <main className="customer-empty"><h1>Restaurante no encontrado</h1><a className="btn" href="/restaurante-demo">Abrir restaurante demo</a></main>;
-  if (isQr) return <main className="print-card"><h1>{catalog.name}</h1><p>Escanea para ver el menú</p>{qr && <img src={qr} width="320" height="320" alt="Código QR del menú" />}<p className="qr-url">{menuUrl}</p><p>Necesitas conexión la primera vez que abres el menú.</p><div className="actions no-print"><button className="btn" onClick={() => print()}>Imprimir QR</button><a className="btn" href={qr} download={`${slug}-qr.png`}>Descargar PNG</a><a className="btn" href={`/${slug}`}>Abrir menú</a></div>{location.protocol !== 'https:' && <p>QR de red local: conecta primero el celular del cliente al mismo hotspot. No es una dirección pública de Internet.</p>}</main>;
+  if (isQr) return <main className="print-cards"><header className="print-card-heading"><h1>{catalog.name}</h1><p>La carta está guardada dentro del QR. El primer escaneo no necesita internet ni una visita previa.</p><div className="actions no-print"><button className="btn" onClick={() => print()}>Imprimir QR</button><a className="btn" href={`/${slug}`}>Abrir menú visual</a></div></header>{qrs.map((qr,index)=><article className="print-card" key={index}><p className="eyebrow">MENÚ SIN INTERNET</p><h2>{catalog.name}</h2><p>Escanea para leer platos y precios</p><img src={qr} width="360" height="360" alt={`Código QR del menú, parte ${index+1} de ${qrs.length}`} /><p>Parte {index+1} de {qrs.length}</p><details className="qr-payload no-print"><summary>Ver texto incluido</summary><pre>{payloads[index]}</pre></details><a className="btn no-print" href={qr} download={`${slug}-qr-${index+1}.png`}>Descargar PNG</a></article>)}</main>;
   return <div className="pages-edition"><Menu initialCatalog={catalog}/><aside className="pages-status" role="status"><p>{status}</p><a href={`/${slug}/qr`}>Ver e imprimir QR</a></aside></div>;
 }
 createRoot(document.getElementById('root')!).render(<App/>);

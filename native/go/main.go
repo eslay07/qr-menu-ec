@@ -278,7 +278,7 @@ func assetIDs(c Catalog) []string {
 func newState(name, password string) (State, string) {
 	salt := randomToken()
 	recovery := randomToken()
-	return State{SchemaVersion: 1, RestaurantID: uuid(), OwnerID: "local-owner", Draft: Catalog{Name: name, Tagline: "Sabores que nos reúnen.", Color: "#244130", Categories: []Category{{ID: "principales", Name: "Platos principales"}, {ID: "bebidas", Name: "Bebidas"}}, Dishes: []Dish{}}, Settings: Settings{Mode: "local", Server: "router", AccessExperience: "automatic_preferred", SSID: "QR-Menu", WifiPassword: "menu-invitados", LocalURL: "http://192.168.8.1:8080/menu"}, Password: Password{Salt: salt, Hash: passwordHash(password, salt)}, RecoveryHash: digest(recovery), CreatedAt: time.Now().UTC().Format(time.RFC3339)}, recovery
+	return State{SchemaVersion: 1, RestaurantID: uuid(), OwnerID: "local-owner", Draft: Catalog{Name: name, Tagline: "Sabores que nos reúnen.", Color: "#244130", Categories: []Category{{ID: "principales", Name: "Platos principales"}, {ID: "bebidas", Name: "Bebidas"}}, Dishes: []Dish{}}, Settings: Settings{Mode: "text", Server: "router", AccessExperience: "automatic_preferred", SSID: "QR-Menu", WifiPassword: "menu-invitados", LocalURL: "http://192.168.8.1:8080/menu"}, Password: Password{Salt: salt, Hash: passwordHash(password, salt)}, RecoveryHash: digest(recovery), CreatedAt: time.Now().UTC().Format(time.RFC3339)}, recovery
 }
 
 // An append-only journal gives Windows 7, OpenWrt and modern Windows identical
@@ -796,7 +796,16 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request, p string) {
 			}
 			texts = []string{state.Settings.WebURL}
 		case "text":
-			texts = textPages(state.Published.Catalog)
+			var err error
+			texts, err = textPages(state.Published.Catalog)
+			if err != nil {
+				fail(w, 400, err.Error())
+				return
+			}
+			if len(texts) == 0 {
+				fail(w, 400, "Marca al menos un plato como disponible y vuelve a publicar el menú.")
+				return
+			}
 		}
 		codes := []map[string]string{}
 		for _, t := range texts {
@@ -811,27 +820,45 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request, p string) {
 	}
 	fail(w, 404, "Ruta no encontrada.")
 }
-func textPages(c Catalog) []string {
+func textPages(c Catalog) ([]string, error) {
+	const maxBytes = 900
+	footer := func(part, total int) string { return fmt.Sprintf("\n\nPARTE %d DE %d", part, total) }
+	contentLimit := maxBytes - len(footer(150, 150))
 	pages := []string{}
-	text := c.Name + "\nUSD · Precios publicados\n"
+	text := c.Name + "\nMENÚ · PRECIOS EN USD"
+	hasDish, currentCategory := false, ""
 	for _, cat := range c.Categories {
 		for _, d := range c.Dishes {
 			if d.CategoryID != cat.ID || !d.Available {
 				continue
 			}
-			line := fmt.Sprintf("\n%s · %s: $%.2f", cat.Name, d.Name, float64(d.PriceCents)/100)
-			if len(text+line) > 900 {
-				pages = append(pages, text)
-				text = c.Name + "\nUSD · Continuación\n"
+			item := fmt.Sprintf("- %s: $%.2f", d.Name, float64(d.PriceCents)/100)
+			addition := "\n" + item
+			if currentCategory != cat.ID {
+				addition = "\n\n" + cat.Name + "\n" + item
 			}
-			text += line
+			if len(text+addition) > contentLimit {
+				if !hasDish {
+					return nil, fmt.Errorf("El texto de %q es demasiado largo para un QR legible.", d.Name)
+				}
+				pages = append(pages, text)
+				text, hasDish, currentCategory = c.Name+"\nMENÚ · CONTINUACIÓN", false, ""
+				addition = "\n\n" + cat.Name + "\n" + item
+				if len(text+addition) > contentLimit {
+					return nil, fmt.Errorf("El texto de %q es demasiado largo para un QR legible.", d.Name)
+				}
+			}
+			text += addition
+			hasDish, currentCategory = true, cat.ID
 		}
 	}
-	pages = append(pages, text)
-	for i := range pages {
-		pages[i] += fmt.Sprintf("\n\n%d/%d", i+1, len(pages))
+	if hasDish {
+		pages = append(pages, text)
 	}
-	return pages
+	for i := range pages {
+		pages[i] += footer(i+1, len(pages))
+	}
+	return pages, nil
 }
 func ensureTLS(dir string, addresses []string) (string, string, error) {
 	certFile, keyFile := filepath.Join(dir, "server.crt"), filepath.Join(dir, "server.key")

@@ -20,7 +20,7 @@ Un software ejecutado en equipos propiedad del comprador no es DRM inviolable. L
 
 Generar claves: `node tools/license.mjs keygen RUTA_PRIVADA_FUERA_DEL_PROYECTO`.
 
-Emitir: `node tools/license.mjs issue CLAVE_PRIVADA ID_RESTAURANTE CLIENTE local,web ARCHIVO.json`.
+Emitir modalidad principal: `node tools/license.mjs issue CLAVE_PRIVADA ID_RESTAURANTE CLIENTE text ARCHIVO.json`. Para conservar ampliaciones existentes, incluye todas las modalidades adquiridas, por ejemplo `text,local,web`.
 
 En esta entrega la clave del vendedor se conserva en la carpeta privada hermana del proyecto. Respaldarla fuera del equipo antes de emitir licencias comerciales. La identidad de firma Android de piloto es distinta y tampoco debe perderse para futuras actualizaciones.
 
