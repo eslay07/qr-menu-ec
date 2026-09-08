@@ -1,1 +1,1 @@
-89ae4fdfc3a66cffe8aac35e15c1686e1e716821812b83afdde12e3703e36a2a  qr-menu-android.apk
+8e5477b0800ef7f299e49535f3171d230489558e02f38ed2f75f725864cc5dbe  qr-menu-android.apk

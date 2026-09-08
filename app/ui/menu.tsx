@@ -1,16 +1,421 @@
-'use client';
-import { useEffect,useState } from 'react';
-import { Search,Plus,Minus,ShoppingBag,ArrowLeft,Download,Utensils,WifiOff } from 'lucide-react';
-import { type Catalog,money,demoCatalog } from '@/lib/contracts';
-import { api } from './client';
-export default function Menu({preview=false,demo=false,initialCatalog}:{preview?:boolean;demo?:boolean;initialCatalog?:Catalog}){const [catalog,setCatalog]=useState<Catalog|null>(initialCatalog??(demo?demoCatalog:null)),[error,setError]=useState(''),[version,setVersion]=useState(0),[date,setDate]=useState(''),[guided,setGuided]=useState(false),[entered,setEntered]=useState(false),[query,setQuery]=useState(''),[cat,setCat]=useState('all'),[cart,setCart]=useState<Record<string,number>>({}),[bag,setBag]=useState(false),[detail,setDetail]=useState<Catalog['dishes'][0]|null>(null),[offline,setOffline]=useState(false),[saving,setSaving]=useState(false),[message,setMessage]=useState('');
- useEffect(()=>{if(demo||initialCatalog)return;api(preview?'state':'menu').then(b=>{setCatalog(preview?b.draft:b.catalog);setVersion(b.version||0);setDate(b.at||'');setGuided(b.accessExperience==='guided');}).catch(e=>setError(e.message));},[demo,preview,initialCatalog]);
- useEffect(()=>{const f=()=>setOffline(!navigator.onLine);f();window.addEventListener('online',f);window.addEventListener('offline',f);return()=>{window.removeEventListener('online',f);window.removeEventListener('offline',f)}},[]);
- const change=(id:string,n:number)=>setCart(c=>({...c,[id]:Math.max(0,Math.min(99,(c[id]||0)+n))}));
- const selected=catalog?.dishes.filter(d=>d.available&&(cart[d.id]||0)>0)||[];const total=selected.reduce((a,d)=>a+d.priceCents*cart[d.id],0);
- async function saveOffline(){setSaving(true);try{if(!('serviceWorker'in navigator)||!window.isSecureContext)throw Error('La descarga requiere abrir la versión web con HTTPS.');await navigator.serviceWorker.register('/sw.js');const reg=await navigator.serviceWorker.ready;await new Promise<void>((resolve,reject)=>{const channel=new MessageChannel();const timer=setTimeout(()=>reject(Error('La descarga no terminó. Inténtalo de nuevo con conexión.')),60000);channel.port1.onmessage=e=>{clearTimeout(timer);e.data.ok?resolve():reject(Error(e.data.error));};reg.active!.postMessage({type:'DOWNLOAD_MENU'},[channel.port2]);});setMessage('Menú y fotos guardados en este navegador. Puedes abrir /offline.html sin conexión.');}catch(e){setMessage((e as Error).message)}finally{setSaving(false)}}
- if(error)return <main className="customer-empty"><WifiOff size={36}/><h1>El menú no está disponible</h1><p>{error}</p><button className="btn" onClick={()=>location.reload()}>Volver a intentar</button><a href="/offline.html">Abrir copia descargada</a></main>;
- if(!catalog)return <main className="customer-empty"><Utensils size={36}/><h1>Preparando la mesa…</h1></main>;
- if(guided&&!entered&&!preview)return <main className="welcome" style={{background:catalog.color}}><Utensils size={45}/><p className="eyebrow">BIENVENIDO A NUESTRA MESA</p><h1>{catalog.name}</h1><p>{catalog.tagline}</p><button className="btn primary" onClick={()=>setEntered(true)}>Ver menú</button><small>No necesitas registrarte ni tener internet en esta red.</small></main>;
- return <div className="customer" style={{'--restaurant-color':catalog.color} as React.CSSProperties}>{(preview||demo)&&<div className="preview-ribbon">{demo?'Restaurante de demostración · Foto ilustrativa':'Vista previa del borrador · No visible para tus clientes'}<a href="/">Volver al panel</a></div>}<header className="customer-header"><div className="customer-brand">{catalog.logo?<img src={catalog.logo} alt=""/>:<Utensils/>}<span>{catalog.name}<small>COCINA QUE NOS REÚNE</small></span></div><button className="bag-icon" aria-label="Ver mi selección" onClick={()=>setBag(true)}><ShoppingBag size={21}/>{selected.length>0&&<b>{selected.reduce((a,d)=>a+cart[d.id],0)}</b>}</button></header><section className="customer-intro"><span className="eyebrow">SIÉNTATE. ELIGE. DISFRUTA.</span><h1>Algo rico te espera.</h1><p>{catalog.tagline}</p><div className="customer-meta">Precios en USD <span>•</span> {offline?'Sin conexión detectada':'Preparado al momento'}</div></section><div className="menu-controls"><label className="search"><Search size={18}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="¿Qué se te antoja?" aria-label="Buscar platos"/></label><div className="category-tabs"><button className={cat==='all'?'selected':''} onClick={()=>setCat('all')}>Todo el menú</button>{catalog.categories.map(c=><button className={cat===c.id?'selected':''} onClick={()=>setCat(c.id)} key={c.id}>{c.name}</button>)}</div></div><main className="customer-dishes">{catalog.categories.filter(c=>cat==='all'||c.id===cat).map(c=>{const dishes=catalog.dishes.filter(d=>d.categoryId===c.id&&(d.name+' '+d.description).toLowerCase().includes(query.toLowerCase()));return dishes.length?<section key={c.id}><div className="section-title"><h2>{c.name}</h2><span className="muted">{dishes.length} opciones</span></div><div className="dish-grid">{dishes.map(d=><article className={'dish-card '+(!d.available?'unavailable':'')} key={d.id}><button className="dish-photo" onClick={()=>setDetail(d)} aria-label={'Ver '+d.name}>{d.image?<img src={d.image} alt={d.name}/>:<span className="no-photo"><Utensils size={33}/><span>Hecho en nuestra cocina</span></span>}{!d.available&&<span className="photo-badge">Agotado por hoy</span>}</button><div className="dish-body"><button className="dish-title" onClick={()=>setDetail(d)}>{d.name}</button><p>{d.description}</p><div className="dish-bottom"><strong>{money(d.priceCents)}</strong>{d.available&&(cart[d.id]?<div className="quantity"><button aria-label={'Quitar '+d.name} onClick={()=>change(d.id,-1)}><Minus size={15}/></button><b>{cart[d.id]}</b><button aria-label={'Añadir '+d.name} onClick={()=>change(d.id,1)}><Plus size={15}/></button></div>:<button className="add-dish" aria-label={'Añadir '+d.name} onClick={()=>change(d.id,1)}><Plus size={20}/></button>)}</div></div></article>)}</div></section>:null})}{!catalog.dishes.some(d=>(d.name+' '+d.description).toLowerCase().includes(query.toLowerCase()))&&<div className="empty"><Search/><h3>No encontramos ese plato</h3><p>Prueba con otro nombre.</p></div>}</main><footer className="customer-footer"><p>Elige con calma. Comparte tu selección con el mesero.</p>{!preview&&!demo&&!initialCatalog&&<button disabled={saving} className="btn" onClick={saveOffline}><Download size={16}/>{saving?'Guardando menú y fotos…':'Guardar para consultar sin conexión'}</button>}{message&&<p role="status">{message}</p>}<small>QR Menú {version>0&&`· Versión ${version}`} {date&&`· ${new Date(date).toLocaleDateString('es-EC')}`}</small></footer>{selected.length>0&&!bag&&<button className="selection-bar" onClick={()=>setBag(true)}><ShoppingBag size={18}/><span>Ver mi selección</span><strong>{money(total)}</strong></button>}{bag&&<div className="modal-backdrop"><section className="modal" role="dialog" aria-modal="true" aria-label="Mi selección"><button className="btn" onClick={()=>setBag(false)}><ArrowLeft size={16}/>Volver al menú</button><h2>Tu selección</h2><p className="muted">Muéstrala al mesero. Esto no envía un pedido.</p>{selected.length?selected.map(d=><div className="selection-row" key={d.id}><div><strong>{d.name}</strong><small>{money(d.priceCents)} cada uno</small></div><div className="quantity"><button onClick={()=>change(d.id,-1)} aria-label={'Quitar '+d.name}><Minus size={14}/></button>{cart[d.id]}<button onClick={()=>change(d.id,1)} aria-label={'Añadir '+d.name}><Plus size={14}/></button></div><strong>{money(d.priceCents*cart[d.id])}</strong></div>):<p className="empty">Todavía no has elegido ningún plato.</p>}<div className="selection-total"><span>Total de tu selección</span><strong>{money(total)}</strong></div><button className="btn" onClick={()=>{setCart({});setBag(false)}}>Vaciar selección</button></section></div>}{detail&&<div className="modal-backdrop"><section className="modal" role="dialog" aria-modal="true" aria-label={detail.name}><button className="btn" onClick={()=>setDetail(null)}>Cerrar</button>{detail.image&&<img className="detail-photo" src={detail.image} alt={detail.name}/>}<h2>{detail.name}</h2><p>{detail.description}</p><strong>{money(detail.priceCents)}</strong><button disabled={!detail.available} className="btn primary" onClick={()=>{change(detail.id,1);setDetail(null)}}>{detail.available?'Añadir a mi selección':'Agotado'}</button></section></div>}</div>
+"use client";
+import { useEffect, useState } from "react";
+import {
+  Search,
+  Plus,
+  Minus,
+  ShoppingBag,
+  ArrowLeft,
+  Download,
+  Utensils,
+  WifiOff,
+} from "lucide-react";
+import { type Catalog, money, demoCatalog } from "@/lib/contracts";
+import { api, restaurantBase } from "./client";
+export default function Menu({
+  preview = false,
+  demo = false,
+  initialCatalog,
+}: {
+  preview?: boolean;
+  demo?: boolean;
+  initialCatalog?: Catalog;
+}) {
+  const base = restaurantBase(),
+    media = (value: string) =>
+      value.startsWith("/api/v1/media/") ? base + value : value;
+  const [catalog, setCatalog] = useState<Catalog | null>(
+      initialCatalog ?? (demo ? demoCatalog : null),
+    ),
+    [error, setError] = useState(""),
+    [version, setVersion] = useState(0),
+    [date, setDate] = useState(""),
+    [guided, setGuided] = useState(false),
+    [entered, setEntered] = useState(false),
+    [query, setQuery] = useState(""),
+    [cat, setCat] = useState("all"),
+    [cart, setCart] = useState<Record<string, number>>({}),
+    [bag, setBag] = useState(false),
+    [detail, setDetail] = useState<Catalog["dishes"][0] | null>(null),
+    [offline, setOffline] = useState(false),
+    [saving, setSaving] = useState(false),
+    [message, setMessage] = useState("");
+  useEffect(() => {
+    if (demo || initialCatalog) return;
+    api(preview ? "state" : "menu")
+      .then((b) => {
+        setCatalog(preview ? b.draft : b.catalog);
+        setVersion(b.version || 0);
+        setDate(b.at || "");
+        setGuided(b.accessExperience === "guided");
+      })
+      .catch((e) => setError(e.message));
+  }, [demo, preview, initialCatalog]);
+  useEffect(() => {
+    const f = () => setOffline(!navigator.onLine);
+    f();
+    window.addEventListener("online", f);
+    window.addEventListener("offline", f);
+    return () => {
+      window.removeEventListener("online", f);
+      window.removeEventListener("offline", f);
+    };
+  }, []);
+  const change = (id: string, n: number) =>
+    setCart((c) => ({
+      ...c,
+      [id]: Math.max(0, Math.min(99, (c[id] || 0) + n)),
+    }));
+  const selected =
+    catalog?.dishes.filter((d) => d.available && (cart[d.id] || 0) > 0) || [];
+  const total = selected.reduce((a, d) => a + d.priceCents * cart[d.id], 0);
+  async function saveOffline() {
+    setSaving(true);
+    try {
+      if (!("serviceWorker" in navigator) || !window.isSecureContext)
+        throw Error("La descarga requiere abrir la versión web con HTTPS.");
+      await navigator.serviceWorker.register("/sw.js");
+      const reg = await navigator.serviceWorker.ready;
+      await new Promise<void>((resolve, reject) => {
+        const channel = new MessageChannel();
+        const timer = setTimeout(
+          () =>
+            reject(
+              Error("La descarga no terminó. Inténtalo de nuevo con conexión."),
+            ),
+          60000,
+        );
+        channel.port1.onmessage = (e) => {
+          clearTimeout(timer);
+          e.data.ok ? resolve() : reject(Error(e.data.error));
+        };
+        reg.active!.postMessage({ type: "DOWNLOAD_MENU" }, [channel.port2]);
+      });
+      setMessage(
+        "Menú y fotos guardados en este navegador. Puedes abrir /offline.html sin conexión.",
+      );
+    } catch (e) {
+      setMessage((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
+  if (error)
+    return (
+      <main className="customer-empty">
+        <WifiOff size={36} />
+        <h1>El menú no está disponible</h1>
+        <p>{error}</p>
+        <button className="btn" onClick={() => location.reload()}>
+          Volver a intentar
+        </button>
+        {!base && <a href="/offline.html">Abrir copia descargada</a>}
+      </main>
+    );
+  if (!catalog)
+    return (
+      <main className="customer-empty">
+        <Utensils size={36} />
+        <h1>Preparando la mesa…</h1>
+      </main>
+    );
+  if (guided && !entered && !preview)
+    return (
+      <main className="welcome" style={{ background: catalog.color }}>
+        <Utensils size={45} />
+        <p className="eyebrow">BIENVENIDO A NUESTRA MESA</p>
+        <h1>{catalog.name}</h1>
+        <p>{catalog.tagline}</p>
+        <button className="btn primary" onClick={() => setEntered(true)}>
+          Ver menú
+        </button>
+        <small>No necesitas registrarte ni tener internet en esta red.</small>
+      </main>
+    );
+  return (
+    <div
+      className="customer"
+      style={{ "--restaurant-color": catalog.color } as React.CSSProperties}
+    >
+      {(preview || demo) && (
+        <div className="preview-ribbon">
+          {demo
+            ? "Restaurante de demostración · Foto ilustrativa"
+            : "Vista previa del borrador · No visible para tus clientes"}
+          <a href={base || "/"}>Volver al panel</a>
+        </div>
+      )}
+      <header className="customer-header">
+        <div className="customer-brand">
+          {catalog.logo ? <img src={media(catalog.logo)} alt="" /> : <Utensils />}
+          <span>
+            {catalog.name}
+            <small>COCINA QUE NOS REÚNE</small>
+          </span>
+        </div>
+        <button
+          className="bag-icon"
+          aria-label="Ver mi selección"
+          onClick={() => setBag(true)}
+        >
+          <ShoppingBag size={21} />
+          {selected.length > 0 && (
+            <b>{selected.reduce((a, d) => a + cart[d.id], 0)}</b>
+          )}
+        </button>
+      </header>
+      <section className="customer-intro">
+        <span className="eyebrow">SIÉNTATE. ELIGE. DISFRUTA.</span>
+        <h1>Algo rico te espera.</h1>
+        <p>{catalog.tagline}</p>
+        <div className="customer-meta">
+          Precios en USD <span>•</span>{" "}
+          {offline ? "Sin conexión detectada" : "Preparado al momento"}
+        </div>
+      </section>
+      <div className="menu-controls">
+        <label className="search">
+          <Search size={18} />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="¿Qué se te antoja?"
+            aria-label="Buscar platos"
+          />
+        </label>
+        <div className="category-tabs">
+          <button
+            className={cat === "all" ? "selected" : ""}
+            onClick={() => setCat("all")}
+          >
+            Todo el menú
+          </button>
+          {catalog.categories.map((c) => (
+            <button
+              className={cat === c.id ? "selected" : ""}
+              onClick={() => setCat(c.id)}
+              key={c.id}
+            >
+              {c.name}
+            </button>
+          ))}
+        </div>
+      </div>
+      <main className="customer-dishes">
+        {catalog.categories
+          .filter((c) => cat === "all" || c.id === cat)
+          .map((c) => {
+            const dishes = catalog.dishes.filter(
+              (d) =>
+                d.categoryId === c.id &&
+                (d.name + " " + d.description)
+                  .toLowerCase()
+                  .includes(query.toLowerCase()),
+            );
+            return dishes.length ? (
+              <section key={c.id}>
+                <div className="section-title">
+                  <h2>{c.name}</h2>
+                  <span className="muted">{dishes.length} opciones</span>
+                </div>
+                <div className="dish-grid">
+                  {dishes.map((d) => (
+                    <article
+                      className={
+                        "dish-card " + (!d.available ? "unavailable" : "")
+                      }
+                      key={d.id}
+                    >
+                      <button
+                        className="dish-photo"
+                        onClick={() => setDetail(d)}
+                        aria-label={"Ver " + d.name}
+                      >
+                        {d.image ? (
+                          <img src={media(d.image)} alt={d.name} />
+                        ) : (
+                          <span className="no-photo">
+                            <Utensils size={33} />
+                            <span>Hecho en nuestra cocina</span>
+                          </span>
+                        )}
+                        {!d.available && (
+                          <span className="photo-badge">Agotado por hoy</span>
+                        )}
+                      </button>
+                      <div className="dish-body">
+                        <button
+                          className="dish-title"
+                          onClick={() => setDetail(d)}
+                        >
+                          {d.name}
+                        </button>
+                        <p>{d.description}</p>
+                        <div className="dish-bottom">
+                          <strong>{money(d.priceCents)}</strong>
+                          {d.available &&
+                            (cart[d.id] ? (
+                              <div className="quantity">
+                                <button
+                                  aria-label={"Quitar " + d.name}
+                                  onClick={() => change(d.id, -1)}
+                                >
+                                  <Minus size={15} />
+                                </button>
+                                <b>{cart[d.id]}</b>
+                                <button
+                                  aria-label={"Añadir " + d.name}
+                                  onClick={() => change(d.id, 1)}
+                                >
+                                  <Plus size={15} />
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                className="add-dish"
+                                aria-label={"Añadir " + d.name}
+                                onClick={() => change(d.id, 1)}
+                              >
+                                <Plus size={20} />
+                              </button>
+                            ))}
+                        </div>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            ) : null;
+          })}
+        {!catalog.dishes.some((d) =>
+          (d.name + " " + d.description)
+            .toLowerCase()
+            .includes(query.toLowerCase()),
+        ) && (
+          <div className="empty">
+            <Search />
+            <h3>No encontramos ese plato</h3>
+            <p>Prueba con otro nombre.</p>
+          </div>
+        )}
+      </main>
+      <footer className="customer-footer">
+        <p>Elige con calma. Comparte tu selección con el mesero.</p>
+          {!base && !preview && !demo && !initialCatalog && (
+          <button disabled={saving} className="btn" onClick={saveOffline}>
+            <Download size={16} />
+            {saving
+              ? "Guardando menú y fotos…"
+              : "Guardar para consultar sin conexión"}
+          </button>
+        )}
+        {message && <p role="status">{message}</p>}
+        <small>
+          QR Menú {version > 0 && `· Versión ${version}`}{" "}
+          {date && `· ${new Date(date).toLocaleDateString("es-EC")}`}
+        </small>
+      </footer>
+      {selected.length > 0 && !bag && (
+        <button className="selection-bar" onClick={() => setBag(true)}>
+          <ShoppingBag size={18} />
+          <span>Ver mi selección</span>
+          <strong>{money(total)}</strong>
+        </button>
+      )}
+      {bag && (
+        <div className="modal-backdrop">
+          <section
+            className="modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Mi selección"
+          >
+            <button className="btn" onClick={() => setBag(false)}>
+              <ArrowLeft size={16} />
+              Volver al menú
+            </button>
+            <h2>Tu selección</h2>
+            <p className="muted">
+              Muéstrala al mesero. Esto no envía un pedido.
+            </p>
+            {selected.length ? (
+              selected.map((d) => (
+                <div className="selection-row" key={d.id}>
+                  <div>
+                    <strong>{d.name}</strong>
+                    <small>{money(d.priceCents)} cada uno</small>
+                  </div>
+                  <div className="quantity">
+                    <button
+                      onClick={() => change(d.id, -1)}
+                      aria-label={"Quitar " + d.name}
+                    >
+                      <Minus size={14} />
+                    </button>
+                    {cart[d.id]}
+                    <button
+                      onClick={() => change(d.id, 1)}
+                      aria-label={"Añadir " + d.name}
+                    >
+                      <Plus size={14} />
+                    </button>
+                  </div>
+                  <strong>{money(d.priceCents * cart[d.id])}</strong>
+                </div>
+              ))
+            ) : (
+              <p className="empty">Todavía no has elegido ningún plato.</p>
+            )}
+            <div className="selection-total">
+              <span>Total de tu selección</span>
+              <strong>{money(total)}</strong>
+            </div>
+            <button
+              className="btn"
+              onClick={() => {
+                setCart({});
+                setBag(false);
+              }}
+            >
+              Vaciar selección
+            </button>
+          </section>
+        </div>
+      )}
+      {detail && (
+        <div className="modal-backdrop">
+          <section
+            className="modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label={detail.name}
+          >
+            <button className="btn" onClick={() => setDetail(null)}>
+              Cerrar
+            </button>
+            {detail.image && (
+              <img
+                className="detail-photo"
+                src={media(detail.image)}
+                alt={detail.name}
+              />
+            )}
+            <h2>{detail.name}</h2>
+            <p>{detail.description}</p>
+            <strong>{money(detail.priceCents)}</strong>
+            <button
+              disabled={!detail.available}
+              className="btn primary"
+              onClick={() => {
+                change(detail.id, 1);
+                setDetail(null);
+              }}
+            >
+              {detail.available ? "Añadir a mi selección" : "Agotado"}
+            </button>
+          </section>
+        </div>
+      )}
+    </div>
+  );
 }

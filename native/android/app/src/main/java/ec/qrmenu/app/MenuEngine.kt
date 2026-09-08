@@ -35,7 +35,38 @@ class MenuEngine(private val ctx:Context){private val file=AtomicFile(File(ctx.f
  private fun ok()=JSONObject().put("ok",true)
  private fun cookie(s:JSONObject,response:NanoHTTPD.Response):NanoHTTPD.Response=response.apply{addHeader("Set-Cookie","qrmenu_session="+sessionToken(s,System.currentTimeMillis()+86400000)+"; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=86400")}
  private fun imageValid(b:ByteArray,type:String)=b.size in 13..1000000&&((type=="image/jpeg"&&b[0].toInt() and 255==255&&b[1].toInt() and 255==216)||(type=="image/png"&&b[0].toInt() and 255==137&&b[1].toInt()==80)||(type=="image/webp"&&String(b.copyOfRange(0,4))=="RIFF"&&String(b.copyOfRange(8,12))=="WEBP"))
- private fun textPages(c:JSONObject):List<String>{val maxBytes=900;fun footer(part:Int,total:Int)="\n\nPARTE $part DE $total";val limit=maxBytes-footer(150,150).toByteArray().size;val pages=mutableListOf<String>();var text=c.getString("name")+"\nMENÚ · PRECIOS EN USD";var hasDish=false;var currentCategory="";arr(c.getJSONArray("categories")).forEach{cat->arr(c.getJSONArray("dishes")).filter{it.getString("categoryId")==cat.getString("id")&&it.getBoolean("available")}.forEach{dish->val item="- "+dish.getString("name")+": $"+String.format(java.util.Locale.US,"%.2f",dish.getInt("priceCents")/100.0);var addition=if(currentCategory==cat.getString("id"))"\n$item" else "\n\n"+cat.getString("name")+"\n$item";if((text+addition).toByteArray().size>limit){require(hasDish){"El texto de “${dish.getString("name")}” es demasiado largo para un QR legible."};pages.add(text);text=c.getString("name")+"\nMENÚ · CONTINUACIÓN";hasDish=false;currentCategory="";addition="\n\n"+cat.getString("name")+"\n$item";require((text+addition).toByteArray().size<=limit){"El texto de “${dish.getString("name")}” es demasiado largo para un QR legible."}};text+=addition;hasDish=true;currentCategory=cat.getString("id")}};if(hasDish)pages.add(text);return pages.mapIndexed{i,page->page+footer(i+1,pages.size)}}
+ private fun textPages(c: JSONObject): List<String> {
+  val maxBytes = 900
+  fun footer(part: Int, total: Int) = "\n\nPARTE $part DE $total"
+  val limit = maxBytes - footer(150, 150).toByteArray().size
+  val pages = mutableListOf<String>()
+  var text = c.getString("name") + "\nMENÚ · PRECIOS EN USD"
+  var hasDish = false
+  var currentCategory = ""
+  arr(c.getJSONArray("categories")).forEach { category ->
+   arr(c.getJSONArray("dishes")).filter { dish ->
+    dish.getString("categoryId") == category.getString("id") && dish.getBoolean("available")
+   }.forEach { dish ->
+    val dishName = dish.getString("name")
+    val item = "- $dishName: $" + String.format(java.util.Locale.US, "%.2f", dish.getInt("priceCents") / 100.0)
+    var addition = if (currentCategory == category.getString("id")) "\n$item" else "\n\n${category.getString("name")}\n$item"
+    if ((text + addition).toByteArray().size > limit) {
+     require(hasDish) { "El texto de $dishName es demasiado largo para un QR legible." }
+     pages.add(text)
+     text = c.getString("name") + "\nMENÚ · CONTINUACIÓN"
+     hasDish = false
+     currentCategory = ""
+     addition = "\n\n${category.getString("name")}\n$item"
+     require((text + addition).toByteArray().size <= limit) { "El texto de $dishName es demasiado largo para un QR legible." }
+    }
+    text += addition
+    hasDish = true
+    currentCategory = category.getString("id")
+   }
+  }
+  if (hasDish) pages.add(text)
+  return pages.mapIndexed { index, page -> page + footer(index + 1, pages.size) }
+ }
  private fun writeMedia(id:String,type:String,b:ByteArray){File(media,id).writeBytes(b);File(media,"$id.type").writeText(type)}
  @Synchronized fun handle(path:String,method:String,h:Map<String,String>,bytes:ByteArray,admin:Boolean):NanoHTTPD.Response{try{
   var s=stored?.getJSONObject("state")?.let{JSONObject(it.toString())};val b=if(bytes.isNotEmpty()&&path!="media")JSONObject(String(bytes,Charsets.UTF_8))else JSONObject();val revision=stored?.getInt("revision")?:0

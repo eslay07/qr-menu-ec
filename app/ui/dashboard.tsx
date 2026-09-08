@@ -40,7 +40,7 @@ import {
   buildOfflineText,
   OFFLINE_TEXT_QR_MAX_BYTES,
 } from "@/lib/contracts";
-import { api, download, uploadPhoto } from "./client";
+import { api, download, restaurantBase, uploadPhoto } from "./client";
 import QRCode from "qrcode";
 type PanelState = {
   restaurantId: string;
@@ -102,6 +102,7 @@ const modeInfo: {
 ];
 type Dish = Catalog["dishes"][0];
 export default function Dashboard() {
+  const base = restaurantBase();
   const [tab, setTab] = useState("Mi menú"),
     [session, setSession] = useState<{
       configured: boolean;
@@ -257,7 +258,7 @@ export default function Dashboard() {
   return (
     <div className="workspace">
       <aside className="sidebar">
-        <a className="wordmark" href="/">
+        <a className="wordmark" href={base || "/"}>
           <QrCode />
           <span>
             qr<span className="lime">menú</span>
@@ -329,7 +330,7 @@ export default function Dashboard() {
           </div>
           {state && (
             <div className="actions">
-              <a className="btn" href="/preview" target="_blank">
+              <a className="btn" href={`${base}/preview`} target="_blank">
                 <Eye size={17} />
                 Vista previa
               </a>

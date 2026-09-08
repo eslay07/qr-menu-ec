@@ -1,6 +1,6 @@
 plugins { id("com.android.application"); id("org.jetbrains.kotlin.android") }
 android { namespace="ec.qrmenu.app"; compileSdk=35
- defaultConfig { applicationId="ec.qrmenu.app"; minSdk=29; targetSdk=35; versionCode=2; versionName="0.2.0-hotspot-pilot" }
+ defaultConfig { applicationId="ec.qrmenu.app"; minSdk=29; targetSdk=35; versionCode=3; versionName="0.3.0-cloud-owner" }
  compileOptions { sourceCompatibility=JavaVersion.VERSION_17; targetCompatibility=JavaVersion.VERSION_17 }
  kotlinOptions { jvmTarget="17" }
  packaging { resources { excludes += "META-INF/versions/9/OSGI-INF/MANIFEST.MF" } }

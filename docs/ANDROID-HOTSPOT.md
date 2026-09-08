@@ -1,22 +1,24 @@
-# QR Menu Resuelven · Android hotspot 0.2.0
+# QR Menu Resuelven · Android dueño 0.3.0
 
 Descarga: https://qr-menu-resuelven.pages.dev/android
 
 ## Qué está preparado
 
-APK firmado para Android 10 o posterior. Instrucciones de hotspot, direcciones privadas actuales,
-acceso a demo y QR por IP. La demo RESTAURANTE DEMO RESUELVEN está empaquetada dentro del APK:
+APK firmado para Android 10 o posterior. La pantalla principal abre el panel del dueño alojado en
+Cloudflare para modificar carta, fotos, precios y generar los dos QR. El creador controla la cuenta
+desde su panel privado. Las herramientas de hotspot, direcciones privadas y demo por IP se conservan.
+La demo RESTAURANTE DEMO RESUELVEN está empaquetada dentro del APK:
 un cliente nuevo puede descargarla desde el teléfono servidor sin Internet, siempre que se conecte a su Wi-Fi.
 El acceso es `http://IP-DEL-SERVIDOR:8080/restaurante-demo`; el QR está en esa ruta seguida de `/qr`.
 La IP real la muestra la aplicación; no hay una IP universal para Android.
 
 ## Instalación: dos celulares
 
-1. En el Android servidor abre el enlace de descarga y toca **Descargar APK Android**.
+1. En el Android del dueño abre el enlace de descarga y toca **Descargar APK del dueño**.
 2. Abre el archivo desde Descargas. Si Android lo solicita, permite a Chrome instalar desde esta fuente
    y vuelve para instalar. No desactives Play Protect ni desinstales una versión anterior con datos.
-3. Abre **QR Menu Resuelven** y autoriza notificaciones.
-4. Abre Ajustes y busca **Hotspot**, **Zona Wi-Fi**, **Punto de acceso** o **Compartir Internet**.
+3. Abre **QR Menu Resuelven** y pulsa **Administrar mi restaurante**.
+4. Introduce el código entregado por el creador y luego la contraseña del dueño. Para probar también el respaldo local, abre Ajustes y busca **Hotspot**, **Zona Wi-Fi**, **Punto de acceso** o **Compartir Internet**.
 5. Activa la zona Wi-Fi. Anota su nombre y contraseña. El nombre exacto del ajuste depende del fabricante.
 6. Vuelve a la aplicación. Pulsa **Actualizar direcciones**, después **Iniciar servidor**.
 7. Espera la notificación **QR Menú está disponible**. Pulsa **Probar demo en este teléfono**.
@@ -48,7 +50,7 @@ el ID generado al configurar ese teléfono; no se incluye una licencia universal
 
 - Compilación Kotlin/Android release: aprobada.
 - Android lint release: sin errores; quedan advertencias del piloto (incluida operación prolongada con wake lock).
-- Firma APK: verificada con apksigner; misma identidad de firma que el piloto anterior, versión de aplicación 2.
+- Firma APK: verificada con apksigner; misma identidad de firma que el piloto anterior, versión de aplicación 3.
 - Assets del panel y de la demo: empaquetados dentro del APK, sin dependencia de Cloudflare para servirlos.
 - Teléfono conectado por ADB: ninguno. Instalación física, conectividad por hotspot, autonomía,
   pantalla apagada y compatibilidad del fabricante: pendientes, no se declaran probadas.

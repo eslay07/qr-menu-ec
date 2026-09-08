@@ -19,6 +19,19 @@ Requiere Node 22.13 o superior. `npm ci`, `npm run db:local`, `npm run dev`. Par
 
 `npm run check` comprueba tipos. `npm test` prueba contratos, licencias, publicación, recuperación y descarga offline. `npm run build` genera la edición Sites. `npm run build:local` genera la interfaz estática para equipos locales y el Worker independiente.
 
+## Plataforma central en Cloudflare
+
+- Panel privado del creador: `https://qr-menu-central.omar777j.workers.dev/creator`.
+- Entrada web y APK para dueños: `https://qr-menu-central.omar777j.workers.dev/owner`.
+- Cada restaurante vive bajo `/r/ID/`; el dueño solo entra con su código y contraseña.
+- El creador crea restaurantes, habilita modalidades, suspende accesos y restablece contraseñas.
+- La información y las fotos se guardan por restaurante en D1. El despliegue no requiere R2.
+- El secreto `CREATOR_SETUP_TOKEN` se configura en Cloudflare y nunca se guarda en Git.
+
+El Worker se despliega con `deployment/cloudflare/wrangler.jsonc`. Primero se aplican las migraciones
+`drizzle/0000_even_inhumans.sql` y `drizzle/0001_central_creator.sql`; después se compila con
+`npm run build:local` y se ejecuta `wrangler deploy`.
+
 ## Componentes
 
 - `app/ui`: interfaz compartida del dueño y comensal.

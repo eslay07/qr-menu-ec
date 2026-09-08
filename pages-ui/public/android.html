@@ -1,17 +1,11 @@
 <!doctype html>
-<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Android Hotspot · QR Menu Resuelven</title><style>body{font:18px/1.6 Arial,sans-serif;max-width:760px;margin:auto;padding:28px;color:#244130;background:#fafbf8}h1{line-height:1.2}a{color:#244130}.download{display:inline-block;background:#244130;color:white;padding:16px 22px;border-radius:10px;text-decoration:none}li{margin:12px 0}aside{padding:20px;background:#edf2e7;border-radius:12px}code{overflow-wrap:anywhere}</style></head><body>
-<h1>Tu Android sirve el menú por hotspot</h1>
-<p>QR Menu Resuelven 0.2.0 · Edición piloto para Android 10 o posterior.</p>
-<p><a class="download" href="/downloads/qr-menu-android.apk" download>Descargar APK Android</a></p>
-<p>Instala la aplicación solo en el teléfono servidor. Los clientes abren el menú desde su navegador.</p>
-<h2>Instalar y probar</h2>
-<ol><li>Descarga el APK en el Android servidor. Abre Descargas y toca el archivo. Si Android lo solicita, permite a Chrome instalar esta aplicación desde esta fuente. No desactives Play Protect.</li>
-<li>Abre <strong>QR Menu Resuelven</strong> y permite las notificaciones.</li>
-<li>En Ajustes del teléfono busca <strong>Zona Wi-Fi</strong>, <strong>Hotspot</strong> o <strong>Compartir Internet</strong>. Actívalo y anota nombre y contraseña. Puedes apagar los datos móviles para esta prueba.</li>
-<li>Vuelve a la app. Pulsa <strong>Actualizar direcciones</strong> y <strong>Iniciar servidor</strong>. Espera la notificación “QR Menú está disponible”.</li>
-<li>En un segundo teléfono, conéctate a esa red Wi-Fi. Si pregunta, elige permanecer conectado aunque no tenga Internet.</li>
-<li>En el servidor pulsa <strong>Mostrar QR del menú demo</strong> para la dirección del hotspot. Escanéalo con el segundo teléfono, ya conectado a la red. También puedes escribir la dirección “Demo” que muestra la app.</li>
-<li>Revisa platos, precios y foto. Apaga los datos móviles de ambos teléfonos, mantén el hotspot encendido y recarga en el cliente.</li></ol>
-<aside><strong>La demo está lista para probar la red.</strong> No modifica la carta del restaurante. La carta administrada en <code>/menu</code> requiere configurar el dueño, importar su licencia y publicar desde el panel existente. La demo no realiza esos pasos por ti.</aside>
-<h2>Lo que debes saber</h2><p>La IP depende del teléfono; no uses la dirección de Cloudflare ni 127.0.0.1 en el cliente. Si aparecen varias IP, utiliza la del hotspot. Si cambia al reiniciar, vuelve a generar el QR.</p><p>Mantén el servidor cargando y el hotspot activo. Un hotspot normal no abre automáticamente un portal. Esta edición usa HTTP de solo lectura en la red local; los clientes no necesitan certificados. La app está compilada y firmada, pero aún requiere comprobarse en tu modelo de Android, incluido funcionamiento con pantalla apagada.</p>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>APK del dueño · QR Menu Resuelven</title><style>body{font:18px/1.6 Arial,sans-serif;max-width:760px;margin:auto;padding:28px;color:#244130;background:#fafbf8}h1{line-height:1.2}a{color:#244130}.download{display:inline-block;background:#244130;color:white;padding:16px 22px;border-radius:10px;text-decoration:none}li{margin:12px 0}aside{padding:20px;background:#edf2e7;border-radius:12px}code{overflow-wrap:anywhere}</style></head><body>
+<h1>Aplicación del dueño del restaurante</h1>
+<p>QR Menu Resuelven 0.3.0 · Android 10 o posterior.</p>
+<p><a class="download" href="/downloads/qr-menu-android.apk" download>Descargar APK del dueño</a></p>
+<p>Desde la aplicación el dueño modifica platos, precios, disponibilidad, fotos y publica los dos QR. Los cambios se guardan en Cloudflare.</p>
+<h2>Instalar y entrar</h2>
+<ol><li>Descarga el APK. Abre Descargas y toca el archivo. Si Android lo solicita, permite al navegador instalar esta aplicación desde esta fuente.</li><li>Abre <strong>QR Menu Resuelven</strong> y pulsa <strong>Administrar mi restaurante</strong>.</li><li>Escribe el código de restaurante que te entregó el creador.</li><li>Inicia sesión con tu contraseña. El código quedará recordado en ese teléfono.</li><li>Edita la carta, revisa la vista previa y pulsa <strong>Publicar</strong>.</li><li>Genera e imprime el QR web y el QR de texto sin Internet desde “Acceso de clientes”.</li></ol>
+<aside><strong>Control del creador:</strong> cada dueño solo abre su propio restaurante. El creador puede habilitar o suspender la cuenta, decidir las modalidades permitidas y restablecer la contraseña desde su panel privado.</aside>
+<h2>Conexión y respaldo</h2><p>La administración necesita Internet. El menú web de los clientes también lo necesita, pero el segundo QR contiene directamente el texto visual de la carta y se puede escanear sin conexión. La función piloto por hotspot sigue incluida como respaldo técnico dentro de la aplicación.</p>
 <p><a href="/downloads/SHA256SUMS.txt">Ver huella SHA-256 del APK</a> · <a href="/restaurante-demo">Ver demo web</a></p></body></html>
