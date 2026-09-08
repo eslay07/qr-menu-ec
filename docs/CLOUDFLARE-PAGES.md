@@ -1,4 +1,4 @@
-# QR Menu Resuelven — migración independiente
+# QR Menu EC — migración independiente
 
 ## 1. ESTADO DEL PROYECTO
 
@@ -54,7 +54,7 @@ contrato `Asset` y el empaquetado de recursos. No uses rutas de medios privadas 
 | Campo | Valor |
 |---|---|
 | Tipo | Pages, integración GitHub |
-| Repositorio | eslay07/qr-menu-resuelven (privado) |
+| Repositorio | eslay07/qr-menu-ec (privado) |
 | Rama de producción | main |
 | Framework preset | None (configuración explícita de Vite) |
 | Instalación local reproducible | npm ci |
@@ -78,18 +78,18 @@ Documentación oficial consultada: [integración Git](https://developers.cloudfl
 
 ## 6. URL PÚBLICA
 
-Publicado y verificado: https://qr-menu-resuelven.pages.dev
+Publicado y verificado: https://qr-menu-ec.pages.dev
 
 Cloudflare confirmó producción y la segunda publicación automática desde GitHub tras el commit
 `1c6f0ce`. Pruebas públicas completadas el 7 de septiembre de 2026.
 
 ## 7. URL RESTAURANTE DEMO
 
-https://qr-menu-resuelven.pages.dev/restaurante-demo
+https://qr-menu-ec.pages.dev/restaurante-demo
 
 ## 8. QR DE PRUEBA
 
-Abre https://qr-menu-resuelven.pages.dev/restaurante-demo/qr. Pulsa **Descargar PNG** o **Imprimir ambos QR**.
+Abre https://qr-menu-ec.pages.dev/restaurante-demo/qr. Pulsa **Descargar PNG** o **Imprimir ambos QR**.
 El primer código contiene la URL pública permanente; el segundo contiene texto plano visual dentro de 900 bytes, sin metadatos de contacto. Los archivos decodificados se guardan como `restaurante-demo-web-qr.png` y `restaurante-demo-offline-text-qr.png` en `outputs/pages-qa`.
 
 ## 9. PRUEBAS EJECUTADAS
@@ -162,7 +162,7 @@ Para detener el servidor vuelve a su terminal y pulsa Ctrl+C. Después de cambia
 
 ### ETAPA C — GitHub
 
-1. Abre [el repositorio privado](https://github.com/eslay07/qr-menu-resuelven) e inicia sesión como eslay07.
+1. Abre [el repositorio privado](https://github.com/eslay07/qr-menu-ec) e inicia sesión como eslay07.
 2. En la pestaña **Code**, selecciona **main**. Debes ver `pages-ui`, `data`, `package.json` y este manual.
 3. Pulsa el último mensaje de commit para comprobar los cambios. El repositorio privado exige sesión;
    eso no impide que la carta publicada en Pages sea pública.
@@ -176,9 +176,9 @@ Los pasos describen tanto dónde quedó el proyecto como cómo repetir la config
 2. Abre **Workers & Pages**. Si ves la portada, pulsa **Create app**.
 3. En **¿Busca implementar Pages?** pulsa **Comenzar**. No elijas el asistente de Workers.
 4. En **Importar un repositorio Git existente** pulsa **Comenzar**.
-5. Si aparece **Conecte GitHub**, pulsa allí, inicia sesión y autoriza acceso al repositorio `qr-menu-resuelven`.
-6. Selecciona cuenta **eslay07**, marca **qr-menu-resuelven** y pulsa **Comenzar la instalación**.
-7. Nombre: `qr-menu-resuelven`. Rama: `main`. Framework: **None**.
+5. Si aparece **Conecte GitHub**, pulsa allí, inicia sesión y autoriza acceso al repositorio `qr-menu-ec`.
+6. Selecciona cuenta **eslay07**, marca **qr-menu-ec** y pulsa **Comenzar la instalación**.
+7. Nombre: `qr-menu-ec`. Rama: `main`. Framework: **None**.
 8. En **Build command / Comando de compilación** escribe `npm run build:pages`.
 9. En **Build output directory / Directorio de salida** escribe `dist-pages`.
 10. Deja la raíz vacía: package.json está en la raíz. No escribas la ruta C:\ de tu computadora.
@@ -206,7 +206,7 @@ Usa normalmente GitHub: cada push a main dispara la publicación automática. Un
 ### ETAPA F — Abrir el menú desde celular
 
 1. En Android conecta Wi-Fi, abre Chrome y escribe la URL pública con `/restaurante-demo`.
-2. Comprueba que aparece RESTAURANTE DEMO RESUELVEN y no una pantalla de login.
+2. Comprueba que aparece RESTAURANTE DEMO QR MENU EC y no una pantalla de login.
 3. Cierra la pestaña. Desactiva Wi-Fi, activa datos móviles y vuelve a abrir la URL.
 4. Mantén el teléfono vertical. Comprueba texto legible y que no puedes desplazar toda la página hacia los lados.
 
@@ -269,7 +269,7 @@ en `scripts/pages-qa.mjs` si decides cambiar permanentemente el fixture a $5.50.
 
 ## 14. CHECKLIST FINAL
 
-Resultados contra https://qr-menu-resuelven.pages.dev. FAIL indica no aprobado, incluyendo pruebas físicas pendientes; no implica que se haya observado un fallo de Android.
+Resultados contra https://qr-menu-ec.pages.dev. FAIL indica no aprobado, incluyendo pruebas físicas pendientes; no implica que se haya observado un fallo de Android.
 
 | Prueba | Resultado | Observaciones |
 |---|---|---|

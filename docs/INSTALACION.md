@@ -1,4 +1,4 @@
-# QR Menú — instalación y operación
+# QR Menu EC — instalación y operación
 
 Estado: edición piloto. La compilación y las pruebas de software no certifican la apertura del portal en teléfonos físicos.
 

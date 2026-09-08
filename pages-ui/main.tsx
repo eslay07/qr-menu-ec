@@ -35,7 +35,7 @@ function App() {
       image: string;
     }[]
   >([]);
-  const webUrl = `https://qr-menu-resuelven.pages.dev/${slug}`;
+  const webUrl = `https://qr-menu-ec.pages.dev/${slug}`;
   const offline = catalog
     ? buildOfflineText(catalog, {
         ...defaultSettings,
@@ -69,7 +69,7 @@ function App() {
     : [];
   useEffect(() => {
     if (!catalog || !validRoute) return;
-    document.title = `${catalog.name} · QR Menu Resuelven`;
+    document.title = `${catalog.name} · QR Menu EC`;
     if (
       import.meta.env.MODE === "hotspot" ||
       !("serviceWorker" in navigator) ||

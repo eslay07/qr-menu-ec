@@ -1,13 +1,13 @@
-# QR Menu Resuelven · Android dueño 0.3.0
+# QR Menu EC · Android dueño 0.4.0
 
-Descarga: https://qr-menu-resuelven.pages.dev/android
+Descarga: https://qr-menu-ec.pages.dev/android
 
 ## Qué está preparado
 
 APK firmado para Android 10 o posterior. La pantalla principal abre el panel del dueño alojado en
 Cloudflare para modificar carta, fotos, precios y generar los dos QR. El creador controla la cuenta
 desde su panel privado. Las herramientas de hotspot, direcciones privadas y demo por IP se conservan.
-La demo RESTAURANTE DEMO RESUELVEN está empaquetada dentro del APK:
+La demo RESTAURANTE DEMO QR MENU EC está empaquetada dentro del APK:
 un cliente nuevo puede descargarla desde el teléfono servidor sin Internet, siempre que se conecte a su Wi-Fi.
 El acceso es `http://IP-DEL-SERVIDOR:8080/restaurante-demo`; el QR está en esa ruta seguida de `/qr`.
 La IP real la muestra la aplicación; no hay una IP universal para Android.
@@ -17,11 +17,11 @@ La IP real la muestra la aplicación; no hay una IP universal para Android.
 1. En el Android del dueño abre el enlace de descarga y toca **Descargar APK del dueño**.
 2. Abre el archivo desde Descargas. Si Android lo solicita, permite a Chrome instalar desde esta fuente
    y vuelve para instalar. No desactives Play Protect ni desinstales una versión anterior con datos.
-3. Abre **QR Menu Resuelven** y pulsa **Administrar mi restaurante**.
+3. Abre **QR Menu EC** y pulsa **Administrar mi restaurante**.
 4. Introduce el código entregado por el creador y luego la contraseña del dueño. Para probar también el respaldo local, abre Ajustes y busca **Hotspot**, **Zona Wi-Fi**, **Punto de acceso** o **Compartir Internet**.
 5. Activa la zona Wi-Fi. Anota su nombre y contraseña. El nombre exacto del ajuste depende del fabricante.
 6. Vuelve a la aplicación. Pulsa **Actualizar direcciones**, después **Iniciar servidor**.
-7. Espera la notificación **QR Menú está disponible**. Pulsa **Probar demo en este teléfono**.
+7. Espera la notificación **QR Menu EC está disponible**. Pulsa **Probar demo en este teléfono**.
 8. En el segundo celular conéctate a la zona Wi-Fi del primero. Acepta mantener esa conexión sin Internet.
 9. En el servidor abre **Mostrar QR del menú demo** correspondiente a la IP de la zona Wi-Fi.
    Escanéalo desde el segundo celular ya conectado. También puedes escribir la dirección Demo.
@@ -61,5 +61,5 @@ el ID generado al configurar ese teléfono; no se incluye una licencia universal
 Ejecuta `./scripts/build-android-hotspot.ps1` desde PowerShell en el proyecto. Reutiliza los toolchains
 de `work/toolchains`, JDK 23 y la identidad de firma guardada fuera del repositorio. La clave privada
 no se publica. El script para al primer error, ejecuta lint, firma, verifica y prepara
-`deployment/android/qr-menu-android.apk` y su SHA-256. Luego `npm run build:pages` incluye la descarga.
+`deployment/android/qr-menu-ec.apk` y su SHA-256. Luego `npm run build:pages` incluye la descarga.
 El APK se excluye de la caché offline del menú para no cargar aproximadamente 10 MB a cada comensal.

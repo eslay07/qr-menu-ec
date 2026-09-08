@@ -16,7 +16,7 @@ try {
   page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
   const response = await page.goto(base + '/restaurante-demo');
   assert.equal(response.status(), 200);
-  await page.getByText('RESTAURANTE DEMO RESUELVEN').waitFor();
+  await page.getByText('RESTAURANTE DEMO QR MENU EC').waitFor();
   assert.equal(await page.locator('.dish-card').count(), 10);
   assert.match(await page.locator('.dish-card').filter({ hasText: 'Hamburguesa clásica' }).innerText(), /5[,.]00/);
   passed.push('Ruta directa, 10 productos y precio de hamburguesa $5.00');
@@ -64,8 +64,8 @@ try {
     decodedPayloads.push(jsQR(new Uint8ClampedArray(decodedImage.data), decodedImage.info.width, decodedImage.info.height)?.data || '');
     await fs.writeFile(`${output}/restaurante-demo-${index ? 'offline-text' : 'web'}-qr.png`, png);
   }
-  assert.equal(decodedPayloads[0], 'https://qr-menu-resuelven.pages.dev/restaurante-demo');
-  assert.match(decodedPayloads[1], /^(?:━+\n)?\*\* RESTAURANTE DEMO RESUELVEN \*\*/);
+  assert.equal(decodedPayloads[0], 'https://qr-menu-ec.pages.dev/restaurante-demo');
+  assert.match(decodedPayloads[1], /^(?:━+\n)?\*\* RESTAURANTE DEMO QR MENU EC \*\*/);
   assert.match(decodedPayloads[1], /\/\/ MENÚ · PRECIOS EN USD \/\//);
   assert.doesNotMatch(decodedPayloads[1], /BEGIN:VCARD|VERSION:3\.0|NOTE:/);
   assert.match(decodedPayloads[1], /Hamburguesa clásica/);
@@ -78,7 +78,7 @@ try {
   await page.goto(base + '/restaurante-demo');
   await context.setOffline(true);
   await page.reload();
-  await page.getByText('RESTAURANTE DEMO RESUELVEN').waitFor();
+  await page.getByText('RESTAURANTE DEMO QR MENU EC').waitFor();
   await page.getByRole('button', { name: 'Bebidas', exact: true }).click();
   assert.equal(await page.locator('.dish-card').count(), 3);
   await page.getByRole('button', { name: 'Todo el menú', exact: true }).click();
@@ -86,11 +86,11 @@ try {
   await page.screenshot({ path: `${output}/offline.png`, fullPage: true });
   const reopened = await context.newPage();
   await reopened.goto(base + '/restaurante-demo');
-  await reopened.getByText('RESTAURANTE DEMO RESUELVEN').waitFor();
+  await reopened.getByText('RESTAURANTE DEMO QR MENU EC').waitFor();
   passed.push('Offline precargado: recarga, nueva pestaña, categorías, productos y foto');
   await context.setOffline(false);
   await page.goto(base + '/');
-  await page.getByText('RESTAURANTE DEMO RESUELVEN').waitFor();
+  await page.getByText('RESTAURANTE DEMO QR MENU EC').waitFor();
   await page.goto(base + '/no-existe');
   await page.getByRole('heading', { name: 'Restaurante no encontrado' }).waitFor();
   passed.push('Inicio y ruta desconocida');
@@ -107,7 +107,7 @@ try {
   });
   const started = Date.now();
   await slowPage.goto(base + '/restaurante-demo');
-  await slowPage.getByText('RESTAURANTE DEMO RESUELVEN').waitFor();
+  await slowPage.getByText('RESTAURANTE DEMO QR MENU EC').waitFor();
   const slowLoadMs = Date.now() - started;
   passed.push(`Red limitada simulada: carta visible en ${slowLoadMs} ms (1.6 Mbps, latencia 150 ms)`);
   await slow.close();

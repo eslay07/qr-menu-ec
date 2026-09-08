@@ -29,7 +29,7 @@ class MainActivity : Activity() {
         fun text(value:String,size:Float=16f,color:Int=Color.rgb(36,65,48)){layout.addView(TextView(this).apply{text=value;textSize=size;setTextColor(color);setPadding(0,13,0,13)})}
         fun button(title:String,action:()->Unit){layout.addView(Button(this).apply{text=title;setOnClickListener{action()}})}
 
-        text("QR Menu Resuelven", 30f)
+        text("QR Menu EC", 30f)
         text("Panel del dueño", 22f)
         text("Modifica platos, precios, fotos y genera los dos QR desde tu cuenta. El creador controla tu acceso y las funciones habilitadas.")
         button("ADMINISTRAR MI RESTAURANTE") { startActivity(Intent(this, OwnerActivity::class.java)) }

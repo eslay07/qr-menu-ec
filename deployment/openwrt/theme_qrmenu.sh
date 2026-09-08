@@ -1,9 +1,9 @@
 #!/bin/sh
-# QR Menu custom ThemeSpec. API reference: openNDS ThemeSpec GPL project.
+# QR Menu EC custom ThemeSpec. API reference: openNDS ThemeSpec GPL project.
 # No authentication is granted: only the menu's HTTP endpoint is allowlisted.
-title="QR Menu"
+title="QR Menu EC"
 header() {
- printf '%s\n' '<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>QR Menú</title></head><body>'
+ printf '%s\n' '<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>QR Menu EC</title></head><body>'
 }
 generate_splash_sequence() {
  menu_url=$(cat /etc/qrmenu/menu-url)

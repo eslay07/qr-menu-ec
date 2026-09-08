@@ -65,7 +65,7 @@ test('dual mode is the default and API returns exactly web plus offline text QR'
   state = (await h.call('state')).body;
   const settings = {
     ...state.settings,
-    webUrl: 'https://qr-menu-resuelven.pages.dev/restaurante-demo',
+    webUrl: 'https://qr-menu-ec.pages.dev/restaurante-demo',
     offlineCard: { ...state.settings.offlineCard, phone: '+593 99 000 0000', address: 'Calle 1; Centro, Ecuador', hours: 'Lun-Dom 08:00-22:00' },
   };
   assert.equal((await h.call('settings', 'PUT', { revision: state.revision, settings })).status, 200);

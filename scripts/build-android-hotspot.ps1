@@ -15,5 +15,7 @@ Check-Exit
 node scripts/sign-android.mjs
 Check-Exit
 New-Item -ItemType Directory -Force -Path 'deployment/android' | Out-Null
-Copy-Item 'outputs/QR-Menu-Android-piloto.apk' 'deployment/android/qr-menu-android.apk' -Force
-(Get-FileHash 'deployment/android/qr-menu-android.apk' -Algorithm SHA256).Hash.ToLower() + '  qr-menu-android.apk' | Set-Content -Encoding ascii 'deployment/android/SHA256SUMS.txt'
+Copy-Item 'outputs/QR-Menu-EC.apk' 'deployment/android/qr-menu-ec.apk' -Force
+Copy-Item 'outputs/QR-Menu-EC.apk' 'deployment/android/qr-menu-android.apk' -Force
+$qrEcHash = (Get-FileHash 'deployment/android/qr-menu-ec.apk' -Algorithm SHA256).Hash.ToLower()
+@("$qrEcHash  qr-menu-ec.apk", "$qrEcHash  qr-menu-android.apk") | Set-Content -Encoding ascii 'deployment/android/SHA256SUMS.txt'

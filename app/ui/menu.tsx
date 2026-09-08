@@ -311,7 +311,7 @@ export default function Menu({
         )}
         {message && <p role="status">{message}</p>}
         <small>
-          QR Menú {version > 0 && `· Versión ${version}`}{" "}
+          QR Menu EC {version > 0 && `· Versión ${version}`}{" "}
           {date && `· ${new Date(date).toLocaleDateString("es-EC")}`}
         </small>
       </footer>

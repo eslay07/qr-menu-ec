@@ -46,5 +46,6 @@ self.addEventListener('fetch', event => {
 console.log(`Pages: ${urls.length} recursos offline; ${cache}`);
 // Installers are downloadable, never part of the diner's offline cache.
 await fs.mkdir(path.join(output, 'downloads'), { recursive: true });
+await fs.copyFile('deployment/android/qr-menu-ec.apk', path.join(output, 'downloads/qr-menu-ec.apk'));
 await fs.copyFile('deployment/android/qr-menu-android.apk', path.join(output, 'downloads/qr-menu-android.apk'));
 await fs.copyFile('deployment/android/SHA256SUMS.txt', path.join(output, 'downloads/SHA256SUMS.txt'));

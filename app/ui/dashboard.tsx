@@ -261,7 +261,7 @@ export default function Dashboard() {
         <a className="wordmark" href={base || "/"}>
           <QrCode />
           <span>
-            qr<span className="lime">menú</span>
+            QR Menu <span className="lime">EC</span>
             <small>HECHO PARA TU RESTAURANTE</small>
           </span>
         </a>
@@ -406,7 +406,7 @@ export default function Dashboard() {
           <>
             <div className="hero-strip">
               <div>
-                <span className="badge light">BIENVENIDO A QR MENÚ</span>
+                <span className="badge light">BIENVENIDO A QR MENU EC</span>
                 <h2>
                   Tu carta. Tu estilo.
                   <br />
@@ -1467,7 +1467,7 @@ export default function Dashboard() {
                           </small>
                         )}
                         <small>
-                          Versión publicada {codes.version} · QR Menú
+                          Versión publicada {codes.version} · QR Menu EC
                         </small>
                         <button
                           className="btn no-print"

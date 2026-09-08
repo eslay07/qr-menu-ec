@@ -1,1 +1,1 @@
-{"name":"QR Menú","short_name":"QR Menú","start_url":"/menu","display":"standalone","lang":"es","background_color":"#fafbf8","theme_color":"#244130","icons":[{"src":"/icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any"}]}
+{"name":"QR Menu EC","short_name":"QR Menu EC","start_url":"/menu","display":"standalone","lang":"es","background_color":"#fafbf8","theme_color":"#244130","icons":[{"src":"/icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any"}]}

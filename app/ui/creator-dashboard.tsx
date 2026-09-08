@@ -237,7 +237,7 @@ export default function CreatorDashboard() {
     <div className="creator-shell">
       <header className="creator-top">
         <div>
-          <p className="eyebrow">QR MENÚ · CONTROL CENTRAL</p>
+          <p className="eyebrow">QR MENU EC · CONTROL CENTRAL</p>
           <h1>Restaurantes y accesos</h1>
           <p>
             Solo tú puedes crear, suspender o restablecer las cuentas de los

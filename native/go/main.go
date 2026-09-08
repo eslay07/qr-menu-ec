@@ -872,7 +872,7 @@ func ensureTLS(dir string, addresses []string) (string, string, error) {
 		return "", "", e
 	}
 	serial, _ := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
-	tmpl := x509.Certificate{SerialNumber: serial, Subject: pkix.Name{CommonName: "QR Menu - Administracion local"}, NotBefore: time.Now().Add(-time.Hour), NotAfter: time.Now().AddDate(5, 0, 0), KeyUsage: x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign, ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}, BasicConstraintsValid: true, IsCA: true, DNSNames: []string{"localhost", "menu.lan"}, IPAddresses: []net.IP{net.ParseIP("127.0.0.1")}}
+	tmpl := x509.Certificate{SerialNumber: serial, Subject: pkix.Name{CommonName: "QR Menu EC - Administracion local"}, NotBefore: time.Now().Add(-time.Hour), NotAfter: time.Now().AddDate(5, 0, 0), KeyUsage: x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign, ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}, BasicConstraintsValid: true, IsCA: true, DNSNames: []string{"localhost", "menu.lan"}, IPAddresses: []net.IP{net.ParseIP("127.0.0.1")}}
 	for _, addr := range addresses {
 		if ip := net.ParseIP(addr); ip != nil {
 			tmpl.IPAddresses = append(tmpl.IPAddresses, ip)

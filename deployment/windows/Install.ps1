@@ -37,7 +37,7 @@ try{
  Copy-Item -Path (Join-Path $PSScriptRoot 'ui/*') -Destination (Join-Path $qrInstall 'ui') -Recurse -Force
  $qrCommand='"'+(Join-Path $qrInstall 'qrmenu.exe')+'" --ui "'+(Join-Path $qrInstall 'ui')+'" --data "'+(Join-Path $qrInstall 'data')+'" --public-key "'+(Join-Path $qrInstall 'seller-public.txt')+'" --cert-ips '+$ServerIP
  if($qrService){Invoke-Native sc.exe @('config','QRMenu-Servidor','binPath=',$qrCommand,'start=','auto','obj=','LocalSystem')}
- else{Invoke-Native sc.exe @('create','QRMenu-Servidor','binPath=',$qrCommand,'start=','auto','obj=','LocalSystem','DisplayName=','QR Menú - Servidor local')}
+ else{Invoke-Native sc.exe @('create','QRMenu-Servidor','binPath=',$qrCommand,'start=','auto','obj=','LocalSystem','DisplayName=','QR Menu EC - Servidor local')}
  Invoke-Native sc.exe @('description','QRMenu-Servidor','Menú local y administración HTTPS del restaurante.')
  Invoke-Native sc.exe @('failure','QRMenu-Servidor','reset=','86400','actions=','restart/5000/restart/15000/restart/60000')
  Invoke-Native sc.exe @('failureflag','QRMenu-Servidor','1')

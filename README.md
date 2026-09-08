@@ -1,6 +1,6 @@
-# QR Menú
+# QR Menu EC
 
-## QR Menu Resuelven · Cloudflare Pages
+## QR Menu EC · Cloudflare Pages
 
 Edición estática independiente: `npm ci`, `npm run build:pages`, `npm run preview:pages`.
 Abre `http://127.0.0.1:4173/restaurante-demo`. La tarjeta con los dos QR está en `/restaurante-demo/qr`.
@@ -21,8 +21,8 @@ Requiere Node 22.13 o superior. `npm ci`, `npm run db:local`, `npm run dev`. Par
 
 ## Plataforma central en Cloudflare
 
-- Panel privado del creador: `https://qr-menu-central.omar777j.workers.dev/creator`.
-- Entrada web y APK para dueños: `https://qr-menu-central.omar777j.workers.dev/owner`.
+- Panel privado del creador: `https://qr-menu-ec.omar777j.workers.dev/creator`.
+- Entrada web y APK para dueños: `https://qr-menu-ec.omar777j.workers.dev/owner`.
 - Cada restaurante vive bajo `/r/ID/`; el dueño solo entra con su código y contraseña.
 - El creador crea restaurantes, habilita modalidades, suspende accesos y restablece contraseñas.
 - La información y las fotos se guardan por restaurante en D1. El despliegue no requiere R2.
