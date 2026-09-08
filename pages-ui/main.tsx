@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import QRCode from 'qrcode';
 import Menu from '../app/ui/menu';
-import { Catalog, textPages } from '../lib/contracts';
+import { Catalog, buildVCard, defaultSettings } from '../lib/contracts';
 import demo from '../data/restaurants/restaurante-demo.json';
 import '../app/globals.css';
 import '../app/product.css';
@@ -18,8 +18,25 @@ const validRoute = ['/', '/menu', '/demo', `/${slug}`, `/${slug}/qr`].includes(p
 
 function App() {
   const [status, setStatus] = useState('Preparando copia para consultar sin conexión…');
-  const [qrs, setQrs] = useState<string[]>([]);
-  const payloads = catalog ? textPages(catalog) : [];
+  const [qrs, setQrs] = useState<{ kind: 'web' | 'vcard'; label: string; subtitle: string; payload: string; image: string }[]>([]);
+  const webUrl = `https://qr-menu-resuelven.pages.dev/${slug}`;
+  const offline = catalog ? buildVCard(catalog, {
+    ...defaultSettings,
+    webUrl,
+    offlineCard: {
+      ...defaultSettings.offlineCard,
+      title: catalog.name,
+      intro: 'Nuestra carta básica para consultar sin conexión.',
+      farewell: 'Gracias por visitarnos',
+      phone: '+593 99 000 0000',
+      address: 'Dirección de demostración, Ecuador',
+      hours: 'Lunes a domingo · 08:00 a 22:00',
+    },
+  }) : null;
+  const payloads = offline ? [
+    { kind: 'web' as const, label: 'MENÚ CON INTERNET', subtitle: 'fotos y experiencia completa', payload: webUrl },
+    { kind: 'vcard' as const, label: 'MENÚ SIN INTERNET', subtitle: 'carta básica disponible sin conexión', payload: offline.payload },
+  ] : [];
   useEffect(() => {
     if (!catalog || !validRoute) return;
     document.title = `${catalog.name} · QR Menu Resuelven`;
@@ -34,11 +51,11 @@ function App() {
     }).catch(() => setStatus('No se pudo guardar el menú completo. Vuelve a abrirlo con conexión.'));
   }, []);
   useEffect(() => {
-    if (isQr && payloads.length) Promise.all(payloads.map(payload => QRCode.toDataURL(payload, { width: 768, margin: 4, errorCorrectionLevel: 'M' })))
-      .then(setQrs).catch(() => setStatus('No se pudo generar el QR. Recarga la página.'));
+    if (isQr && payloads.length) Promise.all(payloads.map(async item => ({ ...item, image: await QRCode.toDataURL(item.payload, { width: 768, margin: 4, errorCorrectionLevel: 'M' }) })))
+      .then(setQrs).catch(() => setStatus('No se pudieron generar los QR. Recarga la página.'));
   }, [isQr]);
   if (!catalog || !validRoute) return <main className="customer-empty"><h1>Restaurante no encontrado</h1><a className="btn" href="/restaurante-demo">Abrir restaurante demo</a></main>;
-  if (isQr) return <main className="print-cards"><header className="print-card-heading"><h1>{catalog.name}</h1><p>La carta está guardada dentro del QR. El primer escaneo no necesita internet ni una visita previa.</p><div className="actions no-print"><button className="btn" onClick={() => print()}>Imprimir QR</button><a className="btn" href={`/${slug}`}>Abrir menú visual</a></div></header>{qrs.map((qr,index)=><article className="print-card" key={index}><p className="eyebrow">MENÚ SIN INTERNET</p><h2>{catalog.name}</h2><p>Escanea para leer platos y precios</p><img src={qr} width="360" height="360" alt={`Código QR del menú, parte ${index+1} de ${qrs.length}`} /><p>Parte {index+1} de {qrs.length}</p><details className="qr-payload no-print"><summary>Ver texto incluido</summary><pre>{payloads[index]}</pre></details><a className="btn no-print" href={qr} download={`${slug}-qr-${index+1}.png`}>Descargar PNG</a></article>)}</main>;
+  if (isQr) return <main className="print-cards"><header className="print-card-heading"><h1>{catalog.name}</h1><p>Elige según tu conexión: experiencia visual por internet o carta básica sin conexión.</p><div className="actions no-print"><button className="btn" onClick={() => print()}>Imprimir ambos QR</button><a className="btn" href={`/${slug}`}>Abrir menú visual</a></div></header><div className="print-card-grid">{qrs.map((qr,index)=><article className={`print-card ${qr.kind}`} key={qr.kind}><p className="eyebrow">{qr.label}</p><h2>{catalog.name}</h2><p>{qr.subtitle}</p><img src={qr.image} width="360" height="360" alt={`Código QR de ${qr.label.toLowerCase()}`} /><strong>{index===0?'Usa este QR si tienes internet':'Usa este QR si no tienes internet'}</strong><details className="qr-payload no-print"><summary>{qr.kind==='web'?'Ver enlace incluido':'Ver nota vCard incluida'}</summary><pre>{qr.kind==='vcard'?offline?.note:qr.payload}</pre></details><a className="btn no-print" href={qr.image} download={`${slug}-${qr.kind}.png`}>Descargar PNG</a></article>)}</div></main>;
   return <div className="pages-edition"><Menu initialCatalog={catalog}/><aside className="pages-status" role="status"><p>{status}</p><a href={`/${slug}/qr`}>Ver e imprimir QR</a></aside></div>;
 }
 createRoot(document.getElementById('root')!).render(<App/>);

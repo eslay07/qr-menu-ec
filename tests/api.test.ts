@@ -1,9 +1,175 @@
-import test from 'node:test';import assert from 'node:assert/strict';import{generateKeyPairSync,sign}from'node:crypto';import QRCode from'qrcode';import sharp from'sharp';import jsQR from'jsqr';import {handleApi}from'../lib/api';import{demoCatalog,defaultSettings,textPages,wifiPayload,TEXT_QR_MAX_BYTES}from'../lib/contracts';import type{Store,Stored}from'../lib/store';
-const pair=generateKeyPairSync('ed25519'),publicKey=Buffer.from(pair.publicKey.export({type:'spki',format:'der'}).subarray(-32)).toString('base64');
-function harness(){let data:Stored|null=null;const media=new Map<string,{bytes:Uint8Array,type:string}>();const store:Store={async read(){return structuredClone(data)},async commit(state,revision){if(revision===null?data!==null:!data||data.revision!==revision)return false;data={state:structuredClone(state),revision:revision===null?0:revision+1};return true},async mediaGet(id){return media.get(id)||null},async mediaPut(id,bytes,type){media.set(id,{bytes,type})}};let cookie='';return{store,async call(path:string,method='GET',b?:unknown,origin?:string){const req=new Request('https://menu.test/api/v1/'+path,{method,headers:{cookie,...(b?{'Content-Type':'application/json'}:{}),...(origin?{origin}:{})},body:b?JSON.stringify(b):undefined});const r=await handleApi(req,store,{publicKey,setupToken:'setup-secret',runtime:'local'});if(r.headers.has('set-cookie'))cookie=r.headers.get('set-cookie')!.split(';')[0];return{status:r.status,body:await r.json() as any}},signLicense(id:string,modes=['text']){const b=Buffer.from(JSON.stringify({schemaVersion:1,restaurantId:id,licenseId:'test-license',modes,issuedAt:new Date().toISOString(),customer:'Prueba'}));return{payload:b.toString('base64'),signature:Buffer.from(sign(null,b,pair.privateKey)).toString('base64')}}}}
-test('setup, durable drafts, license enforcement, atomic publish, conflict and recovery',async()=>{const h=harness();assert.equal((await h.call('state')).status,404);assert.equal((await h.call('setup','POST',{name:'Mesa',password:'test-password-123',setupToken:'wrong'})).status,403);const setup=await h.call('setup','POST',{name:'Mesa',password:'test-password-123',setupToken:'setup-secret'});assert.equal(setup.status,201);let s=(await h.call('state')).body;assert.equal(s.settings.mode,'text');assert.equal((await h.call('publish','POST',{revision:s.revision})).status,403);assert.equal((await h.call('draft','PUT',{revision:s.revision,catalog:demoCatalog})).status,200);assert.equal((await h.call('draft','PUT',{revision:s.revision,catalog:demoCatalog})).status,409);const license=h.signLicense(setup.body.restaurantId,['text','local']);assert.equal((await h.call('license','POST',{...license,signature:'bad'})).status,400);assert.equal((await h.call('license','POST',h.signLicense('other-restaurant'))).status,400);assert.equal((await h.call('license','POST',license)).status,200);s=(await h.call('state')).body;assert.equal((await h.call('settings','PUT',{revision:s.revision,settings:{...defaultSettings,mode:'web'}})).status,403);assert.equal((await h.call('publish','POST',{revision:s.revision})).status,200);assert.equal((await h.call('menu')).status,404);assert.match((await h.call('qr')).body.codes[0].payload,/MENÚ · PRECIOS EN USD/);s=(await h.call('state')).body;assert.equal((await h.call('settings','PUT',{revision:s.revision,settings:{...s.settings,mode:'local'}})).status,200);s=(await h.call('state')).body;assert.equal((await h.call('publish','POST',{revision:s.revision})).status,200);assert.equal((await h.call('menu')).body.version,2);s=(await h.call('state')).body;assert.equal((await h.call('draft','PUT',{revision:s.revision,catalog:{...demoCatalog,name:'Borrador nuevo'}})).status,200);assert.equal((await h.call('menu')).body.catalog.name,'La Mesa');assert.equal((await h.call('logout','POST',{},'https://evil.test')).status,403);assert.equal((await h.call('logout','POST',{})).status,200);assert.equal((await h.call('state')).status,401);const recover=await h.call('recover','POST',{recovery:setup.body.recovery,password:'new-password-123'});assert.equal(recover.status,200);assert.notEqual(recover.body.recovery,setup.body.recovery);assert.equal((await h.call('state')).status,200);});
-test('invalid catalog cannot replace a saved draft and backup restores as draft only',async()=>{const h=harness();await h.call('setup','POST',{name:'Mesa',password:'test-password-123',setupToken:'setup-secret'});let s=(await h.call('state')).body;assert.equal((await h.call('draft','PUT',{revision:s.revision,catalog:{...demoCatalog,dishes:[{...demoCatalog.dishes[0],priceCents:1.5}]}})).status,400);assert.equal((await h.call('draft','PUT',{revision:s.revision,catalog:demoCatalog})).status,200);const b=(await h.call('backup')).body;assert.equal(b.media.length,0);assert.equal((await h.call('restore','POST',b)).status,200);s=(await h.call('state')).body;assert.equal(s.published,null);assert.equal(s.draft.name,demoCatalog.name);});
-test('Wi-Fi escaping and large text menus preserve every item within the QR budget',()=>{assert.match(wifiPayload({...defaultSettings,ssid:'Mesa;:A'}),/S:Mesa\\;\\:A/);const cat={...demoCatalog,dishes:Array.from({length:150},(_,i)=>({...demoCatalog.dishes[0],id:'d'+i,name:'Plato ecuatoriano número '+i,image:''}))};const pages=textPages(cat);assert.ok(pages.length>1);for(const [index,page]of pages.entries()){assert.ok(new TextEncoder().encode(page).length<=TEXT_QR_MAX_BYTES);assert.match(page,new RegExp(`PARTE ${index+1} DE ${pages.length}$`));}for(let i=0;i<150;i++)assert.ok(pages.join('\n').includes('número '+i+':'));});
-test('text format is deterministic, excludes unavailable dishes and decodes without internet',async()=>{const pages=textPages(demoCatalog);assert.deepEqual(pages,[`La Mesa\nMENÚ · PRECIOS EN USD\n\nNuestra cocina\n- Encebollado de la casa: $6.50\n- Seco de pollo: $7.50\n- Bolón de verde: $4.00\n\nPara acompañar\n- Jugo de maracuyá: $2.50\n\nPARTE 1 DE 1`]);const large=textPages({...demoCatalog,dishes:Array.from({length:150},(_,i)=>({...demoCatalog.dishes[0],id:'max'+i,name:`Plato número ${i} con preparación ecuatoriana`,image:''}))});const payload=large.reduce((longest,page)=>new TextEncoder().encode(page).length>new TextEncoder().encode(longest).length?page:longest,'');const png=await QRCode.toBuffer(payload,{type:'png',width:768,margin:4,errorCorrectionLevel:'M'});const image=await (sharp as any)(png).ensureAlpha().raw().toBuffer({resolveWithObject:true});const decoded=jsQR(new Uint8ClampedArray(image.data),image.info.width,image.info.height);assert.equal(decoded?.data,payload);assert.ok(new TextEncoder().encode(payload).length<=TEXT_QR_MAX_BYTES);});
-test('text QR refuses an empty published selection',async()=>{const h=harness();const setup=await h.call('setup','POST',{name:'Mesa',password:'test-password-123',setupToken:'setup-secret'});await h.call('license','POST',h.signLicense(setup.body.restaurantId));let s=(await h.call('state')).body;await h.call('draft','PUT',{revision:s.revision,catalog:{...demoCatalog,dishes:demoCatalog.dishes.map(d=>({...d,available:false}))}});s=(await h.call('state')).body;await h.call('publish','POST',{revision:s.revision});const qr=await h.call('qr');assert.equal(qr.status,400);assert.match(qr.body.error,/al menos un plato/);});
-test('30 concurrent readers see one coherent published snapshot',async()=>{const h=harness();const setup=await h.call('setup','POST',{name:'Mesa',password:'test-password-123',setupToken:'setup-secret'});await h.call('license','POST',h.signLicense(setup.body.restaurantId,['text','local']));let s=(await h.call('state')).body;await h.call('draft','PUT',{revision:s.revision,catalog:demoCatalog});s=(await h.call('state')).body;await h.call('settings','PUT',{revision:s.revision,settings:{...s.settings,mode:'local'}});s=(await h.call('state')).body;await h.call('publish','POST',{revision:s.revision});const reads=await Promise.all(Array.from({length:30},()=>h.call('menu')));assert.ok(reads.every(r=>r.status===200&&r.body.version===1&&r.body.catalog.dishes.length===4));});
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { generateKeyPairSync, sign } from 'node:crypto';
+import QRCode from 'qrcode';
+import sharp from 'sharp';
+import jsQR from 'jsqr';
+import { handleApi } from '../lib/api';
+import { buildVCard, defaultSettings, demoCatalog, textPages, wifiPayload, TEXT_QR_MAX_BYTES, VCARD_QR_MAX_BYTES } from '../lib/contracts';
+import type { Store, Stored } from '../lib/store';
+
+const pair = generateKeyPairSync('ed25519');
+const publicKey = Buffer.from(pair.publicKey.export({ type: 'spki', format: 'der' }).subarray(-32)).toString('base64');
+
+function harness() {
+  let data: Stored | null = null;
+  const media = new Map<string, { bytes: Uint8Array; type: string }>();
+  const store: Store = {
+    async read() { return structuredClone(data); },
+    async commit(state, revision) {
+      if (revision === null ? data !== null : !data || data.revision !== revision) return false;
+      data = { state: structuredClone(state), revision: revision === null ? 0 : revision + 1 };
+      return true;
+    },
+    async mediaGet(id) { return media.get(id) || null; },
+    async mediaPut(id, bytes, type) { media.set(id, { bytes, type }); },
+  };
+  let cookie = '';
+  return {
+    async call(path: string, method = 'GET', body?: unknown, origin?: string) {
+      const request = new Request('https://menu.test/api/v1/' + path, {
+        method,
+        headers: { cookie, ...(body ? { 'Content-Type': 'application/json' } : {}), ...(origin ? { origin } : {}) },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      const response = await handleApi(request, store, { publicKey, setupToken: 'setup-secret', runtime: 'local' });
+      if (response.headers.has('set-cookie')) cookie = response.headers.get('set-cookie')!.split(';')[0];
+      return { status: response.status, body: await response.json() as any };
+    },
+    signLicense(restaurantId: string, modes = ['dual_web_vcard']) {
+      const bytes = Buffer.from(JSON.stringify({ schemaVersion: 1, restaurantId, licenseId: 'test-license', modes, issuedAt: new Date().toISOString(), customer: 'Prueba' }));
+      return { payload: bytes.toString('base64'), signature: Buffer.from(sign(null, bytes, pair.privateKey)).toString('base64') };
+    },
+  };
+}
+
+async function decode(payload: string) {
+  const png = await QRCode.toBuffer(payload, { type: 'png', width: 1200, margin: 4, errorCorrectionLevel: 'M' });
+  const image = await (sharp as any)(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  return jsQR(new Uint8ClampedArray(image.data), image.info.width, image.info.height)?.data;
+}
+
+test('dual mode is the default and API returns exactly web plus vCard QR', async () => {
+  const h = harness();
+  const setup = await h.call('setup', 'POST', { name: 'Mesa', password: 'test-password-123', setupToken: 'setup-secret' });
+  assert.equal(setup.status, 201);
+  assert.equal((await h.call('logout', 'POST', {})).status, 200);
+  assert.equal((await h.call('login', 'POST', { code: 'otro-local', password: 'test-password-123' })).status, 401);
+  assert.equal((await h.call('login', 'POST', { code: setup.body.restaurantId, password: 'test-password-123' })).status, 200);
+  let state = (await h.call('state')).body;
+  assert.equal(state.settings.mode, 'dual_web_vcard');
+  assert.equal((await h.call('publish', 'POST', { revision: state.revision })).status, 403);
+  assert.equal((await h.call('license', 'POST', h.signLicense(setup.body.restaurantId))).status, 200);
+  state = (await h.call('state')).body;
+  assert.equal((await h.call('draft', 'PUT', { revision: state.revision, catalog: demoCatalog })).status, 200);
+  state = (await h.call('state')).body;
+  const settings = {
+    ...state.settings,
+    webUrl: 'https://qr-menu-resuelven.pages.dev/restaurante-demo',
+    offlineCard: { ...state.settings.offlineCard, phone: '+593 99 000 0000', address: 'Calle 1; Centro, Ecuador', hours: 'Lun-Dom 08:00-22:00' },
+  };
+  assert.equal((await h.call('settings', 'PUT', { revision: state.revision, settings })).status, 200);
+  state = (await h.call('state')).body;
+  assert.equal((await h.call('publish', 'POST', { revision: state.revision })).status, 200);
+  const packageResult = await h.call('qr');
+  assert.equal(packageResult.status, 200);
+  assert.deepEqual(packageResult.body.codes.map((code: any) => code.kind), ['web', 'vcard']);
+  assert.equal(packageResult.body.codes.length, 2);
+  assert.equal(await decode(packageResult.body.codes[0].payload), settings.webUrl);
+  assert.equal(await decode(packageResult.body.codes[1].payload), packageResult.body.codes[1].payload);
+  assert.match(packageResult.body.codes[1].payload, /^BEGIN:VCARD\r\nVERSION:3\.0\r\n/);
+  assert.match(packageResult.body.codes[1].payload, /NOTE:/);
+  assert.ok(packageResult.body.offlineBytes <= VCARD_QR_MAX_BYTES);
+  assert.equal(packageResult.body.offlineReprintRequired, true);
+  assert.equal((await h.call('qr/printed', 'POST', {})).status, 200);
+  assert.equal((await h.call('state')).body.offlineReprintRequired, false);
+});
+
+test('vCard escapes contact fields, folds at 75 octets and preserves UTF-8 note content', () => {
+  const catalog = {
+    ...demoCatalog,
+    name: 'Café \\ Norte; Centro, Quito',
+    dishes: [{ ...demoCatalog.dishes[0], name: 'Ceviche, limón; ají \\ especial', description: 'Tildes: áéíóú, ñ y texto seguro\nsegunda línea.' }],
+  };
+  const result = buildVCard(catalog, {
+    ...defaultSettings,
+    webUrl: 'https://example.com/menu',
+    offlineCard: { ...defaultSettings.offlineCard, address: 'Av. Uno; local 2, Quito', phone: '+593 2 000 0000', hours: 'Lunes a domingo' },
+  });
+  const unfolded = result.payload.replace(/\r\n /g, '');
+  assert.equal(result.fits, true);
+  assert.match(unfolded, /FN:Café \\\\ Norte\\; Centro\\, Quito/);
+  assert.match(unfolded, /ADR;TYPE=WORK:;;Av\. Uno\\; local 2\\, Quito/);
+  assert.match(unfolded, /Ceviche\\, limón\\; ají \\\\ especial/);
+  assert.match(unfolded, /segunda línea/);
+  assert.ok(result.payload.split('\r\n').every(line => new TextEncoder().encode(line).length <= 75));
+  assert.equal(result.payload.endsWith('\r\n'), true);
+});
+
+test('vCard omits longest descriptions first and never removes names or prices', () => {
+  const catalog = {
+    ...demoCatalog,
+    dishes: Array.from({ length: 12 }, (_, index) => ({
+      ...demoCatalog.dishes[0],
+      id: 'dish-' + index,
+      name: 'Plato esencial ' + index,
+      description: 'Descripción extensa '.repeat(index + 3),
+      image: '',
+    })),
+  };
+  const result = buildVCard(catalog, { ...defaultSettings, webUrl: 'https://example.com/menu' });
+  assert.equal(result.fits, true);
+  assert.ok(result.omittedDescriptions.length > 0);
+  assert.equal(result.omittedDescriptions[0], 'Plato esencial 11');
+  for (let index = 0; index < 12; index++) {
+    assert.match(result.note, new RegExp(`Plato esencial ${index} — \\$6\\.50`));
+  }
+  assert.ok(result.bytes <= VCARD_QR_MAX_BYTES);
+});
+
+test('essential overflow is reported without mutating the catalog', () => {
+  const catalog = {
+    ...demoCatalog,
+    categories: [{ id: 'largos', name: 'Categoría de nombres esenciales' }],
+    dishes: Array.from({ length: 80 }, (_, index) => ({ ...demoCatalog.dishes[0], id: 'e' + index, categoryId: 'largos', name: `Plato esencial número ${index}`, description: '', image: '' })),
+  };
+  const before = structuredClone(catalog);
+  const result = buildVCard(catalog, { ...defaultSettings, webUrl: 'https://example.com/menu' });
+  assert.equal(result.fits, false);
+  assert.ok(result.bytes > VCARD_QR_MAX_BYTES);
+  assert.ok(result.offendingDish);
+  assert.deepEqual(catalog, before);
+});
+
+test('legacy text and local modes remain valid', () => {
+  assert.match(wifiPayload({ ...defaultSettings, ssid: 'Mesa;:A' }), /S:Mesa\\;\\:A/);
+  const catalog = { ...demoCatalog, dishes: Array.from({ length: 150 }, (_, index) => ({ ...demoCatalog.dishes[0], id: 'd' + index, name: 'Plato ecuatoriano número ' + index, image: '' })) };
+  const pages = textPages(catalog);
+  assert.ok(pages.length > 1);
+  for (const [index, page] of pages.entries()) {
+    assert.ok(new TextEncoder().encode(page).length <= TEXT_QR_MAX_BYTES);
+    assert.match(page, new RegExp(`PARTE ${index + 1} DE ${pages.length}$`));
+  }
+});
+
+test('draft conflicts, recovery and published snapshots remain atomic', async () => {
+  const h = harness();
+  const setup = await h.call('setup', 'POST', { name: 'Mesa', password: 'test-password-123', setupToken: 'setup-secret' });
+  await h.call('license', 'POST', h.signLicense(setup.body.restaurantId, ['local', 'text']));
+  let state = (await h.call('state')).body;
+  assert.equal((await h.call('draft', 'PUT', { revision: state.revision, catalog: demoCatalog })).status, 200);
+  assert.equal((await h.call('draft', 'PUT', { revision: state.revision, catalog: demoCatalog })).status, 409);
+  state = (await h.call('state')).body;
+  assert.equal((await h.call('settings', 'PUT', { revision: state.revision, settings: { ...state.settings, mode: 'local' } })).status, 200);
+  state = (await h.call('state')).body;
+  assert.equal((await h.call('publish', 'POST', { revision: state.revision })).status, 200);
+  state = (await h.call('state')).body;
+  await h.call('draft', 'PUT', { revision: state.revision, catalog: { ...demoCatalog, name: 'Borrador nuevo' } });
+  assert.equal((await h.call('menu')).body.catalog.name, 'La Mesa');
+  assert.equal((await h.call('logout', 'POST', {}, 'https://evil.test')).status, 403);
+  assert.equal((await h.call('logout', 'POST', {})).status, 200);
+  assert.equal((await h.call('state')).status, 401);
+  const recovered = await h.call('recover', 'POST', { recovery: setup.body.recovery, password: 'new-password-123' });
+  assert.equal(recovered.status, 200);
+  assert.notEqual(recovered.body.recovery, setup.body.recovery);
+});

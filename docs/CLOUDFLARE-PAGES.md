@@ -11,7 +11,7 @@ Android y OpenWrt se conserva. Pages es la edición de consulta de cartas editad
 - Entrada React/Vite independiente; ningún código de Sites ni API se incluye en esta edición.
 - Catálogo demo separado, validado al compilar, sin sobrescribir la base existente.
 - Rutas `/restaurante-demo`, `/restaurante-demo/qr`, inicio y aliases `/menu`, `/demo`.
-- QR PNG descargable e imprimible con platos y precios dentro del propio código, sin conexión previa.
+- Dos QR PNG descargables e imprimibles: URL HTTPS permanente para el menú visual y vCard 3.0 para la carta básica sin conexión.
 - Caché completa versionada por contenido; estado listo solo tras terminar la instalación.
 - Manifest e iconos PNG, cabeceras de seguridad y caché, fallback SPA.
 - Textos legibles, botones de al menos 44 px y tarjetas de una columna en móviles.
@@ -89,9 +89,8 @@ https://qr-menu-resuelven.pages.dev/restaurante-demo
 
 ## 8. QR DE PRUEBA
 
-Abre https://qr-menu-resuelven.pages.dev/restaurante-demo/qr. Pulsa **Descargar PNG** o **Imprimir QR**.
-El QR contiene la carta de texto publicada en el catálogo: no contiene localhost, un dominio ni una dirección temporal.
-El archivo de prueba decodificado se guarda en `outputs/pages-qa/restaurante-demo-qr.png`.
+Abre https://qr-menu-resuelven.pages.dev/restaurante-demo/qr. Pulsa **Descargar PNG** o **Imprimir ambos QR**.
+El primer código contiene la URL pública permanente; el segundo contiene una vCard 3.0 dentro de 900 bytes. Los archivos decodificados se guardan como `restaurante-demo-web-qr.png` y `restaurante-demo-vcard-qr.png` en `outputs/pages-qa`.
 
 ## 9. PRUEBAS EJECUTADAS
 
@@ -116,7 +115,7 @@ La primera prueba pública detectó un 308 de index.html que impedía la recarga
 ## 11. ERRORES CORREGIDOS
 
 La edición Pages tiene entrada y datos propios, sin solicitudes a API; mantiene los componentes existentes.
-Su propio SW cubre la carta SPA completa. Su QR principal contiene texto y no exige servidor ni conexión en el primer escaneo.
+Su propio SW cubre la carta SPA completa. La impresión ofrece un QR web permanente y una vCard que no exige servidor ni conexión al escanear.
 Wrangler, su plugin y tipos compatibles se actualizaron y eliminaron los hallazgos altos.
 El SW ahora guarda la respuesta canónica /, evitando reutilizar una respuesta redirigida durante
 la navegación offline. La corrección se desplegó automáticamente y pasó las pruebas públicas.
@@ -130,7 +129,7 @@ la navegación offline. La corrección se desplegó automáticamente y pasó las
   no forma parte del JavaScript entregado al comensal. No se forzó una regresión de Drizzle para ocultarlos.
 - Offline funciona después de una descarga completa, en el mismo navegador y origen. Puede perderse
   si el usuario borra datos, usa incógnito o el navegador elimina caché por falta de espacio.
-- El QR de texto funciona para un cliente nuevo sin Internet. El menú visual con fotos sí necesita una primera visita con conexión para quedar guardado en ese navegador.
+- La vCard funciona para un cliente nuevo sin Internet. El menú visual con fotos requiere conexión; una copia web offline solo existe después de una visita completa en ese navegador.
 - La carta descargada puede mostrar precios/disponibilidad anteriores. La selección no persiste al recargar.
 - No se ha certificado cámara, instalación PWA ni navegación en Android físico; requiere prueba humana.
 - No hay pedidos, pagos ni sincronización de cambios entre dispositivos en la edición estática.
@@ -214,10 +213,10 @@ Usa normalmente GitHub: cada push a main dispara la publicación automática. Un
 ### ETAPA G — Probar el QR
 
 1. En la computadora abre la URL pública con `/restaurante-demo/qr`.
-2. Pulsa **Descargar PNG**. La imagen contiene la dirección de ese dominio.
-3. En otro celular, incluso sin Internet, abre **Cámara**. Apunta al QR completo y toca el aviso de texto si el sistema lo solicita.
-4. Deben aparecer el nombre del restaurante, las categorías, los platos disponibles y sus precios. Si el teléfono no reconoce el QR, prueba Google Lens, más luz y mayor tamaño.
-5. Comprueba que el contenido no sea una URL y que los platos agotados no aparezcan.
+2. Verás exactamente dos tarjetas. Descarga los dos PNG o pulsa **Imprimir ambos QR**.
+3. Con Internet, escanea **MENÚ CON INTERNET**: debe abrir la URL pública y mostrar fotografías, buscador y categorías.
+4. Activa modo avión y escanea **MENÚ SIN INTERNET**: el teléfono debe ofrecer abrir o guardar un contacto vCard. En Notas deben aparecer categorías, platos disponibles y precios.
+5. Comprueba que el plato agotado no aparezca en la vCard. Si el teléfono no reconoce el código, prueba Google Lens, más luz y mayor tamaño.
 
 ### ETAPA H — Simular restaurante real
 
@@ -278,7 +277,7 @@ Resultados contra https://qr-menu-resuelven.pages.dev. FAIL indica no aprobado, 
 | Cloudflare Pages | PASS | Producción y segundo despliegue automático verificados |
 | HTTPS | PASS | Certificado aceptado por Chromium y respuesta 200 |
 | Página móvil | PASS | Emulación Pixel 7 / Chromium |
-| QR | PASS | PNG decodificado: URL pública exacta; cámara física pendiente |
+| QR web + vCard | PASS | Ambos PNG decodificados por software; cámara física pendiente |
 | Categorías | PASS | Entradas, principales, bebidas y navegación |
 | Productos | PASS | 10 productos; agotado no seleccionable |
 | Precios | PASS | Hamburguesa $5.00 y total de selección |
@@ -286,7 +285,7 @@ Resultados contra https://qr-menu-resuelven.pages.dev. FAIL indica no aprobado, 
 | Responsive | PASS | 320, 390, 412, 768 y 1440 px; sin overflow de página |
 | PWA | PASS | Manifest, iconos, SW y caché funcional; instalación física pendiente |
 | Offline previamente cargado | PASS | Recarga, nueva pestaña, carta y foto en producción |
-| Android | FAIL | No se dispone de teléfono físico; emulación aprobada |
+| Android / iPhone | FAIL | No se dispone de teléfonos físicos; emulación web aprobada |
 | Errores consola | PASS | Cero errores en la batería pública |
 
 

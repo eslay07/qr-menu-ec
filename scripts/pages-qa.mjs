@@ -52,20 +52,28 @@ try {
   assert.equal(await page.evaluate(() => localStorage.length), 0);
   passed.push('Manifest, iconos PWA y ausencia de dependencia de localStorage');
   await page.goto(base + '/restaurante-demo/qr');
-  const qrImage = page.getByAltText('Código QR del menú, parte 1 de 1');
-  await qrImage.waitFor();
-  assert.match(await qrImage.getAttribute('src'), /^data:image\/png;base64,/);
-  const png = Buffer.from((await qrImage.getAttribute('src')).split(',')[1], 'base64');
-  const decodedImage = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-  const decodedQr = jsQR(new Uint8ClampedArray(decodedImage.data), decodedImage.info.width, decodedImage.info.height);
-  assert.match(decodedQr?.data || '', /^RESTAURANTE DEMO RESUELVEN\nMENÚ · PRECIOS EN USD/);
-  assert.match(decodedQr?.data || '', /- Hamburguesa clásica: \$5\.00/);
-  assert.doesNotMatch(decodedQr?.data || '', /Encebollado de la casa/);
-  assert.doesNotMatch(decodedQr?.data || '', /^https?:/);
-  await fs.writeFile(`${output}/restaurante-demo-qr.png`, png);
-  assert.match(await page.locator('.print-card-heading').innerText(), /no necesita internet ni una visita previa/i);
+  const qrImages = page.locator('.print-card img');
+  await qrImages.first().waitFor();
+  assert.equal(await qrImages.count(), 2);
+  const decodedPayloads = [];
+  for (let index = 0; index < 2; index++) {
+    const source = await qrImages.nth(index).getAttribute('src');
+    assert.match(source, /^data:image\/png;base64,/);
+    const png = Buffer.from(source.split(',')[1], 'base64');
+    const decodedImage = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    decodedPayloads.push(jsQR(new Uint8ClampedArray(decodedImage.data), decodedImage.info.width, decodedImage.info.height)?.data || '');
+    await fs.writeFile(`${output}/restaurante-demo-${index ? 'vcard' : 'web'}-qr.png`, png);
+  }
+  assert.equal(decodedPayloads[0], 'https://qr-menu-resuelven.pages.dev/restaurante-demo');
+  assert.match(decodedPayloads[1], /^BEGIN:VCARD\r\nVERSION:3\.0\r\n/);
+  assert.match(decodedPayloads[1], /NOTE:/);
+  assert.match(decodedPayloads[1], /Hamburguesa clásica/);
+  assert.doesNotMatch(decodedPayloads[1], /Encebollado de la casa/);
+  assert.match(await page.locator('.print-card-heading').innerText(), /elige según tu conexión/i);
+  assert.match(await page.locator('.print-card.web').innerText(), /MENÚ CON INTERNET/);
+  assert.match(await page.locator('.print-card.vcard').innerText(), /MENÚ SIN INTERNET/);
   await page.screenshot({ path: `${output}/qr.png`, fullPage: true });
-  passed.push('QR de texto decodificado sin URL ni conexión previa');
+  passed.push('Dos QR decodificados: URL web permanente y vCard 3.0 offline');
   await page.goto(base + '/restaurante-demo');
   await context.setOffline(true);
   await page.reload();
@@ -103,7 +111,7 @@ try {
   passed.push(`Red limitada simulada: carta visible en ${slowLoadMs} ms (1.6 Mbps, latencia 150 ms)`);
   await slow.close();
   assert.deepEqual(errors, []);
-  const result = { base, passed, errors, slowLoadMs, physicalAndroid: false, testedAt: new Date().toISOString() };
+  const result = { base, passed, errors, slowLoadMs, physicalAndroid: false, physicalIPhone: false, printedCameraSeparation: false, testedAt: new Date().toISOString() };
   await fs.writeFile(`${output}/results.json`, JSON.stringify(result, null, 2));
   console.log(JSON.stringify(result, null, 2));
 } finally { await browser.close(); }
