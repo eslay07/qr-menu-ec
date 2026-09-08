@@ -5,7 +5,7 @@ import QRCode from 'qrcode';
 import sharp from 'sharp';
 import jsQR from 'jsqr';
 import { handleApi } from '../lib/api';
-import { buildVCard, defaultSettings, demoCatalog, textPages, wifiPayload, TEXT_QR_MAX_BYTES, VCARD_QR_MAX_BYTES } from '../lib/contracts';
+import { buildOfflineText, defaultSettings, demoCatalog, textPages, wifiPayload, TEXT_QR_MAX_BYTES, OFFLINE_TEXT_QR_MAX_BYTES } from '../lib/contracts';
 import type { Store, Stored } from '../lib/store';
 
 const pair = generateKeyPairSync('ed25519');
@@ -49,7 +49,7 @@ async function decode(payload: string) {
   return jsQR(new Uint8ClampedArray(image.data), image.info.width, image.info.height)?.data;
 }
 
-test('dual mode is the default and API returns exactly web plus vCard QR', async () => {
+test('dual mode is the default and API returns exactly web plus offline text QR', async () => {
   const h = harness();
   const setup = await h.call('setup', 'POST', { name: 'Mesa', password: 'test-password-123', setupToken: 'setup-secret' });
   assert.equal(setup.status, 201);
@@ -73,40 +73,42 @@ test('dual mode is the default and API returns exactly web plus vCard QR', async
   assert.equal((await h.call('publish', 'POST', { revision: state.revision })).status, 200);
   const packageResult = await h.call('qr');
   assert.equal(packageResult.status, 200);
-  assert.deepEqual(packageResult.body.codes.map((code: any) => code.kind), ['web', 'vcard']);
+  assert.deepEqual(packageResult.body.codes.map((code: any) => code.kind), ['web', 'offline_text']);
   assert.equal(packageResult.body.codes.length, 2);
   assert.equal(await decode(packageResult.body.codes[0].payload), settings.webUrl);
   assert.equal(await decode(packageResult.body.codes[1].payload), packageResult.body.codes[1].payload);
-  assert.match(packageResult.body.codes[1].payload, /^BEGIN:VCARD\r\nVERSION:3\.0\r\n/);
-  assert.match(packageResult.body.codes[1].payload, /NOTE:/);
-  assert.ok(packageResult.body.offlineBytes <= VCARD_QR_MAX_BYTES);
+  assert.match(packageResult.body.codes[1].payload, /^━|^\*\*/);
+  assert.match(packageResult.body.codes[1].payload, /\/\/ MENÚ · PRECIOS EN USD \/\//);
+  assert.doesNotMatch(packageResult.body.codes[1].payload, /BEGIN:VCARD|VERSION:3\.0|NOTE:/);
+  assert.equal(packageResult.body.offlineText, packageResult.body.codes[1].payload);
+  assert.ok(packageResult.body.offlineBytes <= OFFLINE_TEXT_QR_MAX_BYTES);
   assert.equal(packageResult.body.offlineReprintRequired, true);
   assert.equal((await h.call('qr/printed', 'POST', {})).status, 200);
   assert.equal((await h.call('state')).body.offlineReprintRequired, false);
 });
 
-test('vCard escapes contact fields, folds at 75 octets and preserves UTF-8 note content', () => {
+test('offline text preserves UTF-8 and visual symbols without contact metadata', () => {
   const catalog = {
     ...demoCatalog,
     name: 'Café \\ Norte; Centro, Quito',
     dishes: [{ ...demoCatalog.dishes[0], name: 'Ceviche, limón; ají \\ especial', description: 'Tildes: áéíóú, ñ y texto seguro\nsegunda línea.' }],
   };
-  const result = buildVCard(catalog, {
+  const result = buildOfflineText(catalog, {
     ...defaultSettings,
     webUrl: 'https://example.com/menu',
     offlineCard: { ...defaultSettings.offlineCard, address: 'Av. Uno; local 2, Quito', phone: '+593 2 000 0000', hours: 'Lunes a domingo' },
   });
-  const unfolded = result.payload.replace(/\r\n /g, '');
   assert.equal(result.fits, true);
-  assert.match(unfolded, /FN:Café \\\\ Norte\\; Centro\\, Quito/);
-  assert.match(unfolded, /ADR;TYPE=WORK:;;Av\. Uno\\; local 2\\, Quito/);
-  assert.match(unfolded, /Ceviche\\, limón\\; ají \\\\ especial/);
-  assert.match(unfolded, /segunda línea/);
-  assert.ok(result.payload.split('\r\n').every(line => new TextEncoder().encode(line).length <= 75));
-  assert.equal(result.payload.endsWith('\r\n'), true);
+  assert.match(result.payload, /\*\* CAFÉ \\ NORTE; CENTRO, QUITO \*\*/);
+  assert.match(result.payload, /\/\/ MENÚ · PRECIOS EN USD \/\//);
+  assert.match(result.payload, /◆ NUESTRA COCINA/);
+  assert.match(result.payload, /• Ceviche, limón; ají \\ especial — \$6\.50/);
+  assert.match(result.payload, /\/ Tildes: áéíóú, ñ y texto seguro segunda línea\. \//);
+  assert.match(result.payload, /DIR: Av\. Uno; local 2, Quito/);
+  assert.doesNotMatch(result.payload, /BEGIN:VCARD|VERSION:3\.0|NOTE:/);
 });
 
-test('vCard omits longest descriptions first and never removes names or prices', () => {
+test('offline text omits longest descriptions first and never removes names or prices', () => {
   const catalog = {
     ...demoCatalog,
     dishes: Array.from({ length: 12 }, (_, index) => ({
@@ -117,14 +119,14 @@ test('vCard omits longest descriptions first and never removes names or prices',
       image: '',
     })),
   };
-  const result = buildVCard(catalog, { ...defaultSettings, webUrl: 'https://example.com/menu' });
+  const result = buildOfflineText(catalog, { ...defaultSettings, webUrl: 'https://example.com/menu' });
   assert.equal(result.fits, true);
   assert.ok(result.omittedDescriptions.length > 0);
   assert.equal(result.omittedDescriptions[0], 'Plato esencial 11');
   for (let index = 0; index < 12; index++) {
-    assert.match(result.note, new RegExp(`Plato esencial ${index} — \\$6\\.50`));
+    assert.match(result.payload, new RegExp(`Plato esencial ${index} — \\$6\\.50`));
   }
-  assert.ok(result.bytes <= VCARD_QR_MAX_BYTES);
+  assert.ok(result.bytes <= OFFLINE_TEXT_QR_MAX_BYTES);
 });
 
 test('essential overflow is reported without mutating the catalog', () => {
@@ -134,9 +136,9 @@ test('essential overflow is reported without mutating the catalog', () => {
     dishes: Array.from({ length: 80 }, (_, index) => ({ ...demoCatalog.dishes[0], id: 'e' + index, categoryId: 'largos', name: `Plato esencial número ${index}`, description: '', image: '' })),
   };
   const before = structuredClone(catalog);
-  const result = buildVCard(catalog, { ...defaultSettings, webUrl: 'https://example.com/menu' });
+  const result = buildOfflineText(catalog, { ...defaultSettings, webUrl: 'https://example.com/menu' });
   assert.equal(result.fits, false);
-  assert.ok(result.bytes > VCARD_QR_MAX_BYTES);
+  assert.ok(result.bytes > OFFLINE_TEXT_QR_MAX_BYTES);
   assert.ok(result.offendingDish);
   assert.deepEqual(catalog, before);
 });

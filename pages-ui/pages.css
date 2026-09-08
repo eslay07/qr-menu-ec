@@ -10,7 +10,7 @@
 .pages-status{padding:20px 24px 100px;text-align:center;font-size:14px;background:#edf2e7}
 .pages-status a{text-decoration:underline;display:inline-block;padding:16px}
 .print-cards{max-width:1120px;margin:40px auto;padding:0 24px}.print-card-heading{text-align:center;margin-bottom:24px}.print-card-heading p{margin:16px 0}.print-card-heading .actions{justify-content:center}.print-card-grid{display:grid;grid-template-columns:1fr 1fr;gap:42px;align-items:stretch}
-.print-card{margin:24px auto;padding:32px;text-align:center;background:white;border:1px solid var(--border);border-radius:14px;break-inside:avoid;width:100%}.print-card.web{border-top:8px solid #244130}.print-card.vcard{border-top:8px solid #baf45a}
+.print-card{margin:24px auto;padding:32px;text-align:center;background:white;border:1px solid var(--border);border-radius:14px;break-inside:avoid;width:100%}.print-card.web{border-top:8px solid #244130}.print-card.offline_text{border-top:8px solid #baf45a}
 .print-card h1{font-size:28px;overflow-wrap:anywhere}.print-card p{margin:16px 0}
 .print-card img{max-width:100%;height:auto}.qr-payload{text-align:left;margin:18px 0}.qr-payload summary{cursor:pointer;font-weight:700}.qr-payload pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f4f6f1;border-radius:8px;padding:16px;font:14px/1.55 ui-monospace,monospace}
 @media(max-width:760px){.print-card-grid{grid-template-columns:1fr;gap:18px}.pages-edition .dish-grid{grid-template-columns:1fr}.pages-edition .dish-photo{height:210px}.pages-edition .dish-body p{min-height:0}.pages-edition .customer-intro h1{font-size:34px}.pages-edition .selection-row{flex-wrap:wrap}.pages-edition .modal{padding:18px}.pages-edition .customer-meta{flex-wrap:wrap}}

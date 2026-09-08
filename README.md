@@ -11,7 +11,7 @@ La edición Pages publica cartas desde Git; el panel con contraseñas, licencias
 se conserva en las ediciones Sites/Worker/local y requiere su servidor. No se exportan datos privados.
 Manual completo: [Migración a Pages](docs/CLOUDFLARE-PAGES.md).
 
-Aplicación central para editar y publicar menús de restaurantes, con servidor web, Windows, Android y router OpenWrt. La modalidad principal genera exactamente dos códigos: una URL HTTPS permanente para el menú visual y una vCard 3.0 con la carta básica para abrir sin conexión. El cliente elige manualmente; no existe detección previa ni un tercer QR. Español, Ecuador, USD. Edición piloto: la lectura física en Android/iPhone sigue pendiente de certificación.
+Aplicación central para editar y publicar menús de restaurantes, con servidor web, Windows, Android y router OpenWrt. La modalidad principal genera exactamente dos códigos: una URL HTTPS permanente para el menú visual y un QR de texto estructurado para consultar la carta sin conexión. El cliente elige manualmente; no existe detección previa ni un tercer QR. Los símbolos `**`, `//`, `◆` y `•` son adornos visibles —no Markdown— y el lector del celular controla la tipografía final. Español, Ecuador, USD. Edición piloto: la lectura física en Android/iPhone sigue pendiente de certificación.
 
 ## Desarrollo
 

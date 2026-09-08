@@ -118,75 +118,55 @@ export function textPages(catalog: Catalog, maxBytes = TEXT_QR_MAX_BYTES) {
   return pages.map((page, index) => `${page}${textFooter(index + 1, pages.length)}`);
 }
 
-export const VCARD_QR_MAX_BYTES = 900;
-export type VCardResult = { payload: string; note: string; bytes: number; remaining: number; fits: boolean; compacted: boolean; omittedDescriptions: string[]; offendingDish: string | null };
-function escapeVCardText(value: string) { return value.replace(/\\/g, '\\\\').replace(/\r\n|\r|\n/g, '\\n').replace(/,/g, '\\,').replace(/;/g, '\\;'); }
-function foldVCardLine(line: string) {
-  const chunks: string[] = [];
-  let chunk = '';
-  for (const character of line) {
-    const limit = chunks.length ? 74 : 75;
-    if (chunk && textBytes(chunk + character) > limit) { chunks.push(chunk); chunk = character; }
-    else chunk += character;
-  }
-  if (chunk || !chunks.length) chunks.push(chunk);
-  return chunks.map((value, index) => index ? ` ${value}` : value).join('\r\n');
-}
-function makeNote(catalog: Catalog, settings: OfflineCardSettings, omitted: Set<string>, compact: boolean) {
+export const OFFLINE_TEXT_QR_MAX_BYTES = 900;
+export type OfflineTextResult = { payload: string; bytes: number; remaining: number; fits: boolean; compacted: boolean; omittedDescriptions: string[]; offendingDish: string | null };
+const offlineValue = (value: string) => value.replace(/[\u0000-\u001f\u007f-\u009f]+/g, ' ').replace(/\s+/g, ' ').trim();
+function makeOfflineText(catalog: Catalog, settings: Settings, omitted: Set<string>, compact: boolean) {
+  const card = settings.offlineCard;
   const available = catalog.dishes.filter(dish => dish.available);
   const lines: string[] = [];
-  const separator = compact ? '' : settings.separator.trim();
-  const title = (settings.title.trim() || catalog.name).toUpperCase();
+  const separator = compact ? '' : card.separator.trim();
+  const title = offlineValue(card.title || catalog.name).toUpperCase();
   if (separator) lines.push(separator);
-  lines.push(title, 'MENÚ · PRECIOS EN USD');
+  lines.push(`** ${title} **`, '// MENÚ · PRECIOS EN USD //');
   if (separator) lines.push(separator);
-  if (!compact && settings.intro.trim()) lines.push('', settings.intro.trim());
-  if (settings.hours.trim()) lines.push('', `HORARIO: ${settings.hours.trim()}`);
+  if (!compact && card.intro.trim()) lines.push('', `// ${offlineValue(card.intro)} //`);
+  if (card.phone.trim()) lines.push('', `TEL: ${offlineValue(card.phone)}`);
+  if (card.address.trim()) lines.push(`DIR: ${offlineValue(card.address)}`);
+  if (card.hours.trim()) lines.push(`HORARIO: ${offlineValue(card.hours)}`);
   for (const category of catalog.categories) {
     const dishes = available.filter(dish => dish.categoryId === category.id);
     if (!dishes.length) continue;
-    lines.push('', `${compact ? '' : `${settings.categoryBullet.trim()} `}${category.name.toUpperCase()}`);
+    lines.push('', `${compact ? '' : `${card.categoryBullet.trim()} `}${offlineValue(category.name).toUpperCase()}`);
     for (const dish of dishes) {
-      lines.push('', `${compact ? '- ' : `${settings.dishBullet.trim()} `}${dish.name} — ${qrMoney(dish.priceCents)}`);
-      if (settings.includeDescriptions && dish.description.trim() && !omitted.has(dish.id)) lines.push(`  ${dish.description.trim()}`);
+      lines.push(`${compact ? '- ' : `${card.dishBullet.trim()} `}${offlineValue(dish.name)} — ${qrMoney(dish.priceCents)}`);
+      if (card.includeDescriptions && dish.description.trim() && !omitted.has(dish.id)) lines.push(`  / ${offlineValue(dish.description)} /`);
     }
   }
   if (!compact && separator) lines.push('', separator);
-  if (!compact && settings.farewell.trim()) lines.push(settings.farewell.trim());
+  if (!compact && card.farewell.trim()) lines.push(`** ${offlineValue(card.farewell)} **`);
+  if (!compact && settings.webUrl) lines.push('', `WEB: ${settings.webUrl}`);
   return lines.join('\n');
 }
-function makeVCard(catalog: Catalog, settings: Settings, note: string) {
-  const card = settings.offlineCard;
-  const name = escapeVCardText(catalog.name);
-  const lines = ['BEGIN:VCARD', 'VERSION:3.0', `FN:${name}`, `N:;${name};;;`, `ORG:${name}`];
-  if (card.phone.trim()) lines.push(`TEL;TYPE=WORK,VOICE:${escapeVCardText(card.phone.trim())}`);
-  if (card.address.trim()) lines.push(`ADR;TYPE=WORK:;;${escapeVCardText(card.address.trim())};;;;`);
-  if (settings.webUrl) lines.push(`URL:${settings.webUrl}`);
-  lines.push(`NOTE:${escapeVCardText(note)}`, 'END:VCARD');
-  return lines.map(foldVCardLine).join('\r\n') + '\r\n';
-}
-export function buildVCard(catalog: Catalog, rawSettings: Settings | Partial<Settings>, maxBytes = VCARD_QR_MAX_BYTES): VCardResult {
+export function buildOfflineText(catalog: Catalog, rawSettings: Settings | Partial<Settings>, maxBytes = OFFLINE_TEXT_QR_MAX_BYTES): OfflineTextResult {
   const settings = normalizeSettings(rawSettings);
   const available = catalog.dishes.filter(dish => dish.available);
   const omitted = new Set<string>();
   const omittedInOrder: string[] = [];
   let compacted = false;
-  let note = makeNote(catalog, settings.offlineCard, omitted, compacted);
-  let payload = makeVCard(catalog, settings, note);
+  let payload = makeOfflineText(catalog, settings, omitted, compacted);
   const candidates = settings.offlineCard.includeDescriptions ? [...available].filter(dish => dish.description.trim()).sort((a, b) => textBytes(b.description) - textBytes(a.description)) : [];
   for (const dish of candidates) {
     if (textBytes(payload) <= maxBytes) break;
     omitted.add(dish.id);
     omittedInOrder.push(dish.id);
-    note = makeNote(catalog, settings.offlineCard, omitted, compacted);
-    payload = makeVCard(catalog, settings, note);
+    payload = makeOfflineText(catalog, settings, omitted, compacted);
   }
   if (textBytes(payload) > maxBytes) {
     compacted = true;
-    note = makeNote(catalog, settings.offlineCard, omitted, compacted);
-    payload = makeVCard(catalog, settings, note);
+    payload = makeOfflineText(catalog, settings, omitted, compacted);
   }
   const bytes = textBytes(payload);
   const longest = [...available].sort((a, b) => textBytes(`${b.name}${qrMoney(b.priceCents)}`) - textBytes(`${a.name}${qrMoney(a.priceCents)}`))[0];
-  return { payload, note, bytes, remaining: Math.max(0, maxBytes - bytes), fits: available.length > 0 && bytes <= maxBytes, compacted, omittedDescriptions: omittedInOrder.map(dishId => available.find(dish => dish.id === dishId)!.name), offendingDish: bytes > maxBytes ? longest?.name || null : null };
+  return { payload, bytes, remaining: Math.max(0, maxBytes - bytes), fits: available.length > 0 && bytes <= maxBytes, compacted, omittedDescriptions: omittedInOrder.map(dishId => available.find(dish => dish.id === dishId)!.name), offendingDish: bytes > maxBytes ? longest?.name || null : null };
 }

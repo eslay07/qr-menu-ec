@@ -62,18 +62,19 @@ try {
     const png = Buffer.from(source.split(',')[1], 'base64');
     const decodedImage = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
     decodedPayloads.push(jsQR(new Uint8ClampedArray(decodedImage.data), decodedImage.info.width, decodedImage.info.height)?.data || '');
-    await fs.writeFile(`${output}/restaurante-demo-${index ? 'vcard' : 'web'}-qr.png`, png);
+    await fs.writeFile(`${output}/restaurante-demo-${index ? 'offline-text' : 'web'}-qr.png`, png);
   }
   assert.equal(decodedPayloads[0], 'https://qr-menu-resuelven.pages.dev/restaurante-demo');
-  assert.match(decodedPayloads[1], /^BEGIN:VCARD\r\nVERSION:3\.0\r\n/);
-  assert.match(decodedPayloads[1], /NOTE:/);
+  assert.match(decodedPayloads[1], /^(?:━+\n)?\*\* RESTAURANTE DEMO RESUELVEN \*\*/);
+  assert.match(decodedPayloads[1], /\/\/ MENÚ · PRECIOS EN USD \/\//);
+  assert.doesNotMatch(decodedPayloads[1], /BEGIN:VCARD|VERSION:3\.0|NOTE:/);
   assert.match(decodedPayloads[1], /Hamburguesa clásica/);
   assert.doesNotMatch(decodedPayloads[1], /Encebollado de la casa/);
   assert.match(await page.locator('.print-card-heading').innerText(), /elige según tu conexión/i);
   assert.match(await page.locator('.print-card.web').innerText(), /MENÚ CON INTERNET/);
-  assert.match(await page.locator('.print-card.vcard').innerText(), /MENÚ SIN INTERNET/);
+  assert.match(await page.locator('.print-card.offline_text').innerText(), /MENÚ SIN INTERNET/);
   await page.screenshot({ path: `${output}/qr.png`, fullPage: true });
-  passed.push('Dos QR decodificados: URL web permanente y vCard 3.0 offline');
+  passed.push('Dos QR decodificados: URL web permanente y texto visual offline');
   await page.goto(base + '/restaurante-demo');
   await context.setOffline(true);
   await page.reload();

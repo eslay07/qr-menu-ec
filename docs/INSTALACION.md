@@ -41,9 +41,9 @@ El perfil no aplica a cualquier router doméstico, a otras subredes o a polític
 
 ## Dueño: operación diaria
 
-Edita platos, categorías, fotos o disponibilidad y pulsa Guardar borrador. Publicar crea una versión íntegra. La modalidad principal genera dos QR al frente: **MENÚ CON INTERNET** abre la experiencia visual permanente de Cloudflare y **MENÚ SIN INTERNET** abre una vCard 3.0 con la carta básica en Notas. El cliente elige manualmente. El QR web no se reimprime al cambiar platos; la vCard sí debe regenerarse e imprimirse y el panel muestra si quedó desactualizada. Las modalidades web, texto dividido y red local continúan disponibles para instalaciones existentes.
+Edita platos, categorías, fotos o disponibilidad y pulsa Guardar borrador. Publicar crea una versión íntegra. La modalidad principal genera dos QR al frente: **MENÚ CON INTERNET** abre la experiencia visual permanente de Cloudflare y **MENÚ SIN INTERNET** muestra la carta como texto estructurado sin intentar guardar un contacto. El cliente elige manualmente. El QR web no se reimprime al cambiar platos; el QR offline sí debe regenerarse e imprimirse y el panel muestra si quedó desactualizado. Las modalidades web, texto dividido y red local continúan disponibles para instalaciones existentes.
 
-La selección del cliente calcula un total para enseñar al mesero; no envía pedidos. La vCard usa un máximo conservador de 900 bytes: primero omite descripciones largas solo del QR offline y después reduce adornos; nunca recorta nombres ni precios. Si el contenido esencial no cabe, la publicación se bloquea sin borrar el menú guardado. La presentación del contacto depende de la cámara y de la aplicación de Contactos.
+La selección del cliente calcula un total para enseñar al mesero; no envía pedidos. El texto offline usa un máximo conservador de 900 bytes: primero omite descripciones largas solo de ese QR y después reduce adornos; nunca recorta nombres ni precios. Si el contenido esencial no cabe, la publicación se bloquea sin borrar el menú guardado. Los símbolos `**`, `//`, `◆` y `•` quedan visibles para ordenar la carta; la cámara controla la tipografía y la forma de presentar el texto.
 
 ## Respaldo y cambio de servidor
 
