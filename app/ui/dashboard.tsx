@@ -146,7 +146,7 @@ export default function Dashboard() {
   useEffect(() => {
     reload().catch((e) => setError(e.message));
     const check = () => reload().catch((e) => setError(e.message));
-    const timer = window.setInterval(check, 15000);
+    const timer = window.setInterval(check, 5000);
     window.addEventListener("focus", check);
     document.addEventListener("visibilitychange", check);
     return () => {
