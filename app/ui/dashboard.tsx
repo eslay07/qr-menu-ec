@@ -16,7 +16,6 @@ import {
   Download,
   Lock,
   Globe,
-  FileText,
   Monitor,
   Smartphone,
   Router,
@@ -75,28 +74,16 @@ const modeInfo: {
   recommended?: boolean;
 }[] = [
   {
-    id: "dual_web_vcard",
-    title: "Acceso doble",
-    desc: "Dos QR: menú visual por internet y carta en texto sin conexión.",
-    icon: QrCode,
-    recommended: true,
-  },
-  {
     id: "web",
-    title: "Solo menú web",
-    desc: "Modalidad anterior con un único QR web.",
+    title: "Menú online",
+    desc: "Experiencia completa desde Cloudflare, con fotos y actualizaciones sin reimprimir.",
     icon: Globe,
-  },
-  {
-    id: "text",
-    title: "Texto dividido",
-    desc: "Modalidad anterior de texto en uno o varios QR.",
-    icon: FileText,
+    recommended: true,
   },
   {
     id: "local",
     title: "Red local",
-    desc: "Modalidad anterior dentro de la red del restaurante.",
+    desc: "El mismo menú interactivo servido desde PC, Android o router del restaurante.",
     icon: Wifi,
   },
 ];
@@ -107,6 +94,7 @@ export default function Dashboard() {
     [session, setSession] = useState<{
       configured: boolean;
       authenticated: boolean;
+      suspended?: boolean;
       platformSetup: boolean;
       runtime: string;
     } | null>(null),
@@ -135,10 +123,37 @@ export default function Dashboard() {
       setState(s);
       setDraft(s.draft);
       setSettings(s.settings);
+      (window as any).QrMenuAndroid?.setAccessState?.(true);
+      if (s.published)
+        (window as any).QrMenuAndroid?.syncMenu?.(
+          JSON.stringify({
+            restaurantId: s.restaurantId,
+            version: s.published.version,
+            at: s.published.at,
+            catalog: s.published.catalog,
+            accessExperience:
+              s.published.accessExperience || s.settings.accessExperience,
+          }),
+        );
+    } else {
+      (window as any).QrMenuAndroid?.setAccessState?.(false);
+      setState(null);
+      setCodes(null);
+      if (session.suspended)
+        setError("Este restaurante está suspendido. Comunícate con el administrador.");
     }
   }
   useEffect(() => {
     reload().catch((e) => setError(e.message));
+    const check = () => reload().catch((e) => setError(e.message));
+    const timer = window.setInterval(check, 15000);
+    window.addEventListener("focus", check);
+    document.addEventListener("visibilitychange", check);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener("focus", check);
+      document.removeEventListener("visibilitychange", check);
+    };
   }, []);
   async function run(fn: () => Promise<void>) {
     setBusy(true);
@@ -166,41 +181,8 @@ export default function Dashboard() {
     setState(s);
     setSettings(s.settings);
     setCodes(null);
-    setMessage(
-      settings.mode === "text"
-        ? "QR de texto elegido. Publica el menú para generar las tarjetas sin internet."
-        : "Configuración guardada. Vuelve a generar las tarjetas QR.",
-    );
+    setMessage("Configuración guardada. Publica y vuelve a generar las tarjetas QR.");
   }
-  useEffect(() => {
-    const context = (document as any).modelContext;
-    if (!context?.registerTool) return;
-    const life = new AbortController();
-    const tool = {
-      name: "get_menu_editor_state",
-      description: "Lee el borrador visible y sus cambios sin publicar.",
-      inputSchema: {
-        type: "object",
-        properties: {},
-        additionalProperties: false,
-      },
-      annotations: { readOnlyHint: true, untrustedContentHint: true },
-      execute: (input: unknown) => {
-        if (!input || typeof input !== "object" || Object.keys(input).length)
-          throw Error("No se admiten parámetros.");
-        return {
-          tab,
-          restaurantId: state?.restaurantId || null,
-          draft: session?.authenticated ? draft : null,
-          dirty,
-        };
-      },
-    };
-    Promise.resolve(context.registerTool(tool, { signal: life.signal })).catch(
-      () => {},
-    );
-    return () => life.abort();
-  }, [draft, state, tab, dirty, session]);
   useEffect(() => {
     if (dirty) setCodes(null);
   }, [dirty]);
@@ -287,7 +269,7 @@ export default function Dashboard() {
         </nav>
         <div className="sidebar-foot">
           <span className="status-dot" />
-          Tu menú, a tu manera<small>Internet + texto sin conexión</small>
+          Tu menú, a tu manera<small>Cloudflare + red local</small>
           {session?.authenticated && (
             <button
               className="logout"
@@ -324,7 +306,7 @@ export default function Dashboard() {
               {tab === "Mi menú"
                 ? "Una carta siempre al día. Una mejor experiencia en cada mesa."
                 : tab === "Acceso de clientes"
-                  ? "Dos caminos claros: visual con internet y básico sin conexión."
+                  ? "Menú interactivo para Cloudflare y para la red del restaurante."
                   : "Todo lo que necesitas, en un solo lugar."}
             </p>
           </div>
@@ -547,7 +529,7 @@ export default function Dashboard() {
                 )}
               </section>
               <section className="card">
-                <h3>Acceso principal con dos QR</h3>
+                <h3>Acceso profesional al menú</h3>
                 {modeInfo.map(
                   ({ id, title, desc, icon: Icon, recommended }) => (
                     <div className="feature-line" key={id}>
@@ -566,7 +548,7 @@ export default function Dashboard() {
                 )}
                 <div className="notice">
                   El cliente elige manualmente: menú visual con internet o carta
-                  en texto sin conexión.
+                  desde Internet o desde el servidor local del restaurante.
                 </div>
               </section>
             </div>
@@ -848,8 +830,7 @@ export default function Dashboard() {
                 <div className="section-title">
                   <h2>¿Cómo compartes tu menú?</h2>
                   <span className="muted">
-                    El acceso doble es el predeterminado; las modalidades
-                    anteriores siguen disponibles
+                    Elige Cloudflare o un servidor dentro del restaurante.
                   </span>
                 </div>
                 <div className="mode-grid">
@@ -1192,6 +1173,10 @@ export default function Dashboard() {
                 {settings.mode === "web" && (
                   <section className="card settings-section">
                     <h2>Dirección del menú web</h2>
+                    <p className="muted">
+                      Tu dirección de Cloudflare está incluida. Si compras un
+                      dominio propio, el creador puede conectarlo sin cambiar tu menú.
+                    </p>
                     <label>
                       Dirección HTTPS
                       <input
@@ -1217,8 +1202,8 @@ export default function Dashboard() {
                   <section className="card settings-section">
                     <h2>Cómo abren el menú tus clientes</h2>
                     <p className="muted">
-                      Esta configuración se aplica a la modalidad anterior de
-                      red local.
+                      Configura la red del restaurante y la dirección donde el
+                      servidor PC, Android o router publica el menú.
                     </p>
                     {[
                       [
@@ -1335,11 +1320,11 @@ export default function Dashboard() {
             {tab === "Códigos QR" && (
               <>
                 <section className="card">
-                  <h2>Dos accesos para cada mesa</h2>
+                  <h2>Códigos de acceso para cada mesa</h2>
                   <p className="muted">
-                    El QR web permanece igual en cada publicación. El texto sin
-                    internet contiene precios y debe regenerarse e imprimirse
-                    cuando cambie la carta.
+                    El QR online permanece igual en cada publicación. En modo
+                    local se genera un QR para abrir el menú y otro para pedir
+                    al teléfono que se conecte a la red del restaurante.
                   </p>
                   <div className="actions">
                     <button
@@ -1454,10 +1439,19 @@ export default function Dashboard() {
                             </details>
                           </>
                         )}
-                        {codes.mode === "local" && (
+                        {c.kind === "local_menu" && (
                           <>
-                            <strong>{codes.settings.ssid}</strong>
+                            <strong>Abrir menú en la red local</strong>
                             <small>{codes.settings.localUrl}</small>
+                          </>
+                        )}
+                        {c.kind === "wifi" && (
+                          <>
+                            <strong>Red: {codes.settings.ssid}</strong>
+                            <small>
+                              Por seguridad, Android y iPhone siempre solicitan
+                              confirmación antes de conectarse.
+                            </small>
                           </>
                         )}
                         {codes.mode === "text" && (

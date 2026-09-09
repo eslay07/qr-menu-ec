@@ -30,13 +30,9 @@ class MainActivity : Activity() {
         fun button(title:String,action:()->Unit){layout.addView(Button(this).apply{text=title;setOnClickListener{action()}})}
 
         text("QR Menu EC", 30f)
-        text("Panel del dueño", 22f)
-        text("Modifica platos, precios, fotos y genera los dos QR desde tu cuenta. El creador controla tu acceso y las funciones habilitadas.")
-        button("ADMINISTRAR MI RESTAURANTE") { startActivity(Intent(this, OwnerActivity::class.java)) }
-        text("Necesitas Internet para guardar cambios en Cloudflare. El QR de texto que imprimas sí funciona sin Internet para tus clientes.", 13f, Color.DKGRAY)
-
-        text("Respaldo local por hotspot", 20f)
-        text("Esta función piloto anterior se conserva para pruebas locales: activa Zona Wi-Fi, inicia el servidor y conecta el celular del cliente a esa red.", 14f)
+        text("Servidor local", 22f)
+        text("Producto para atender desde la red del restaurante con el menú interactivo completo. Solo se habilita después de validar la cuenta del dueño.")
+        text("Activa la Zona Wi-Fi o conecta este Android al router, inicia el servidor y usa la dirección local en los QR.", 14f)
         button("Abrir ajustes de Wi-Fi / hotspot") { startActivity(Intent(Settings.ACTION_WIRELESS_SETTINGS)) }
         val addresses = NetworkInterface.getNetworkInterfaces().toList().filter { it.isUp && !it.isLoopback }.flatMap { it.inetAddresses.toList() }.filter { it is Inet4Address && it.isSiteLocalAddress }.mapNotNull { it.hostAddress }
         text(if(addresses.isEmpty()) "Activa el hotspot y pulsa Actualizar direcciones." else "Direcciones actuales:\n"+addresses.joinToString("\n"){"Demo: http://$it:8080/restaurante-demo"},13f)
@@ -45,6 +41,7 @@ class MainActivity : Activity() {
         addresses.forEach { ip -> button("Mostrar QR local: $ip") { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("http://$ip:8080/restaurante-demo/qr"))) } }
         button("Actualizar direcciones") { show() }
         button("Detener servidor local") { stopService(Intent(this, MenuService::class.java)) }
+        button("Volver a mi cuenta") { finish() }
         setContentView(ScrollView(this).apply { addView(layout) })
     }
 }

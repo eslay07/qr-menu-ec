@@ -4,20 +4,20 @@
 
 Edición estática independiente: `npm ci`, `npm run build:pages`, `npm run preview:pages`.
 Abre `http://127.0.0.1:4173/restaurante-demo`. La tarjeta con los dos QR está en `/restaurante-demo/qr`.
-Salida: `dist-pages`. Node recomendado: 22.16.0. Sin variables, D1, R2 ni cuenta ChatGPT.
+Salida: `dist-pages`. Node recomendado: 22.16.0. Sin variables, D1 ni credenciales para la demostración estática.
 Catálogo: `data/restaurants/restaurante-demo.json`; precios en centavos (`500` = $5.00).
 Pruebas: `npm run check`, `npm test`, `npm run test:pages` (con preview activo).
 La edición Pages publica cartas desde Git; el panel con contraseñas, licencias y respaldos
 se conserva en las ediciones Sites/Worker/local y requiere su servidor. No se exportan datos privados.
 Manual completo: [Migración a Pages](docs/CLOUDFLARE-PAGES.md).
 
-Aplicación central para editar y publicar menús de restaurantes, con servidor web, Windows, Android y router OpenWrt. La modalidad principal genera exactamente dos códigos: una URL HTTPS permanente para el menú visual y un QR de texto estructurado para consultar la carta sin conexión. El cliente elige manualmente; no existe detección previa ni un tercer QR. Los símbolos `**`, `//`, `◆` y `•` son adornos visibles —no Markdown— y el lector del celular controla la tipografía final. Español, Ecuador, USD. Edición piloto: la lectura física en Android/iPhone sigue pendiente de certificación.
+Aplicación central para editar y publicar menús interactivos de restaurantes. El producto funciona desde Cloudflare o desde un servidor dentro de la red del local en Windows, Android y routers OpenWrt. La carta admite fotografías, categorías, búsqueda, disponibilidad y selección de platos. Español, Ecuador y precios en USD.
 
 ## Desarrollo
 
 Requiere Node 22.13 o superior. `npm ci`, `npm run db:local`, `npm run dev`. Para configuración local define SETUP_TOKEN y LICENSE_PUBLIC_KEY en `.dev.vars` (no se versiona). El menú demo está en `/demo`; el panel en `/`; la carta publicada en `/menu`.
 
-`npm run check` comprueba tipos. `npm test` prueba contratos, licencias, publicación, recuperación y descarga offline. `npm run build` genera la edición Sites. `npm run build:local` genera la interfaz estática para equipos locales y el Worker independiente.
+`npm run check` comprueba tipos. `npm test` prueba contratos, acceso, publicación, QR y recuperación. `npm run build:local` genera la interfaz del Worker de Cloudflare y de los equipos locales.
 
 ## Plataforma central en Cloudflare
 

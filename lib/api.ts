@@ -12,6 +12,7 @@ import {
   buildOfflineText,
   normalizeSettings,
   type LicensePayload,
+  productionModes,
 } from "./contracts";
 import {
   randomToken,
@@ -50,6 +51,7 @@ const json = (
     headers: { ...headers, ...extra },
   });
 const cookieName = "qrmenu_session";
+const ownerSessionMs = 30 * 24 * 60 * 60 * 1000;
 async function tokenFor(s: State, expires: number) {
   return `${expires}.${await digest(s.password.hash + ":" + s.sessionEpoch + ":" + expires)}`;
 }
@@ -64,12 +66,12 @@ async function authenticated(req: Request, s: State) {
   const expires = Number(raw.split(".")[0]);
   return (
     expires > Date.now() &&
-    expires < Date.now() + 86400001 &&
+    expires < Date.now() + ownerSessionMs + 60000 &&
     constantEqual(raw, await tokenFor(s, expires))
   );
 }
 function cookie(token: string, req: Request) {
-  return `${cookieName}=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=86400${new URL(req.url).protocol === "https:" ? "; Secure" : ""}`;
+  return `${cookieName}=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${ownerSessionMs / 1000}${new URL(req.url).protocol === "https:" ? "; Secure" : ""}`;
 }
 async function body(req: Request, max = 2000000) {
   const bytes = await req.arrayBuffer();
@@ -173,7 +175,7 @@ export async function handleApi(
       if (!(await store.commit(state, null)))
         return json({ error: "La instalación ya fue completada." }, 409);
       return json({ recovery, restaurantId: state.restaurantId }, 201, {
-        "Set-Cookie": cookie(await tokenFor(state, Date.now() + 86400000), req),
+        "Set-Cookie": cookie(await tokenFor(state, Date.now() + ownerSessionMs), req),
       });
     }
     const isAuthed = async () =>
@@ -182,12 +184,24 @@ export async function handleApi(
     if (path === "session" && method === "GET")
       return json({
         configured: !!s,
-        authenticated: s ? await isAuthed() : false,
+        authenticated:
+          s && (opts.ownerAccess !== false || opts.forcedRole === "creator")
+            ? await isAuthed()
+            : false,
+        suspended: !!s && opts.ownerAccess === false && opts.forcedRole !== "creator",
         platformSetup: !!opts.platformUser || opts.forcedRole === "creator",
         runtime: opts.runtime,
       });
     if (!s || !stored)
       return json({ error: "Configura primero el restaurante." }, 404);
+    // A central suspension invalidates every owner and customer operation on
+    // the next request, including public menus and media. Creator access is
+    // deliberately kept for support and reactivation.
+    if (opts.ownerAccess === false && opts.forcedRole !== "creator")
+      return json(
+        { error: "Este restaurante está suspendido. Comunícate con el administrador." },
+        403,
+      );
     const save = async () => {
       if (!(await store.commit(s, stored.revision)))
         throw Error(
@@ -195,11 +209,6 @@ export async function handleApi(
         );
     };
     if ((path === "login" || path === "recover") && method === "POST") {
-      if (opts.ownerAccess === false)
-        return json(
-          { error: "El creador ha suspendido el acceso de este restaurante." },
-          403,
-        );
       if (s.failures.until > Date.now())
         return json({ error: "Demasiados intentos. Espera 15 minutos." }, 429);
       const input = await body(req);
@@ -239,7 +248,7 @@ export async function handleApi(
       }
       await save();
       return json({ ok: true, recovery }, 200, {
-        "Set-Cookie": cookie(await tokenFor(s, Date.now() + 86400000), req),
+        "Set-Cookie": cookie(await tokenFor(s, Date.now() + ownerSessionMs), req),
       });
     }
     let license: LicensePayload | null = null;
@@ -258,8 +267,10 @@ export async function handleApi(
         : "owner";
     const allowed =
       role === "creator"
-        ? [...Mode.options]
-        : opts.grantedModes || license?.modes || [];
+        ? productionModes
+        : (opts.grantedModes || license?.modes || []).filter((mode) =>
+            productionModes.includes(mode),
+          );
     if (path === "menu" && method === "GET") {
       if (!s.published)
         return json(
@@ -274,11 +285,6 @@ export async function handleApi(
       if (opts.runtime === "cloud" && s.published.mode === "local")
         return json(
           { error: "Este menú se abre en la red local del restaurante." },
-          404,
-        );
-      if (s.published.mode === "text")
-        return json(
-          { error: "Esta modalidad se consulta en los QR impresos." },
           404,
         );
       return json({
@@ -306,11 +312,6 @@ export async function handleApi(
         },
       });
     }
-    if (opts.ownerAccess === false && role !== "creator")
-      return json(
-        { error: "El creador ha suspendido el acceso de este restaurante." },
-        403,
-      );
     if (!(await isAuthed()))
       return json(
         { error: "Inicia sesión para administrar el restaurante." },
@@ -364,37 +365,11 @@ export async function handleApi(
         );
       if (!s.draft.dishes.length)
         return json({ error: "Añade al menos un plato." }, 400);
-      if (s.settings.mode === "dual_web_vcard") {
-        if (!s.settings.webUrl)
-          return json(
-            {
-              error:
-                "Configura la dirección HTTPS permanente del menú web antes de publicar.",
-            },
-            400,
-          );
-        if (
-          !s.settings.offlineCard.phone.trim() ||
-          !s.settings.offlineCard.address.trim() ||
-          !s.settings.offlineCard.hours.trim()
-        )
-          return json(
-            {
-              error:
-                "Completa teléfono, dirección y horario del menú sin internet antes de publicar.",
-            },
-            400,
-          );
-        const offline = buildOfflineText(s.draft, s.settings);
-        if (!offline.fits)
-          return json(
-            {
-              error: `El menú sin internet ocupa ${offline.bytes} de 900 bytes. “${offline.offendingDish || "El menú"}” hace que los nombres y precios esenciales no quepan; reduce contenido antes de publicar.`,
-              capacity: offline,
-            },
-            400,
-          );
-      }
+      if (s.settings.mode === "web" && !s.settings.webUrl)
+        return json(
+          { error: "Configura la dirección HTTPS permanente del menú web antes de publicar." },
+          400,
+        );
       for (const id of assetIds(s.draft))
         if (!(await store.mediaGet(id)))
           return json(
@@ -514,75 +489,19 @@ export async function handleApi(
       const publishedSettings = normalizeSettings(
         s.published.settings || s.settings,
       );
-      if (s.settings.mode === "dual_web_vcard") {
-        if (!publishedSettings.webUrl)
-          throw Error("Configura la dirección HTTPS de tu menú.");
-        const offline = buildOfflineText(
-          s.published.catalog,
-          publishedSettings,
-        );
-        if (!offline.fits)
-          throw Error(
-            `El menú sin internet ocupa ${offline.bytes} de 900 bytes. Reduce el contenido esencial de “${offline.offendingDish || "el menú"}”.`,
-          );
-        const definitions = [
-          {
-            kind: "web",
-            label: "MENÚ CON INTERNET",
-            subtitle: "fotos y experiencia completa",
-            payload: publishedSettings.webUrl,
-          },
-          {
-            kind: "offline_text",
-            label: "MENÚ SIN INTERNET",
-            subtitle: "carta en texto visual, sin guardar contactos",
-            payload: offline.payload,
-          },
-        ];
-        const codes = await Promise.all(
-          definitions.map(async (definition) => ({
-            ...definition,
-            bytes: new TextEncoder().encode(definition.payload).length,
-            svg: await QRCode.toString(definition.payload, {
-              type: "svg",
-              errorCorrectionLevel: "M",
-              margin: 4,
-              width: 360,
-            }),
-          })),
-        );
-        return json({
-          codes,
-          mode: s.settings.mode,
-          name: s.published.catalog.name,
-          version: s.published.version,
-          settings: publishedSettings,
-          offlineText: offline.payload,
-          offlineBytes: offline.bytes,
-          remaining: offline.remaining,
-          omittedDescriptions: offline.omittedDescriptions,
-          compacted: offline.compacted,
-          offlinePrintedVersion: s.offlinePrintedVersion ?? null,
-          offlineReprintRequired:
-            s.offlinePrintedVersion !== s.published.version,
-        });
-      }
       let texts: string[];
-      if (s.settings.mode === "text") {
-        texts = textPages(s.published.catalog);
-        if (!texts.length)
-          throw Error(
-            "Marca al menos un plato como disponible y vuelve a publicar el menú.",
-          );
-      } else if (s.settings.mode === "local")
-        texts = [wifiPayload(publishedSettings)];
+      if (s.settings.mode === "local")
+        texts = [publishedSettings.localUrl, wifiPayload(publishedSettings)];
       else {
         if (!publishedSettings.webUrl)
           throw Error("Configura la dirección HTTPS de tu menú.");
         texts = [publishedSettings.webUrl];
       }
       const codes = await Promise.all(
-        texts.map(async (payload) => ({
+        texts.map(async (payload, index) => ({
+          kind: s.settings.mode === "local" ? (index === 0 ? "local_menu" : "wifi") : "web",
+          label: s.settings.mode === "local" ? (index === 0 ? "MENÚ EN RED LOCAL" : "CONECTAR A LA RED") : "MENÚ ONLINE",
+          subtitle: s.settings.mode === "local" ? (index === 0 ? "abre la carta interactiva" : "Android y iPhone pedirán confirmación") : "fotos y experiencia completa",
           payload,
           bytes: new TextEncoder().encode(payload).length,
           svg: await QRCode.toString(payload, {
@@ -599,16 +518,6 @@ export async function handleApi(
         name: s.published.catalog.name,
         version: s.published.version,
         settings: publishedSettings,
-      });
-    }
-    if (path === "qr/printed" && method === "POST") {
-      if (!s.published || s.published.mode !== "dual_web_vcard")
-        return json({ error: "Publica primero el acceso doble." }, 400);
-      s.offlinePrintedVersion = s.published.version;
-      await save();
-      return json({
-        offlinePrintedVersion: s.offlinePrintedVersion,
-        offlineReprintRequired: false,
       });
     }
     if (path === "health" && method === "GET")

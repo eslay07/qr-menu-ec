@@ -19,7 +19,7 @@
     "build:pages": "vite build --config vite.pages.config.ts && node scripts/prepare-pages.mjs",
     "dev:pages": "npm run build:pages && vite preview --config vite.pages.config.ts --host 127.0.0.1 --port 4173",
     "preview:pages": "vite preview --config vite.pages.config.ts --host 127.0.0.1 --port 4173",
-    "deploy:pages": "npm run build:pages && wrangler pages deploy --config wrangler.pages.jsonc",
+    "deploy:pages": "npm run build:pages && wrangler pages deploy dist-pages --project-name qr-menu-ec --branch main",
     "test:pages": "node scripts/pages-qa.mjs"
   },
   "dependencies": {
@@ -49,7 +49,6 @@
   "devDependencies": {
     "@cloudflare/vite-plugin": "1.54.4",
     "@cloudflare/workers-types": "5.20260907.1",
-    "@openai/sites-vite-plugin": "0.2.0",
     "@playwright/test": "^1.63.0",
     "@tailwindcss/postcss": "4.2.1",
     "@types/node": "22.19.19",

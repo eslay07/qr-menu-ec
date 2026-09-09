@@ -30,10 +30,8 @@ type Credentials = {
   menuUrl?: string;
 };
 const modeOptions: { value: Mode; label: string }[] = [
-  { value: "dual_web_vcard", label: "Web + texto offline" },
-  { value: "web", label: "Solo web" },
-  { value: "text", label: "Solo texto QR" },
-  { value: "local", label: "Red local" },
+  { value: "web", label: "Menú online" },
+  { value: "local", label: "Servidor en red local" },
 ];
 
 async function creatorApi(path: string, method = "GET", data?: unknown) {
@@ -294,7 +292,8 @@ export default function CreatorDashboard() {
             <h2>Crear restaurante</h2>
             <p className="muted">
               El dueño recibe su código, contraseña y acceso únicamente a su
-              propio local.
+              propio local. Cada cuenta incluye una dirección permanente; un
+              dominio comprado por el cliente puede configurarse como servicio adicional.
             </p>
           </div>
           <form onSubmit={addRestaurant}>
@@ -366,11 +365,18 @@ export default function CreatorDashboard() {
                 Menú publicado: versión{" "}
                 {item.publishedVersion || "sin publicar"}
               </p>
+              <p>
+                Dirección incluida:{" "}
+                <a href={`/r/${item.id}/menu`} target="_blank">
+                  Abrir dirección permanente
+                </a>
+              </p>
               <div className="creator-modes">
                 {modeOptions.map((m) => (
                   <label className="check-label" key={m.value}>
                     <input
                       type="checkbox"
+                      disabled={!item.active}
                       checked={item.modes.includes(m.value)}
                       onChange={(e) => {
                         const modes = e.target.checked

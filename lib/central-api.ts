@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { Mode, blankCatalog, defaultSettings } from "./contracts";
+import { Mode, blankCatalog, defaultSettings, productionModes } from "./contracts";
 import { constantEqual, digest, passwordHash, randomToken } from "./security";
 import type { State } from "./store";
 
@@ -14,6 +14,12 @@ type CreatorState = {
   sessionEpoch: number;
   failures: { count: number; until: number };
   createdAt: string;
+};
+const normalizeModes = (modes?: string[]) => {
+  const current = (modes || []).filter((mode): mode is Mode =>
+    productionModes.includes(mode as Mode),
+  );
+  return current.length ? current : (["web"] as Mode[]);
 };
 const creatorId = "__creator__";
 const cookieName = "qrmenu_creator_session";
@@ -198,7 +204,7 @@ export async function handleCreatorApi(
           revision: row.revision,
           name: state.draft.name,
           active: state.access?.active !== false,
-          modes: state.access?.modes || [...Mode.options],
+          modes: normalizeModes(state.access?.modes),
           publishedVersion: state.published?.version || 0,
           createdAt: state.createdAt,
         };
@@ -210,7 +216,7 @@ export async function handleCreatorApi(
         .object({
           name: z.string().trim().min(1).max(80),
           ownerPassword: z.string().min(12).max(128),
-          modes: z.array(Mode).min(1).max(4),
+          modes: z.array(z.enum(["web", "local"])).min(1).max(2),
         })
         .parse(await requestBody(request));
       const id = crypto.randomUUID(),
@@ -232,7 +238,7 @@ export async function handleCreatorApi(
         sessionEpoch: 0,
         failures: { count: 0, until: 0 },
         createdAt: new Date().toISOString(),
-        access: { active: true, modes: input.modes },
+        access: { active: true, modes: input.modes as Mode[] },
       };
       const result = await env.DB.prepare(
         "INSERT OR IGNORE INTO application (id,revision,data) VALUES (?,0,?)",
@@ -255,7 +261,10 @@ export async function handleCreatorApi(
     const accessMatch = path.match(/^restaurants\/([a-f0-9-]{36})\/access$/);
     if (accessMatch && method === "PUT") {
       const input = z
-        .object({ active: z.boolean(), modes: z.array(Mode).min(1).max(4) })
+        .object({
+          active: z.boolean(),
+          modes: z.array(z.enum(["web", "local"])).min(1).max(2),
+        })
         .parse(await requestBody(request));
       const row = await env.DB.prepare(
         "SELECT revision,data FROM application WHERE id = ?",
@@ -264,7 +273,8 @@ export async function handleCreatorApi(
         .first<{ revision: number; data: string }>();
       if (!row) return json({ error: "Restaurante no encontrado." }, 404);
       const state = JSON.parse(row.data) as State;
-      state.access = input;
+      if (state.access?.active !== false && !input.active) state.sessionEpoch++;
+      state.access = { active: input.active, modes: input.modes as Mode[] };
       const result = await env.DB.prepare(
         "UPDATE application SET revision = revision + 1, data = ? WHERE id = ? AND revision = ?",
       )

@@ -3,7 +3,7 @@ import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import QRCode from "qrcode";
 import Menu from "../app/ui/menu";
-import { Catalog, buildOfflineText, defaultSettings } from "../lib/contracts";
+import { Catalog } from "../lib/contracts";
 import demo from "../data/restaurants/restaurante-demo.json";
 import "../app/globals.css";
 import "../app/product.css";
@@ -23,12 +23,10 @@ const validRoute = ["/", "/menu", "/demo", `/${slug}`, `/${slug}/qr`].includes(
 );
 
 function App() {
-  const [status, setStatus] = useState(
-    "Preparando copia para consultar sin conexión…",
-  );
+  const [status, setStatus] = useState("Menú online actualizado desde Cloudflare.");
   const [qrs, setQrs] = useState<
     {
-      kind: "web" | "offline_text";
+      kind: "web";
       label: string;
       subtitle: string;
       payload: string;
@@ -36,22 +34,7 @@ function App() {
     }[]
   >([]);
   const webUrl = `https://qr-menu-ec.pages.dev/${slug}`;
-  const offline = catalog
-    ? buildOfflineText(catalog, {
-        ...defaultSettings,
-        webUrl,
-        offlineCard: {
-          ...defaultSettings.offlineCard,
-          title: catalog.name,
-          intro: "Nuestra carta para consultar sin conexión.",
-          farewell: "Gracias por visitarnos",
-          phone: "+593 99 000 0000",
-          address: "Dirección de demostración, Ecuador",
-          hours: "Lunes a domingo · 08:00 a 22:00",
-        },
-      })
-    : null;
-  const payloads = offline
+  const payloads = catalog
     ? [
         {
           kind: "web" as const,
@@ -59,41 +42,16 @@ function App() {
           subtitle: "fotos y experiencia completa",
           payload: webUrl,
         },
-        {
-          kind: "offline_text" as const,
-          label: "MENÚ SIN INTERNET",
-          subtitle: "carta en texto visual, sin guardar contactos",
-          payload: offline.payload,
-        },
       ]
     : [];
   useEffect(() => {
     if (!catalog || !validRoute) return;
     document.title = `${catalog.name} · QR Menu EC`;
-    if (
-      import.meta.env.MODE === "hotspot" ||
-      !("serviceWorker" in navigator) ||
-      !window.isSecureContext
-    ) {
+    if (import.meta.env.MODE === "hotspot") {
       setStatus(
-        "Menú servido por la red local. Mantén el Wi-Fi conectado al teléfono servidor.",
+        "Menú servido por la red local del restaurante.",
       );
-      return;
     }
-    navigator.serviceWorker
-      .register("/sw.js")
-      .then(async (registration) => {
-        await navigator.serviceWorker.ready;
-        setStatus(
-          "Menú y fotos disponibles sin conexión en este navegador. La copia puede mostrar precios anteriores.",
-        );
-        void registration.update().catch(() => {});
-      })
-      .catch(() =>
-        setStatus(
-          "No se pudo guardar el menú completo. Vuelve a abrirlo con conexión.",
-        ),
-      );
   }, []);
   useEffect(() => {
     if (isQr && payloads.length)
@@ -127,8 +85,7 @@ function App() {
         <header className="print-card-heading">
           <h1>{catalog.name}</h1>
           <p>
-            Elige según tu conexión: experiencia visual por internet o carta en
-            texto sin conexión.
+            Escanea para abrir la experiencia visual completa.
           </p>
           <div className="actions no-print">
             <button className="btn" onClick={() => print()}>
@@ -151,16 +108,10 @@ function App() {
                 height="360"
                 alt={`Código QR de ${qr.label.toLowerCase()}`}
               />
-              <strong>
-                {index === 0
-                  ? "Usa este QR si tienes internet"
-                  : "Usa este QR si no tienes internet"}
-              </strong>
+              <strong>Abre el menú interactivo</strong>
               <details className="qr-payload no-print">
                 <summary>
-                  {qr.kind === "web"
-                    ? "Ver enlace incluido"
-                    : "Ver texto incluido"}
+                  Ver enlace incluido
                 </summary>
                 <pre>{qr.payload}</pre>
               </details>

@@ -7,6 +7,15 @@ import org.json.JSONObject
 
 class MenuHttp(private val ctx:Context,private val engine:MenuEngine,port:Int,private val admin:Boolean):NanoHTTPD(port){
  override fun serve(session:IHTTPSession):Response{try{val path=session.uri;val method=session.method.name
+  if(!admin&&path=="/api/v1/menu"&&method=="GET"){
+   val snapshot=File(ctx.filesDir,"synced-menu.json");if(!snapshot.exists())return error(404,"Sincroniza y publica el menú desde la cuenta del dueño.")
+   return newFixedLengthResponse(Response.Status.OK,"application/json; charset=utf-8",snapshot.readText()).apply{addHeader("Cache-Control","no-store");addHeader("X-Content-Type-Options","nosniff")}
+  }
+  if(!admin&&Regex("^/local-media/[a-f0-9-]{36}$").matches(path)&&method=="GET"){
+   val id=path.substringAfterLast('/');val file=File(ctx.filesDir,"synced-media/$id");if(!file.exists())return error(404,"Imagen no encontrada.")
+   val type=File(ctx.filesDir,"synced-media/$id.type").let{if(it.exists())it.readText() else "image/jpeg"}
+   return newFixedLengthResponse(Response.Status.OK,type,file.inputStream(),file.length()).apply{addHeader("Cache-Control","public, max-age=86400");addHeader("X-Content-Type-Options","nosniff")}
+  }
   if(path=="/certificate"){val f=File(ctx.filesDir,"server.crt");return newFixedLengthResponse(Response.Status.OK,"application/x-x509-ca-cert",f.inputStream(),f.length())}
   if(!admin&&path.startsWith("/api/v1/")&&path!="/api/v1/menu"&&!path.startsWith("/api/v1/media/"))return error(403,"La administración requiere HTTPS en el puerto 8443.")
   if(!admin&&method!="GET")return error(405,"Solo lectura.")

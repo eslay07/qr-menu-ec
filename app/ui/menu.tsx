@@ -6,7 +6,6 @@ import {
   Minus,
   ShoppingBag,
   ArrowLeft,
-  Download,
   Utensils,
   WifiOff,
 } from "lucide-react";
@@ -37,9 +36,7 @@ export default function Menu({
     [cart, setCart] = useState<Record<string, number>>({}),
     [bag, setBag] = useState(false),
     [detail, setDetail] = useState<Catalog["dishes"][0] | null>(null),
-    [offline, setOffline] = useState(false),
-    [saving, setSaving] = useState(false),
-    [message, setMessage] = useState("");
+    [offline, setOffline] = useState(false);
   useEffect(() => {
     if (demo || initialCatalog) return;
     api(preview ? "state" : "menu")
@@ -69,37 +66,6 @@ export default function Menu({
   const selected =
     catalog?.dishes.filter((d) => d.available && (cart[d.id] || 0) > 0) || [];
   const total = selected.reduce((a, d) => a + d.priceCents * cart[d.id], 0);
-  async function saveOffline() {
-    setSaving(true);
-    try {
-      if (!("serviceWorker" in navigator) || !window.isSecureContext)
-        throw Error("La descarga requiere abrir la versión web con HTTPS.");
-      await navigator.serviceWorker.register("/sw.js");
-      const reg = await navigator.serviceWorker.ready;
-      await new Promise<void>((resolve, reject) => {
-        const channel = new MessageChannel();
-        const timer = setTimeout(
-          () =>
-            reject(
-              Error("La descarga no terminó. Inténtalo de nuevo con conexión."),
-            ),
-          60000,
-        );
-        channel.port1.onmessage = (e) => {
-          clearTimeout(timer);
-          e.data.ok ? resolve() : reject(Error(e.data.error));
-        };
-        reg.active!.postMessage({ type: "DOWNLOAD_MENU" }, [channel.port2]);
-      });
-      setMessage(
-        "Menú y fotos guardados en este navegador. Puedes abrir /offline.html sin conexión.",
-      );
-    } catch (e) {
-      setMessage((e as Error).message);
-    } finally {
-      setSaving(false);
-    }
-  }
   if (error)
     return (
       <main className="customer-empty">
@@ -109,7 +75,6 @@ export default function Menu({
         <button className="btn" onClick={() => location.reload()}>
           Volver a intentar
         </button>
-        {!base && <a href="/offline.html">Abrir copia descargada</a>}
       </main>
     );
   if (!catalog)
@@ -301,15 +266,6 @@ export default function Menu({
       </main>
       <footer className="customer-footer">
         <p>Elige con calma. Comparte tu selección con el mesero.</p>
-          {!base && !preview && !demo && !initialCatalog && (
-          <button disabled={saving} className="btn" onClick={saveOffline}>
-            <Download size={16} />
-            {saving
-              ? "Guardando menú y fotos…"
-              : "Guardar para consultar sin conexión"}
-          </button>
-        )}
-        {message && <p role="status">{message}</p>}
         <small>
           QR Menu EC {version > 0 && `· Versión ${version}`}{" "}
           {date && `· ${new Date(date).toLocaleDateString("es-EC")}`}

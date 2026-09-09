@@ -1,5 +1,5 @@
 "use client";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { ArrowRight, Smartphone, Store } from "lucide-react";
 
 export default function OwnerLauncher() {
@@ -7,6 +7,10 @@ export default function OwnerLauncher() {
       () => localStorage.getItem("qrmenu_restaurant_code") || "",
     ),
     [error, setError] = useState("");
+  useEffect(() => {
+    const saved = localStorage.getItem("qrmenu_restaurant_code") || "";
+    if (/^[a-f0-9-]{36}$/.test(saved)) location.replace(`/r/${saved}/`);
+  }, []);
   function open(event: FormEvent) {
     event.preventDefault();
     const value = code.trim().toLowerCase();

@@ -1,7 +1,7 @@
 # Desplegar en la cuenta del restaurante
 
 1. `npm ci` y `npm run build:local`.
-2. Inicia sesión con Wrangler en la cuenta del restaurante; crea una base D1 y un bucket R2. Copia sus nombres e identificador en wrangler.jsonc. No es necesario instalar Sites ni tener ChatGPT para los clientes de esta edición.
+2. Inicia sesión con Wrangler en la cuenta de Cloudflare; crea una base D1 y copia su nombre e identificador en `wrangler.jsonc`.
 3. Aplica `drizzle/0000_even_inhumans.sql` a la base remota. Futuras versiones deben aplicar solo las migraciones nuevas.
 4. Configura secretos mediante `wrangler secret put SETUP_TOKEN --config deployment/cloudflare/wrangler.jsonc` y `wrangler secret put LICENSE_PUBLIC_KEY --config deployment/cloudflare/wrangler.jsonc`. SETUP_TOKEN debe ser largo, aleatorio y privado. LICENSE_PUBLIC_KEY es el contenido de seller-public.txt; nunca uses seller-private.pem.
 5. `wrangler deploy --config deployment/cloudflare/wrangler.jsonc`. El archivo contiene un marcador D1 y no puede desplegarse sin configurar la cuenta real.
