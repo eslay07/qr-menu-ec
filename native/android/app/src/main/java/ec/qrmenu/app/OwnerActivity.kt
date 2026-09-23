@@ -29,7 +29,7 @@ class OwnerActivity : Activity() {
     private lateinit var localButton: Button
     private var fileCallback: ValueCallback<Array<Uri>>? = null
     private val fileRequest = 701
-    private val platformHost = "qr-menu-ecuador-jm.eslay.chatgpt.site"
+    private val platformHost = "qr-menu-ecuador-jm.eslay.chatgpt.site" // current owner subdomain
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
