@@ -35,7 +35,7 @@ jobs:
           npx vite build --config vite.pages.config.ts --mode hotspot --base /hotspot/ --outDir work/android-hotspot-ui
           mkdir -p native/android/app/src/main/assets/ui native/android/app/src/main/assets/hotspot
           cp -R dist-local/. native/android/app/src/main/assets/ui/
-          cp -R work/android-hotspot-ui/. native/android/app/src/main/assets/hotspot/
+          cp -R pages-ui/work/android-hotspot-ui/. native/android/app/src/main/assets/hotspot/
 
       - name: Setup Java
         uses: actions/setup-java@v4
