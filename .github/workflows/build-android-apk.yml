@@ -6,6 +6,8 @@ on:
     paths:
       - native/android/app/src/main/java/ec/qrmenu/app/OwnerActivity.kt
   workflow_dispatch:
+  pull_request:
+    branches: [main]
 
 permissions:
   contents: read
