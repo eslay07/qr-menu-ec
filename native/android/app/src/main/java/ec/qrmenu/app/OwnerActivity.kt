@@ -29,7 +29,7 @@ class OwnerActivity : Activity() {
     private lateinit var localButton: Button
     private var fileCallback: ValueCallback<Array<Uri>>? = null
     private val fileRequest = 701
-    private val platformHost = "qr-menu-ec.omar777j.workers.dev"
+    private val platformHost = "qr-menu-ec.omar777j.workers.dev" // Cloudflare production
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
