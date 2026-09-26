@@ -1,6 +1,6 @@
 {
   "name": "qr-menu-ec",
-  "version": "0.1.0",
+  "version": "0.6.0",
   "private": true,
   "engines": {
     "node": ">=22.13.0"
@@ -13,7 +13,7 @@
     "format": "oxfmt",
     "db:generate": "drizzle-kit generate",
     "test": "tsx --test tests/*.test.ts",
-    "build:local": "vite build --config vite.local.config.ts",
+    "build:worker": "vite build --config vite.worker.config.ts",
     "check": "tsc --noEmit",
     "db:local": "wrangler d1 execute site-creator-d1 --local --config wrangler.local.json --file drizzle/0000_even_inhumans.sql",
     "build:pages": "vite build --config vite.pages.config.ts && node scripts/prepare-pages.mjs",
@@ -33,6 +33,7 @@
     "embla-carousel-react": "8.5.2",
     "input-otp": "1.4.2",
     "lucide-react": "1.31.0",
+    "pdf-lib": "^1.17.1",
     "qrcode": "^1.5.4",
     "react": "^19.2.8",
     "react-day-picker": "9.8.1",

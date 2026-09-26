@@ -1,25 +1,13 @@
-# Validación de la edición piloto
+# Validación
 
-Estado: software piloto, no certificado para venta como instalación automática universal.
+Antes de desplegar ejecuta:
 
-## Comprobado en este entorno
+```sh
+npm run check
+npm test
+npm run build
+```
 
-- TypeScript sin errores y compilación web y local completadas.
-- Cinco pruebas automatizadas del API compartido y descarga offline: autenticación, licencias alteradas, conflictos de publicación, recuperación, catálogo, QR, treinta lecturas concurrentes y conservación de la copia anterior cuando falla una foto.
-- Pruebas Go de persistencia, publicación, licencias y control de acceso.
-- Chromium contra el servidor Go real: alta del dueño, activación de licencia, publicación, QR, menú guiado, selección y total, aislamiento del borrador respecto de la publicación y disposición móvil sin desbordamiento.
-- Binarios compilados para Windows moderno, Windows 7 de 32 bits y Linux ARM64. Compilar no certifica ejecución en esos equipos.
-- APK Android compilado y firma verificada. No ejecutado en un teléfono físico.
-- Auditoría npm de dependencias de producción: cero vulnerabilidades reportadas en esta ejecución. Las herramientas de desarrollo requieren seguimiento independiente.
+La cobertura comprueba normalización de cartas anteriores, un solo QR HTTPS, validación y recálculo del pedido en servidor, rechazo de opciones inválidas, permisos de la función Pedidos, PDF, reportes, cancelación, concurrencia, autenticación y recuperación.
 
-Las capturas y el resultado del navegador están en outputs/qa. La prueba de treinta lectores es de API; no sustituye treinta teléfonos en una red Wi-Fi.
-
-## Pendiente antes de certificar y vender cada configuración
-
-Ejecutar la matriz de VENTA-Y-CERTIFICACION.md con Android e iPhone reales: red olvidada y recordada, datos móviles activos e inactivos, cero internet, ambos modos, cierre y reapertura del portal, reinicios y fallos del servidor. Registrar las pulsaciones reales.
-
-Probar físicamente el router GL-MT3000, cada versión de Windows y Android 10 o posterior; treinta clientes simultáneos y una jornada completa del servidor Android. Verificar aislamiento de red y recuperación tras corte eléctrico. Probar el despliegue web con una cuenta de restaurante y la descarga offline en sus navegadores objetivo.
-
-La fase 2 implementa un servicio Windows SCM, con pruebas del ciclo de estados y cierre de ambos puertos; el registro, reinicio y recuperación del servicio en Windows físico siguen pendientes. El perfil OpenWrt se aplica mediante el instalador con el JSON exportado; el panel no administra remotamente el router por SSH.
-
-No anunciar apertura silenciosa universal ni presentar estas verificaciones de software como certificación física.
+En Cloudflare valida además la creación y colisión de subdominios, aislamiento por restaurante, estados pendientes/activos de Custom Hostnames, certificado activo antes de habilitar el dominio y expiración pública a las 24 horas.

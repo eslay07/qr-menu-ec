@@ -5,6 +5,10 @@
   "logo": "",
   "categories": [
     {
+      "id": "desayunos",
+      "name": "Desayunos"
+    },
+    {
       "id": "entradas",
       "name": "Entradas"
     },
@@ -18,6 +22,43 @@
     }
   ],
   "dishes": [
+    {
+      "id": "desayuno-continental",
+      "name": "Desayuno continental",
+      "description": "Pan, fruta y dos bebidas elegidas a tu gusto.",
+      "categoryId": "desayunos",
+      "priceCents": 650,
+      "available": true,
+      "image": "",
+      "modifierGroups": [
+        {
+          "id": "bebida-caliente",
+          "name": "Bebida caliente",
+          "description": "Elige una bebida.",
+          "selection": "single",
+          "minSelections": 1,
+          "maxSelections": 1,
+          "options": [
+            { "id": "cafe", "name": "Café", "priceDeltaCents": 0, "available": true },
+            { "id": "leche", "name": "Leche", "priceDeltaCents": 0, "available": true },
+            { "id": "agua-aromatica", "name": "Agua aromática", "priceDeltaCents": 0, "available": true }
+          ]
+        },
+        {
+          "id": "jugo",
+          "name": "Jugo",
+          "description": "Elige un sabor.",
+          "selection": "single",
+          "minSelections": 1,
+          "maxSelections": 1,
+          "options": [
+            { "id": "naranja", "name": "Naranja", "priceDeltaCents": 0, "available": true },
+            { "id": "sandia", "name": "Sandía", "priceDeltaCents": 0, "available": true },
+            { "id": "fresa", "name": "Fresa", "priceDeltaCents": 0, "available": true }
+          ]
+        }
+      ]
+    },
     {
       "id": "empanadas",
       "name": "Empanadas",

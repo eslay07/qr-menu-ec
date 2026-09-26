@@ -1,20 +1,24 @@
-import { env } from "cloudflare:workers";
-import type { Store, State, Stored } from "./store";
-type Bindings = {
+import { env } from 'cloudflare:workers';
+import type { Store, State } from './store';
+export type Bindings = {
   DB: D1Database;
   MEDIA?: R2Bucket;
   LICENSE_PUBLIC_KEY?: string;
   SETUP_TOKEN?: string;
+  PLATFORM_MENU_DOMAIN?: string;
+  CLOUDFLARE_ZONE_ID?: string;
+  CLOUDFLARE_API_TOKEN?: string;
+  CLOUDFLARE_CNAME_TARGET?: string;
 };
 export function bindings() {
   return env as unknown as Bindings;
 }
-export function cloudStore(id = "restaurant", source?: Bindings): Store {
+export function cloudStore(id = 'restaurant', source?: Bindings): Store {
   const e = source || bindings();
   return {
     async read() {
       const row = await e.DB.prepare(
-        "SELECT revision,data FROM application WHERE id = ?",
+        'SELECT revision,data FROM application WHERE id = ?',
       )
         .bind(id)
         .first<{ revision: number; data: string }>();
@@ -26,12 +30,12 @@ export function cloudStore(id = "restaurant", source?: Bindings): Store {
       const r =
         revision === null
           ? await e.DB.prepare(
-              "INSERT OR IGNORE INTO application (id,revision,data) VALUES (?,0,?)",
+              'INSERT OR IGNORE INTO application (id,revision,data) VALUES (?,0,?)',
             )
               .bind(id, JSON.stringify(state))
               .run()
           : await e.DB.prepare(
-              "UPDATE application SET revision = revision + 1, data = ? WHERE id = ? AND revision = ?",
+              'UPDATE application SET revision = revision + 1, data = ? WHERE id = ? AND revision = ?',
             )
               .bind(JSON.stringify(state), id, revision)
               .run();
@@ -45,12 +49,12 @@ export function cloudStore(id = "restaurant", source?: Bindings): Store {
         return r
           ? {
               bytes: new Uint8Array(await r.arrayBuffer()),
-              type: r.httpMetadata?.contentType || "application/octet-stream",
+              type: r.httpMetadata?.contentType || 'application/octet-stream',
             }
           : null;
       }
       const row = await e.DB.prepare(
-        "SELECT type,data FROM media WHERE restaurant_id = ? AND id = ?",
+        'SELECT type,data FROM media WHERE restaurant_id = ? AND id = ?',
       )
         .bind(id, mediaId)
         .first<{ type: string; data: ArrayBuffer }>();
@@ -68,7 +72,7 @@ export function cloudStore(id = "restaurant", source?: Bindings): Store {
         bytes.byteOffset + bytes.byteLength,
       );
       await e.DB.prepare(
-        "INSERT OR REPLACE INTO media (restaurant_id,id,type,data) VALUES (?,?,?,?)",
+        'INSERT OR REPLACE INTO media (restaurant_id,id,type,data) VALUES (?,?,?,?)',
       )
         .bind(id, mediaId, type, data)
         .run();

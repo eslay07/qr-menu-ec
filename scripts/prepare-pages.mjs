@@ -12,8 +12,7 @@ for (const size of [192, 512])
     .png()
     .toFile(path.join(output, `icon-${size}.png`));
 
-// Retire earlier offline caches. The product now uses Cloudflare or a local
-// restaurant server; an old browser must not keep showing stale prices.
+// Retire earlier caches so an old browser cannot keep showing stale prices.
 await fs.writeFile(
   path.join(output, "sw.js"),
   `self.addEventListener('install',event=>{self.skipWaiting()});
@@ -28,4 +27,4 @@ await fs.mkdir(path.join(output, "downloads"), { recursive: true });
 await fs.copyFile("deployment/android/qr-menu-ec.apk", path.join(output, "downloads/qr-menu-ec.apk"));
 await fs.copyFile("deployment/android/qr-menu-android.apk", path.join(output, "downloads/qr-menu-android.apk"));
 await fs.copyFile("deployment/android/SHA256SUMS.txt", path.join(output, "downloads/SHA256SUMS.txt"));
-console.log("Pages: menú online, APK y service worker de retiro preparados.");
+console.log("Pages: menú HTTPS, APK online y retiro de cachés preparados.");

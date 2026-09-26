@@ -1,2 +1,2 @@
-af7affefb9ae6b6a02140b7fae989ab54b36b12f11b00fbcb9ef08e25d7dad8a  qr-menu-ec.apk
-af7affefb9ae6b6a02140b7fae989ab54b36b12f11b00fbcb9ef08e25d7dad8a  qr-menu-android.apk
+e200fee95ff3e8a6ce6a22482455d9b29c98185e29aed38aad4e3731f8d6412b  qr-menu-ec.apk
+e200fee95ff3e8a6ce6a22482455d9b29c98185e29aed38aad4e3731f8d6412b  qr-menu-android.apk

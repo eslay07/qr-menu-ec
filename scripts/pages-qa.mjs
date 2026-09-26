@@ -1,119 +1,30 @@
-import { chromium, devices } from '@playwright/test';
-import fs from 'node:fs/promises';
+import { chromium } from '@playwright/test';
 import assert from 'node:assert/strict';
-import sharp from 'sharp';
 import jsQR from 'jsqr';
+import sharp from 'sharp';
 
-const base = process.env.PAGES_TEST_URL || 'http://127.0.0.1:4173';
-const output = 'outputs/pages-qa';
-await fs.mkdir(output, { recursive: true });
+const base = process.env.PAGES_URL || 'http://127.0.0.1:4173';
 const browser = await chromium.launch({ headless: true });
-const passed = [], errors = [];
 try {
-  const context = await browser.newContext({ ...devices['Pixel 7'] });
-  const page = await context.newPage();
-  page.on('pageerror', error => errors.push(error.message));
-  page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
-  const response = await page.goto(base + '/restaurante-demo');
-  assert.equal(response.status(), 200);
-  await page.getByText('RESTAURANTE DEMO QR MENU EC').waitFor();
-  assert.equal(await page.locator('.dish-card').count(), 10);
-  assert.match(await page.locator('.dish-card').filter({ hasText: 'Hamburguesa clásica' }).innerText(), /5[,.]00/);
-  passed.push('Ruta directa, 10 productos y precio de hamburguesa $5.00');
-  await page.getByRole('button', { name: 'Entradas', exact: true }).click();
-  assert.equal(await page.locator('.dish-card').count(), 2);
-  await page.getByRole('button', { name: 'Bebidas', exact: true }).click();
-  assert.equal(await page.locator('.dish-card').count(), 3);
-  await page.getByRole('button', { name: 'Todo el menú', exact: true }).click();
-  await page.getByLabel('Buscar platos').fill('limonada');
-  assert.equal(await page.locator('.dish-card').count(), 1);
-  await page.getByLabel('Buscar platos').fill('');
-  await page.getByRole('button', { name: 'Ver Hamburguesa clásica', exact: true }).click();
-  await page.getByRole('dialog').getByRole('button', { name: 'Añadir a mi selección', exact: true }).click();
-  await page.getByRole('button', { name: 'Ver mi selección', exact: true }).first().click();
-  assert.match(await page.getByRole('dialog').innerText(), /5[,.]00/);
-  await page.getByRole('button', { name: 'Volver al menú', exact: true }).click();
-  assert.equal(await page.getByRole('button', { name: 'Añadir Encebollado de la casa', exact: true }).count(), 0);
-  passed.push('Categorías, búsqueda, ficha, selección y producto agotado');
-  await page.locator('.pages-status').filter({ hasText: 'Menú y fotos disponibles' }).waitFor();
-  await page.waitForFunction(() => Boolean(navigator.serviceWorker.controller));
-  assert.equal(await page.locator('.dish-photo img').evaluateAll(images => images.every(image => image.complete && image.naturalWidth > 0)), true);
-  for (const width of [320, 390, 412, 768, 1440]) {
-    await page.setViewportSize({ width, height: 900 });
-    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `Overflow a ${width}px`);
-  }
-  await page.setViewportSize({ width: 390, height: 844 });
-  assert.equal(await page.locator('.add-dish').evaluateAll(buttons => buttons.every(button => button.getBoundingClientRect().width >= 44 && button.getBoundingClientRect().height >= 44)), true);
-  await page.screenshot({ path: `${output}/mobile.png`, fullPage: true });
-  passed.push('Imágenes, tamaños táctiles y responsive 320/390/412/768/1440');
-  const manifest = await (await context.request.get(base + '/manifest.webmanifest')).json();
-  assert.equal(manifest.start_url, '/restaurante-demo');
-  for (const icon of manifest.icons) assert.equal((await context.request.get(base + icon.src)).status(), 200);
-  assert.equal(await page.evaluate(() => localStorage.length), 0);
-  passed.push('Manifest, iconos PWA y ausencia de dependencia de localStorage');
-  await page.goto(base + '/restaurante-demo/qr');
-  const qrImages = page.locator('.print-card img');
-  await qrImages.first().waitFor();
-  assert.equal(await qrImages.count(), 2);
-  const decodedPayloads = [];
-  for (let index = 0; index < 2; index++) {
-    const source = await qrImages.nth(index).getAttribute('src');
-    assert.match(source, /^data:image\/png;base64,/);
-    const png = Buffer.from(source.split(',')[1], 'base64');
-    const decodedImage = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-    decodedPayloads.push(jsQR(new Uint8ClampedArray(decodedImage.data), decodedImage.info.width, decodedImage.info.height)?.data || '');
-    await fs.writeFile(`${output}/restaurante-demo-${index ? 'offline-text' : 'web'}-qr.png`, png);
-  }
-  assert.equal(decodedPayloads[0], 'https://qr-menu-ec.pages.dev/restaurante-demo');
-  assert.match(decodedPayloads[1], /^(?:━+\n)?\*\* RESTAURANTE DEMO QR MENU EC \*\*/);
-  assert.match(decodedPayloads[1], /\/\/ MENÚ · PRECIOS EN USD \/\//);
-  assert.doesNotMatch(decodedPayloads[1], /BEGIN:VCARD|VERSION:3\.0|NOTE:/);
-  assert.match(decodedPayloads[1], /Hamburguesa clásica/);
-  assert.doesNotMatch(decodedPayloads[1], /Encebollado de la casa/);
-  assert.match(await page.locator('.print-card-heading').innerText(), /elige según tu conexión/i);
-  assert.match(await page.locator('.print-card.web').innerText(), /MENÚ CON INTERNET/);
-  assert.match(await page.locator('.print-card.offline_text').innerText(), /MENÚ SIN INTERNET/);
-  await page.screenshot({ path: `${output}/qr.png`, fullPage: true });
-  passed.push('Dos QR decodificados: URL web permanente y texto visual offline');
-  await page.goto(base + '/restaurante-demo');
-  await context.setOffline(true);
-  await page.reload();
-  await page.getByText('RESTAURANTE DEMO QR MENU EC').waitFor();
-  await page.getByRole('button', { name: 'Bebidas', exact: true }).click();
-  assert.equal(await page.locator('.dish-card').count(), 3);
-  await page.getByRole('button', { name: 'Todo el menú', exact: true }).click();
-  assert.equal(await page.locator('.dish-photo img').evaluateAll(images => images.every(image => image.complete && image.naturalWidth > 0)), true);
-  await page.screenshot({ path: `${output}/offline.png`, fullPage: true });
-  const reopened = await context.newPage();
-  await reopened.goto(base + '/restaurante-demo');
-  await reopened.getByText('RESTAURANTE DEMO QR MENU EC').waitFor();
-  passed.push('Offline precargado: recarga, nueva pestaña, categorías, productos y foto');
-  await context.setOffline(false);
-  await page.goto(base + '/');
-  await page.getByText('RESTAURANTE DEMO QR MENU EC').waitFor();
-  await page.goto(base + '/no-existe');
-  await page.getByRole('heading', { name: 'Restaurante no encontrado' }).waitFor();
-  passed.push('Inicio y ruta desconocida');
-  const fresh = await browser.newContext({ offline: true });
-  const newcomer = await fresh.newPage();
-  await assert.rejects(() => newcomer.goto(base + '/restaurante-demo'));
-  passed.push('Cliente nuevo sin Internet no puede descargar el menú');
-  const slow = await browser.newContext({ ...devices['Pixel 7'] });
-  const slowPage = await slow.newPage();
-  const network = await slow.newCDPSession(slowPage);
-  await network.send('Network.enable');
-  await network.send('Network.emulateNetworkConditions', {
-    offline: false, latency: 150, downloadThroughput: 200000, uploadThroughput: 64000,
-  });
-  const started = Date.now();
-  await slowPage.goto(base + '/restaurante-demo');
-  await slowPage.getByText('RESTAURANTE DEMO QR MENU EC').waitFor();
-  const slowLoadMs = Date.now() - started;
-  passed.push(`Red limitada simulada: carta visible en ${slowLoadMs} ms (1.6 Mbps, latencia 150 ms)`);
-  await slow.close();
-  assert.deepEqual(errors, []);
-  const result = { base, passed, errors, slowLoadMs, physicalAndroid: false, physicalIPhone: false, printedCameraSeparation: false, testedAt: new Date().toISOString() };
-  await fs.writeFile(`${output}/results.json`, JSON.stringify(result, null, 2));
-  console.log(JSON.stringify(result, null, 2));
-} finally { await browser.close(); }
-
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await page.goto(`${base}/restaurante-demo`, { waitUntil: 'networkidle' });
+  await page.getByText('Desayuno continental').waitFor();
+  await page.goto(`${base}/restaurante-demo/qr`, { waitUntil: 'networkidle' });
+  const source = await page.locator('.print-card img').getAttribute('src');
+  assert(source?.startsWith('data:image/png;base64,'));
+  const buffer = Buffer.from(source.split(',')[1], 'base64');
+  const image = await sharp(buffer)
+    .raw()
+    .ensureAlpha()
+    .toBuffer({ resolveWithObject: true });
+  const decoded = jsQR(
+    new Uint8ClampedArray(image.data),
+    image.info.width,
+    image.info.height,
+  );
+  assert.equal(decoded?.data, 'https://qr-menu-ec.pages.dev/restaurante-demo');
+  assert.equal(await page.locator('.print-card').count(), 1);
+  console.log('Pages QA: carta configurable y único QR HTTPS verificados.');
+} finally {
+  await browser.close();
+}

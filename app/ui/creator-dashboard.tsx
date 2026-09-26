@@ -1,5 +1,5 @@
-"use client";
-import { FormEvent, useCallback, useEffect, useState } from "react";
+'use client';
+import { FormEvent, useCallback, useEffect, useState } from 'react';
 import {
   Building2,
   ExternalLink,
@@ -9,15 +9,15 @@ import {
   Power,
   RefreshCw,
   ShieldCheck,
-} from "lucide-react";
-import type { Mode } from "@/lib/contracts";
+} from 'lucide-react';
+import type { Feature } from '@/lib/contracts';
 
 type Restaurant = {
   id: string;
   revision: number;
   name: string;
   active: boolean;
-  modes: Mode[];
+  features: Feature[];
   publishedVersion: number;
   createdAt: string;
 };
@@ -29,20 +29,19 @@ type Credentials = {
   ownerUrl?: string;
   menuUrl?: string;
 };
-const modeOptions: { value: Mode; label: string }[] = [
-  { value: "web", label: "Menú online" },
-  { value: "local", label: "Servidor en red local" },
+const featureOptions: { value: Feature; label: string }[] = [
+  { value: 'orders', label: 'Pedidos por QR y reportes' },
 ];
 
-async function creatorApi(path: string, method = "GET", data?: unknown) {
+async function creatorApi(path: string, method = 'GET', data?: unknown) {
   const response = await fetch(`/api/creator/${path}`, {
     method,
-    headers: data === undefined ? {} : { "Content-Type": "application/json" },
+    headers: data === undefined ? {} : { 'Content-Type': 'application/json' },
     body: data === undefined ? undefined : JSON.stringify(data),
   });
   const body = (await response.json()) as any;
   if (!response.ok)
-    throw Error(body.error || "No se pudo completar la operación.");
+    throw Error(body.error || 'No se pudo completar la operación.');
   return body;
 }
 
@@ -51,16 +50,16 @@ export default function CreatorDashboard() {
     [configured, setConfigured] = useState(false),
     [authenticated, setAuthenticated] = useState(false);
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]),
-    [error, setError] = useState(""),
+    [error, setError] = useState(''),
     [busy, setBusy] = useState(false),
     [credentials, setCredentials] = useState<Credentials | null>(null);
   const load = useCallback(async () => {
     try {
-      const session = await creatorApi("session");
+      const session = await creatorApi('session');
       setConfigured(session.configured);
       setAuthenticated(session.authenticated);
       if (session.authenticated) {
-        const result = await creatorApi("restaurants");
+        const result = await creatorApi('restaurants');
         setRestaurants(result.restaurants);
       }
     } catch (e) {
@@ -75,18 +74,18 @@ export default function CreatorDashboard() {
   async function submitAuth(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy(true);
-    setError("");
+    setError('');
     try {
       const values = new FormData(event.currentTarget);
       if (configured)
-        await creatorApi("login", "POST", { password: values.get("password") });
+        await creatorApi('login', 'POST', { password: values.get('password') });
       else {
-        const result = await creatorApi("setup", "POST", {
-          setupToken: values.get("setupToken"),
-          password: values.get("password"),
+        const result = await creatorApi('setup', 'POST', {
+          setupToken: values.get('setupToken'),
+          password: values.get('password'),
         });
         setCredentials({
-          title: "Recuperación del creador",
+          title: 'Recuperación del creador',
           recovery: result.recovery,
         });
       }
@@ -102,22 +101,22 @@ export default function CreatorDashboard() {
   async function addRestaurant(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy(true);
-    setError("");
+    setError('');
     try {
       const form = event.currentTarget,
         values = new FormData(form);
-      const modes = modeOptions
-        .filter((m) => values.get(m.value) === "on")
+      const features = featureOptions
+        .filter((m) => values.get(m.value) === 'on')
         .map((m) => m.value);
-      const result = await creatorApi("restaurants", "POST", {
-        name: values.get("name"),
-        ownerPassword: values.get("ownerPassword"),
-        modes,
+      const result = await creatorApi('restaurants', 'POST', {
+        name: values.get('name'),
+        ownerPassword: values.get('ownerPassword'),
+        features,
       });
       setCredentials({
-        title: "Acceso nuevo del dueño",
+        title: 'Acceso nuevo del dueño',
         code: result.code,
-        password: String(values.get("ownerPassword")),
+        password: String(values.get('ownerPassword')),
         recovery: result.recovery,
         ownerUrl: result.ownerUrl,
         menuUrl: result.menuUrl,
@@ -133,14 +132,14 @@ export default function CreatorDashboard() {
   async function setAccess(
     item: Restaurant,
     active = item.active,
-    modes = item.modes,
+    features = item.features,
   ) {
     setBusy(true);
-    setError("");
+    setError('');
     try {
-      await creatorApi(`restaurants/${item.id}/access`, "PUT", {
+      await creatorApi(`restaurants/${item.id}/access`, 'PUT', {
         active,
-        modes,
+        features,
       });
       await load();
     } catch (e) {
@@ -155,9 +154,9 @@ export default function CreatorDashboard() {
     );
     if (!password) return;
     setBusy(true);
-    setError("");
+    setError('');
     try {
-      const result = await creatorApi(`restaurants/${item.id}/reset`, "POST", {
+      const result = await creatorApi(`restaurants/${item.id}/reset`, 'POST', {
         password,
       });
       setCredentials({
@@ -174,7 +173,7 @@ export default function CreatorDashboard() {
     }
   }
   async function logout() {
-    await creatorApi("logout", "POST", {});
+    await creatorApi('logout', 'POST', {});
     setAuthenticated(false);
     setRestaurants([]);
   }
@@ -194,8 +193,8 @@ export default function CreatorDashboard() {
           <h1>Panel privado del creador</h1>
           <p>
             {configured
-              ? "Ingresa tu contraseña para administrar los accesos."
-              : "Realiza una sola vez la instalación segura del creador."}
+              ? 'Ingresa tu contraseña para administrar los accesos.'
+              : 'Realiza una sola vez la instalación segura del creador.'}
           </p>
           {error && <div className="notice error">{error}</div>}
           <form onSubmit={submitAuth}>
@@ -216,16 +215,16 @@ export default function CreatorDashboard() {
                 type="password"
                 minLength={12}
                 required
-                autoComplete={configured ? "current-password" : "new-password"}
+                autoComplete={configured ? 'current-password' : 'new-password'}
               />
               <small>Mínimo 12 caracteres.</small>
             </label>
             <button disabled={busy} className="btn primary" type="submit">
               {busy
-                ? "Verificando…"
+                ? 'Verificando…'
                 : configured
-                  ? "Entrar"
-                  : "Activar panel privado"}
+                  ? 'Entrar'
+                  : 'Activar panel privado'}
             </button>
           </form>
         </section>
@@ -293,7 +292,8 @@ export default function CreatorDashboard() {
             <p className="muted">
               El dueño recibe su código, contraseña y acceso únicamente a su
               propio local. Cada cuenta incluye una dirección permanente; un
-              dominio comprado por el cliente puede configurarse como servicio adicional.
+              dominio comprado por el cliente puede configurarse como servicio
+              adicional.
             </p>
           </div>
           <form onSubmit={addRestaurant}>
@@ -315,12 +315,12 @@ export default function CreatorDashboard() {
             <fieldset>
               <legend>Funciones permitidas</legend>
               <div className="creator-modes">
-                {modeOptions.map((m, i) => (
+                {featureOptions.map((m) => (
                   <label className="check-label" key={m.value}>
                     <input
                       type="checkbox"
                       name={m.value}
-                      defaultChecked={i === 0}
+                      defaultChecked={false}
                     />
                     {m.label}
                   </label>
@@ -348,7 +348,7 @@ export default function CreatorDashboard() {
         <section className="creator-restaurants">
           {restaurants.map((item) => (
             <article
-              className={`card restaurant-admin ${item.active ? "" : "suspended"}`}
+              className={`card restaurant-admin ${item.active ? '' : 'suspended'}`}
               key={item.id}
             >
               <div className="restaurant-title">
@@ -357,32 +357,32 @@ export default function CreatorDashboard() {
                   <h3>{item.name}</h3>
                   <code>{item.id}</code>
                 </div>
-                <span className={`badge ${item.active ? "" : "amber"}`}>
-                  {item.active ? "Habilitado" : "Suspendido"}
+                <span className={`badge ${item.active ? '' : 'amber'}`}>
+                  {item.active ? 'Habilitado' : 'Suspendido'}
                 </span>
               </div>
               <p>
-                Menú publicado: versión{" "}
-                {item.publishedVersion || "sin publicar"}
+                Menú publicado: versión{' '}
+                {item.publishedVersion || 'sin publicar'}
               </p>
               <p>
-                Dirección incluida:{" "}
+                Dirección incluida:{' '}
                 <a href={`/r/${item.id}/menu`} target="_blank">
                   Abrir dirección permanente
                 </a>
               </p>
               <div className="creator-modes">
-                {modeOptions.map((m) => (
+                {featureOptions.map((m) => (
                   <label className="check-label" key={m.value}>
                     <input
                       type="checkbox"
                       disabled={!item.active}
-                      checked={item.modes.includes(m.value)}
+                      checked={item.features.includes(m.value)}
                       onChange={(e) => {
-                        const modes = e.target.checked
-                          ? [...item.modes, m.value]
-                          : item.modes.filter((x) => x !== m.value);
-                        if (modes.length) setAccess(item, item.active, modes);
+                        const features = e.target.checked
+                          ? [...item.features, m.value]
+                          : item.features.filter((x) => x !== m.value);
+                        setAccess(item, item.active, features);
                       }}
                     />
                     {m.label}
@@ -399,11 +399,11 @@ export default function CreatorDashboard() {
                   Nueva clave
                 </button>
                 <button
-                  className={`btn ${item.active ? "danger" : ""}`}
-                  onClick={() => setAccess(item, !item.active, item.modes)}
+                  className={`btn ${item.active ? 'danger' : ''}`}
+                  onClick={() => setAccess(item, !item.active, item.features)}
                 >
                   <Power size={15} />
-                  {item.active ? "Suspender dueño" : "Habilitar dueño"}
+                  {item.active ? 'Suspender dueño' : 'Habilitar dueño'}
                 </button>
               </div>
             </article>

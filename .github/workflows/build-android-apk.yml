@@ -4,7 +4,8 @@ on:
   push:
     branches: [main]
     paths:
-      - native/android/app/src/main/java/ec/qrmenu/app/OwnerActivity.kt
+      - "native/android/**"
+      - ".github/workflows/build-android-apk.yml"
   workflow_dispatch:
   pull_request:
     branches: [main]
@@ -19,23 +20,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: npm
-
-      - name: Install web dependencies
-        run: npm ci
-
-      - name: Build local UI assets
-        run: |
-          npm run build:local
-          npx vite build --config vite.pages.config.ts --mode hotspot --base /hotspot/ --outDir work/android-hotspot-ui
-          mkdir -p native/android/app/src/main/assets/ui native/android/app/src/main/assets/hotspot
-          cp -R dist-local/. native/android/app/src/main/assets/ui/
-          cp -R pages-ui/work/android-hotspot-ui/. native/android/app/src/main/assets/hotspot/
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -54,15 +38,15 @@ jobs:
       - name: Prepare artifact
         run: |
           mkdir -p outputs
-          cp native/android/app/build/outputs/apk/debug/app-debug.apk outputs/QR-Menu-EC-0.5.1.apk
-          sha256sum outputs/QR-Menu-EC-0.5.1.apk | tee outputs/SHA256SUMS.txt
+          cp native/android/app/build/outputs/apk/debug/app-debug.apk outputs/QR-Menu-EC-0.6.0.apk
+          sha256sum outputs/QR-Menu-EC-0.6.0.apk | tee outputs/SHA256SUMS.txt
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: QR-Menu-EC-0.5.1
+          name: QR-Menu-EC-0.6.0
           path: |
-            outputs/QR-Menu-EC-0.5.1.apk
+            outputs/QR-Menu-EC-0.6.0.apk
             outputs/SHA256SUMS.txt
           if-no-files-found: error
           retention-days: 14

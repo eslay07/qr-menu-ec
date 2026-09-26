@@ -1,32 +1,34 @@
 /// <reference types="vite/client" />
-import React, { useEffect, useState } from "react";
-import { createRoot } from "react-dom/client";
-import QRCode from "qrcode";
-import Menu from "../app/ui/menu";
-import { Catalog } from "../lib/contracts";
-import demo from "../data/restaurants/restaurante-demo.json";
-import "../app/globals.css";
-import "../app/product.css";
-import "./pages.css";
+import React, { useEffect, useState } from 'react';
+import { createRoot } from 'react-dom/client';
+import QRCode from 'qrcode';
+import Menu from '../app/ui/menu';
+import { Catalog } from '../lib/contracts';
+import demo from '../data/restaurants/restaurante-demo.json';
+import '../app/globals.css';
+import '../app/product.css';
+import './pages.css';
 
 const restaurants: Record<string, Catalog> = {
-  "restaurante-demo": Catalog.parse(demo),
+  'restaurante-demo': Catalog.parse(demo),
 };
-const path = location.pathname.replace(/\/+$/, "") || "/";
-const slug = ["/", "/menu", "/demo"].includes(path)
-  ? "restaurante-demo"
-  : path.split("/")[1];
+const path = location.pathname.replace(/\/+$/, '') || '/';
+const slug = ['/', '/menu', '/demo'].includes(path)
+  ? 'restaurante-demo'
+  : path.split('/')[1];
 const catalog = restaurants[slug];
 const isQr = path === `/${slug}/qr`;
-const validRoute = ["/", "/menu", "/demo", `/${slug}`, `/${slug}/qr`].includes(
+const validRoute = ['/', '/menu', '/demo', `/${slug}`, `/${slug}/qr`].includes(
   path,
 );
 
 function App() {
-  const [status, setStatus] = useState("Menú online actualizado desde Cloudflare.");
+  const [status, setStatus] = useState(
+    'Menú online actualizado desde Cloudflare.',
+  );
   const [qrs, setQrs] = useState<
     {
-      kind: "web";
+      kind: 'web';
       label: string;
       subtitle: string;
       payload: string;
@@ -37,9 +39,9 @@ function App() {
   const payloads = catalog
     ? [
         {
-          kind: "web" as const,
-          label: "MENÚ CON INTERNET",
-          subtitle: "fotos y experiencia completa",
+          kind: 'web' as const,
+          label: 'MENÚ CON INTERNET',
+          subtitle: 'fotos y experiencia completa',
           payload: webUrl,
         },
       ]
@@ -47,11 +49,6 @@ function App() {
   useEffect(() => {
     if (!catalog || !validRoute) return;
     document.title = `${catalog.name} · QR Menu EC`;
-    if (import.meta.env.MODE === "hotspot") {
-      setStatus(
-        "Menú servido por la red local del restaurante.",
-      );
-    }
   }, []);
   useEffect(() => {
     if (isQr && payloads.length)
@@ -61,13 +58,13 @@ function App() {
           image: await QRCode.toDataURL(item.payload, {
             width: 768,
             margin: 4,
-            errorCorrectionLevel: "M",
+            errorCorrectionLevel: 'M',
           }),
         })),
       )
         .then(setQrs)
         .catch(() =>
-          setStatus("No se pudieron generar los QR. Recarga la página."),
+          setStatus('No se pudieron generar los QR. Recarga la página.'),
         );
   }, [isQr]);
   if (!catalog || !validRoute)
@@ -84,12 +81,10 @@ function App() {
       <main className="print-cards">
         <header className="print-card-heading">
           <h1>{catalog.name}</h1>
-          <p>
-            Escanea para abrir la experiencia visual completa.
-          </p>
+          <p>Escanea para abrir la experiencia visual completa.</p>
           <div className="actions no-print">
             <button className="btn" onClick={() => print()}>
-              Imprimir ambos QR
+              Imprimir QR
             </button>
             <a className="btn" href={`/${slug}`}>
               Abrir menú visual
@@ -110,9 +105,7 @@ function App() {
               />
               <strong>Abre el menú interactivo</strong>
               <details className="qr-payload no-print">
-                <summary>
-                  Ver enlace incluido
-                </summary>
+                <summary>Ver enlace incluido</summary>
                 <pre>{qr.payload}</pre>
               </details>
               <a
@@ -137,4 +130,4 @@ function App() {
     </div>
   );
 }
-createRoot(document.getElementById("root")!).render(<App />);
+createRoot(document.getElementById('root')!).render(<App />);

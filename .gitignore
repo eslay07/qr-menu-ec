@@ -36,9 +36,12 @@ next-env.d.ts
 /dist/
 /.wrangler/
 /outputs/
+/output/
 /work/
 
+/dist-worker/
 /dist-local/
+/tmp/
 /native/android/.gradle/
 /native/android/.kotlin/
 /native/android/local.properties
@@ -51,5 +54,3 @@ next-env.d.ts
 /native/go/outputs/
 
 /dist-pages/
-
-/native/android/app/src/main/assets/hotspot/

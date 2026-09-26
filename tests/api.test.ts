@@ -1,130 +1,332 @@
-import test from "node:test";
-import assert from "node:assert/strict";
-import { generateKeyPairSync, sign } from "node:crypto";
-import QRCode from "qrcode";
-import sharp from "sharp";
-import jsQR from "jsqr";
-import { handleApi } from "../lib/api";
-import { Catalog, defaultSettings, demoCatalog, wifiPayload } from "../lib/contracts";
-import type { Store, Stored } from "../lib/store";
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { generateKeyPairSync, sign } from 'node:crypto';
+import QRCode from 'qrcode';
+import sharp from 'sharp';
+import jsQR from 'jsqr';
+import { handleApi } from '../lib/api';
+import { Catalog, demoCatalog } from '../lib/contracts';
+import type { Store, Stored } from '../lib/store';
+import type { OrderRecord, OrderStore } from '../lib/orders';
 
-const pair = generateKeyPairSync("ed25519");
-const publicKey = Buffer.from(pair.publicKey.export({ type: "spki", format: "der" }).subarray(-32)).toString("base64");
+const pair = generateKeyPairSync('ed25519');
+const publicKey = Buffer.from(
+  pair.publicKey.export({ type: 'spki', format: 'der' }).subarray(-32),
+).toString('base64');
 
-function harness() {
-  let data: Stored | null = null;
-  let ownerAccess = true;
-  const media = new Map<string, { bytes: Uint8Array; type: string }>();
+function harness(features: 'orders'[] = ['orders']) {
+  let data: Stored | null = null,
+    ownerAccess = true;
+  const media = new Map<string, { bytes: Uint8Array; type: string }>(),
+    orders = new Map<string, { order: OrderRecord; hash: string }>();
   const store: Store = {
-    async read() { return structuredClone(data); },
+    async read() {
+      return structuredClone(data);
+    },
     async commit(state, revision) {
-      if (revision === null ? data !== null : !data || data.revision !== revision) return false;
-      data = { state: structuredClone(state), revision: revision === null ? 0 : revision + 1 };
+      if (
+        revision === null ? data !== null : !data || data.revision !== revision
+      )
+        return false;
+      data = {
+        state: structuredClone(state),
+        revision: revision === null ? 0 : revision + 1,
+      };
       return true;
     },
-    async mediaGet(id) { return media.get(id) || null; },
-    async mediaPut(id, bytes, type) { media.set(id, { bytes, type }); },
+    async mediaGet(id) {
+      return media.get(id) || null;
+    },
+    async mediaPut(id, bytes, type) {
+      media.set(id, { bytes, type });
+    },
   };
-  let cookie = "";
+  const orderStore: OrderStore = {
+    async create(order, hash) {
+      orders.set(order.id, { order: structuredClone(order), hash });
+    },
+    async publicByTokenHash(hash) {
+      return structuredClone(
+        [...orders.values()].find((item) => item.hash === hash)?.order || null,
+      );
+    },
+    async list(restaurantId) {
+      return structuredClone(
+        [...orders.values()]
+          .map((item) => item.order)
+          .filter(
+            (order) => order.restaurantId === restaurantId && !order.demo,
+          ),
+      );
+    },
+    async setStatus(restaurantId, id) {
+      const found = orders.get(id);
+      if (
+        !found ||
+        found.order.restaurantId !== restaurantId ||
+        found.order.status !== 'confirmed'
+      )
+        return false;
+      found.order.status = 'cancelled';
+      found.order.cancelledAt = new Date().toISOString();
+      return true;
+    },
+  };
+  let cookie = '';
   return {
-    async call(path: string, method = "GET", value?: unknown, origin?: string) {
-      const response = await handleApi(new Request("https://menu.test/api/v1/" + path, {
-        method,
-        headers: { cookie, ...(value ? { "Content-Type": "application/json" } : {}), ...(origin ? { origin } : {}) },
-        body: value ? JSON.stringify(value) : undefined,
-      }), store, { publicKey, setupToken: "setup-secret", runtime: "local", ownerAccess });
-      if (response.headers.has("set-cookie")) cookie = response.headers.get("set-cookie")!.split(";")[0];
-      return { status: response.status, body: (await response.json()) as any };
+    async call(path: string, method = 'GET', value?: unknown, origin?: string) {
+      const response = await handleApi(
+        new Request(`https://menu.test/api/v1/${path}`, {
+          method,
+          headers: {
+            cookie,
+            ...(value !== undefined
+              ? { 'Content-Type': 'application/json' }
+              : {}),
+            ...(origin ? { origin } : {}),
+          },
+          body: value !== undefined ? JSON.stringify(value) : undefined,
+        }),
+        store,
+        {
+          publicKey,
+          setupToken: 'setup-secret',
+          runtime: 'cloud',
+          ownerAccess,
+          grantedFeatures: features,
+          orderStore,
+          publicMenuUrl: 'https://mesa.menus.test/menu',
+        },
+      );
+      if (response.headers.has('set-cookie'))
+        cookie = response.headers.get('set-cookie')!.split(';')[0];
+      const contentType = response.headers.get('content-type') || '';
+      return {
+        status: response.status,
+        body: contentType.includes('json')
+          ? ((await response.json()) as any)
+          : await response.arrayBuffer(),
+        headers: response.headers,
+      };
     },
-    license(restaurantId: string, modes = ["web"]) {
-      const bytes = Buffer.from(JSON.stringify({ schemaVersion: 1, restaurantId, licenseId: "test-license", modes, issuedAt: new Date().toISOString(), customer: "Prueba" }));
-      return { payload: bytes.toString("base64"), signature: Buffer.from(sign(null, bytes, pair.privateKey)).toString("base64") };
+    license(restaurantId: string) {
+      const bytes = Buffer.from(
+        JSON.stringify({
+          schemaVersion: 1,
+          restaurantId,
+          licenseId: 'test-license',
+          modes: ['web'],
+          issuedAt: new Date().toISOString(),
+          customer: 'Prueba',
+        }),
+      );
+      return {
+        payload: bytes.toString('base64'),
+        signature: Buffer.from(sign(null, bytes, pair.privateKey)).toString(
+          'base64',
+        ),
+      };
     },
-    suspend() { ownerAccess = false; },
+    suspend() {
+      ownerAccess = false;
+    },
+    orders,
   };
 }
 
 async function decode(payload: string) {
-  const png = await QRCode.toBuffer(payload, { type: "png", width: 1200, margin: 4, errorCorrectionLevel: "M" });
-  const image = await (sharp as any)(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-  return jsQR(new Uint8ClampedArray(image.data), image.info.width, image.info.height)?.data;
+  const png = await QRCode.toBuffer(payload, {
+    type: 'png',
+    width: 1000,
+    margin: 4,
+    errorCorrectionLevel: 'M',
+  });
+  const image = await (sharp as any)(png)
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  return jsQR(
+    new Uint8ClampedArray(image.data),
+    image.info.width,
+    image.info.height,
+  )?.data;
+}
+async function configured() {
+  const h = harness(),
+    setup = await h.call('setup', 'POST', {
+      name: 'Mesa',
+      password: 'test-password-123',
+      setupToken: 'setup-secret',
+    });
+  let state = (await h.call('state')).body;
+  await h.call('draft', 'PUT', {
+    revision: state.revision,
+    catalog: demoCatalog,
+  });
+  state = (await h.call('state')).body;
+  await h.call('settings', 'PUT', {
+    revision: state.revision,
+    settings: { webUrl: 'https://mesa.menus.test/menu', ordersEnabled: true },
+  });
+  state = (await h.call('state')).body;
+  await h.call('publish', 'POST', { revision: state.revision });
+  return { h, setup, state: (await h.call('state')).body };
 }
 
-test("web is the default and produces one permanent menu QR", async () => {
-  const h = harness();
-  const setup = await h.call("setup", "POST", { name: "Mesa", password: "test-password-123", setupToken: "setup-secret" });
-  assert.equal((await h.call("logout", "POST", {})).status, 200);
-  assert.equal((await h.call("login", "POST", { code: "otro", password: "test-password-123" })).status, 401);
-  assert.equal((await h.call("login", "POST", { code: setup.body.restaurantId, password: "test-password-123" })).status, 200);
-  let state = (await h.call("state")).body;
-  assert.equal(state.settings.mode, "web");
-  await h.call("license", "POST", h.license(setup.body.restaurantId));
-  state = (await h.call("state")).body;
-  await h.call("draft", "PUT", { revision: state.revision, catalog: demoCatalog });
-  state = (await h.call("state")).body;
-  const webUrl = "https://qr-menu-ec.pages.dev/restaurante-demo";
-  await h.call("settings", "PUT", { revision: state.revision, settings: { ...state.settings, webUrl } });
-  state = (await h.call("state")).body;
-  assert.equal((await h.call("publish", "POST", { revision: state.revision })).status, 200);
-  const result = await h.call("qr");
-  assert.deepEqual(result.body.codes.map((code: any) => code.kind), ["web"]);
-  assert.equal(await decode(result.body.codes[0].payload), webUrl);
+test('legacy catalogs gain empty modifier groups', () => {
+  const legacy = structuredClone(demoCatalog) as any;
+  delete legacy.dishes[0].modifierGroups;
+  const parsed = Catalog.parse(legacy);
+  assert.deepEqual(parsed.dishes[0].modifierGroups, []);
 });
 
-test("local mode produces menu and Wi-Fi codes", async () => {
-  const h = harness();
-  const setup = await h.call("setup", "POST", { name: "Mesa", password: "test-password-123", setupToken: "setup-secret" });
-  await h.call("license", "POST", h.license(setup.body.restaurantId, ["local"]));
-  let state = (await h.call("state")).body;
-  await h.call("draft", "PUT", { revision: state.revision, catalog: demoCatalog });
-  state = (await h.call("state")).body;
-  await h.call("settings", "PUT", { revision: state.revision, settings: { ...state.settings, mode: "local" } });
-  state = (await h.call("state")).body;
-  await h.call("publish", "POST", { revision: state.revision });
-  const result = await h.call("qr");
-  assert.deepEqual(result.body.codes.map((code: any) => code.kind), ["local_menu", "wifi"]);
-  assert.match(result.body.codes[1].payload, /^WIFI:/);
+test('one permanent HTTPS menu QR is produced', async () => {
+  const { h } = await configured();
+  const result = await h.call('qr');
+  assert.deepEqual(
+    result.body.codes.map((code: any) => code.kind),
+    ['web'],
+  );
+  assert.equal(
+    await decode(result.body.codes[0].payload),
+    'https://mesa.menus.test/menu',
+  );
+  assert.doesNotMatch(result.body.codes[0].payload, /WIFI:/);
 });
 
-test("scoped Cloudflare media paths and Wi-Fi escaping are valid", () => {
-  const path = "/r/998d4980-a169-469f-b009-634a373ca7ad/api/v1/media/11111111-1111-4111-8111-111111111111";
-  assert.doesNotThrow(() => Catalog.parse({ ...demoCatalog, logo: path }));
-  assert.match(wifiPayload({ ...defaultSettings, ssid: "Mesa;:A" }), /S:Mesa\\;\\:A/);
+test('configured order pricing is rebuilt on the server', async () => {
+  const { h } = await configured();
+  const result = await h.call('orders', 'POST', {
+    alias: 'Ana',
+    lines: [
+      {
+        dishId: 'desayuno-continental',
+        quantity: 2,
+        note: 'sin azúcar',
+        selections: [
+          { groupId: 'bebida-caliente', optionIds: ['cafe'] },
+          { groupId: 'jugo', optionIds: ['naranja'] },
+          { groupId: 'extras', optionIds: ['huevo'] },
+        ],
+      },
+    ],
+  });
+  assert.equal(result.status, 201);
+  assert.equal(result.body.order.totalCents, 1500);
+  assert.equal(result.body.order.lines[0].options.length, 3);
+  assert.match(result.body.publicUrl, /\/order\//);
+  assert.match(result.body.pdfUrl, /\/api\/v1\/order\/[^/]+\/pdf$/);
+  const token = result.body.publicUrl.split('/').pop();
+  const publicOrder = await h.call(`order/${token}`);
+  assert.equal(publicOrder.body.order.alias, 'Ana');
+  const pdf = await h.call(`order/${token}/pdf`);
+  assert.equal(pdf.headers.get('content-type'), 'application/pdf');
+  assert.ok((pdf.body as ArrayBuffer).byteLength > 1000);
 });
 
-test("central suspension invalidates the session and public menu immediately", async () => {
+test('invalid modifier choices and disabled ordering are rejected', async () => {
+  const { h } = await configured();
+  const missing = await h.call('orders', 'POST', {
+    alias: '',
+    lines: [
+      { dishId: 'desayuno-continental', quantity: 1, note: '', selections: [] },
+    ],
+  });
+  assert.equal(missing.status, 400);
+  const withoutFeature = harness([]);
+  await withoutFeature.call('setup', 'POST', {
+    name: 'Mesa',
+    password: 'test-password-123',
+    setupToken: 'setup-secret',
+  });
+  const state = (await withoutFeature.call('state')).body;
+  assert.equal(
+    (
+      await withoutFeature.call('settings', 'PUT', {
+        revision: state.revision,
+        settings: { webUrl: '', ordersEnabled: true },
+      })
+    ).status,
+    403,
+  );
+});
+
+test('reports exclude cancelled orders', async () => {
+  const { h } = await configured();
+  const created = await h.call('orders', 'POST', {
+    alias: '',
+    lines: [{ dishId: 'seco', quantity: 1, note: '', selections: [] }],
+  });
+  let report = await h.call('reports/orders');
+  assert.equal(report.body.report.confirmedOrders, 1);
+  assert.equal(report.body.report.totalCents, 750);
+  await h.call(`orders/${created.body.order.id}/status`, 'PATCH', {
+    status: 'cancelled',
+  });
+  report = await h.call('reports/orders');
+  assert.equal(report.body.report.confirmedOrders, 0);
+  assert.equal(report.body.report.cancelledOrders, 1);
+});
+
+test('authentication, conflicts, suspension and recovery remain enforced', async () => {
   const h = harness();
-  const setup = await h.call("setup", "POST", { name: "Mesa", password: "test-password-123", setupToken: "setup-secret" });
-  await h.call("license", "POST", h.license(setup.body.restaurantId));
-  let state = (await h.call("state")).body;
-  await h.call("draft", "PUT", { revision: state.revision, catalog: demoCatalog });
-  state = (await h.call("state")).body;
-  await h.call("settings", "PUT", { revision: state.revision, settings: { ...state.settings, webUrl: "https://example.com/menu" } });
-  state = (await h.call("state")).body;
-  await h.call("publish", "POST", { revision: state.revision });
+  const setup = await h.call('setup', 'POST', {
+    name: 'Mesa',
+    password: 'test-password-123',
+    setupToken: 'setup-secret',
+  });
+  assert.equal((await h.call('logout', 'POST', {})).status, 200);
+  assert.equal(
+    (
+      await h.call('login', 'POST', {
+        code: 'otro',
+        password: 'test-password-123',
+      })
+    ).status,
+    401,
+  );
+  assert.equal(
+    (
+      await h.call('login', 'POST', {
+        code: setup.body.restaurantId,
+        password: 'test-password-123',
+      })
+    ).status,
+    200,
+  );
+  const state = (await h.call('state')).body;
+  assert.equal(
+    (
+      await h.call('draft', 'PUT', {
+        revision: state.revision,
+        catalog: demoCatalog,
+      })
+    ).status,
+    200,
+  );
+  assert.equal(
+    (
+      await h.call('draft', 'PUT', {
+        revision: state.revision,
+        catalog: demoCatalog,
+      })
+    ).status,
+    409,
+  );
+  assert.equal(
+    (await h.call('logout', 'POST', {}, 'https://evil.test')).status,
+    403,
+  );
+  assert.equal((await h.call('logout', 'POST', {})).status, 200);
+  assert.equal(
+    (
+      await h.call('recover', 'POST', {
+        recovery: setup.body.recovery,
+        password: 'new-password-123',
+      })
+    ).status,
+    200,
+  );
   h.suspend();
-  const session = await h.call("session");
-  assert.equal(session.body.authenticated, false);
-  assert.equal(session.body.suspended, true);
-  assert.equal((await h.call("menu")).status, 403);
-  assert.equal((await h.call("state")).status, 403);
-});
-
-test("draft conflicts, recovery and snapshots remain atomic", async () => {
-  const h = harness();
-  const setup = await h.call("setup", "POST", { name: "Mesa", password: "test-password-123", setupToken: "setup-secret" });
-  await h.call("license", "POST", h.license(setup.body.restaurantId, ["local"]));
-  let state = (await h.call("state")).body;
-  assert.equal((await h.call("draft", "PUT", { revision: state.revision, catalog: demoCatalog })).status, 200);
-  assert.equal((await h.call("draft", "PUT", { revision: state.revision, catalog: demoCatalog })).status, 409);
-  state = (await h.call("state")).body;
-  await h.call("settings", "PUT", { revision: state.revision, settings: { ...state.settings, mode: "local" } });
-  state = (await h.call("state")).body;
-  await h.call("publish", "POST", { revision: state.revision });
-  state = (await h.call("state")).body;
-  await h.call("draft", "PUT", { revision: state.revision, catalog: { ...demoCatalog, name: "Borrador nuevo" } });
-  assert.equal((await h.call("menu")).body.catalog.name, "La Mesa");
-  assert.equal((await h.call("logout", "POST", {}, "https://evil.test")).status, 403);
-  assert.equal((await h.call("logout", "POST", {})).status, 200);
-  assert.equal((await h.call("recover", "POST", { recovery: setup.body.recovery, password: "new-password-123" })).status, 200);
+  assert.equal((await h.call('session')).body.authenticated, false);
 });

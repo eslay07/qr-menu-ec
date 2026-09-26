@@ -41,7 +41,7 @@
     "work",
     "outputs",
     "dist",
-    "dist-local",
+    "dist-worker",
     ".wrangler",
     "native/android",
     "dist-pages"

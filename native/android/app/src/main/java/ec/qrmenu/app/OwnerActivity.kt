@@ -6,8 +6,6 @@ import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Bundle
 import android.view.View
-import android.view.Gravity
-import android.webkit.JavascriptInterface
 import android.webkit.CookieManager
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
@@ -16,17 +14,11 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
-import android.widget.Button
 import android.widget.ProgressBar
 import android.widget.Toast
-import java.io.File
-import java.net.HttpURLConnection
-import java.net.URL
-import org.json.JSONObject
 
 class OwnerActivity : Activity() {
     private lateinit var webView: WebView
-    private lateinit var localButton: Button
     private var fileCallback: ValueCallback<Array<Uri>>? = null
     private val fileRequest = 701
     private val platformHost = "qr-menu-ec.consola.workers.dev"
@@ -34,11 +26,6 @@ class OwnerActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val progress = ProgressBar(this).apply { visibility = View.GONE }
-        localButton = Button(this).apply {
-            text = "SERVIDOR LOCAL Y RED"
-            visibility = View.GONE
-            setOnClickListener { startActivity(Intent(this@OwnerActivity, MainActivity::class.java)) }
-        }
         webView = WebView(this).apply {
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
@@ -48,50 +35,6 @@ class OwnerActivity : Activity() {
             settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
             CookieManager.getInstance().setAcceptCookie(true)
             CookieManager.getInstance().setAcceptThirdPartyCookies(this, false)
-            addJavascriptInterface(object {
-                @JavascriptInterface
-                fun setAccessState(enabled: Boolean) {
-                    runOnUiThread {
-                        localButton.visibility = if (enabled) View.VISIBLE else View.GONE
-                        if (!enabled) {
-                            stopService(Intent(this@OwnerActivity, MenuService::class.java))
-                            File(filesDir, "synced-menu.json").delete()
-                        }
-                    }
-                }
-                @JavascriptInterface
-                fun syncMenu(payload: String) {
-                    Thread {
-                        runCatching {
-                            val snapshot = JSONObject(payload)
-                            val catalog = snapshot.getJSONObject("catalog")
-                            val mediaDir = File(filesDir, "synced-media").apply { mkdirs() }
-                            fun localize(path: String): String {
-                                if (!Regex("^/r/[a-f0-9-]{36}/api/v1/media/[a-f0-9-]{36}$").matches(path)) return path
-                                val id = path.substringAfterLast('/')
-                                val target = File(mediaDir, id)
-                                val connection = URL("https://$platformHost$path").openConnection() as HttpURLConnection
-                                connection.setRequestProperty("Cookie", CookieManager.getInstance().getCookie("https://$platformHost") ?: "")
-                                connection.connectTimeout = 15000
-                                connection.readTimeout = 20000
-                                require(connection.responseCode == 200) { "No se pudo sincronizar una foto." }
-                                connection.inputStream.use { input -> target.outputStream().use { input.copyTo(it) } }
-                                File(mediaDir, "$id.type").writeText(connection.contentType ?: "image/jpeg")
-                                return "/local-media/$id"
-                            }
-                            catalog.put("logo", localize(catalog.optString("logo")))
-                            val dishes = catalog.getJSONArray("dishes")
-                            for (index in 0 until dishes.length()) {
-                                val dish = dishes.getJSONObject(index)
-                                dish.put("image", localize(dish.optString("image")))
-                            }
-                            File(filesDir, "synced-menu.json").writeText(snapshot.toString())
-                        }.onFailure {
-                            runOnUiThread { Toast.makeText(this@OwnerActivity, "El menú se guardó en Cloudflare, pero la copia local no terminó.", Toast.LENGTH_LONG).show() }
-                        }
-                    }.start()
-                }
-            }, "QrMenuAndroid")
             webViewClient = object : WebViewClient() {
                 override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                     val uri = request.url
@@ -124,9 +67,6 @@ class OwnerActivity : Activity() {
         setContentView(FrameLayout(this).apply {
             addView(webView, FrameLayout.LayoutParams(-1, -1))
             addView(progress, FrameLayout.LayoutParams(-2, -2, android.view.Gravity.CENTER))
-            addView(localButton, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM).apply {
-                setMargins(24, 12, 24, 24)
-            })
         })
     }
 

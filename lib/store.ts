@@ -1,4 +1,4 @@
-import type { Catalog, Settings, License } from "./contracts";
+import type { Catalog, Settings, License, Feature } from './contracts';
 export interface State {
   schemaVersion: 1;
   restaurantId: string;
@@ -9,18 +9,16 @@ export interface State {
     version: number;
     at: string;
     catalog: Catalog;
-    mode: string;
-    accessExperience: string;
+    mode?: string;
     settings?: Settings;
   };
-  offlinePrintedVersion?: number | null;
   license: License | null;
   password: { salt: string; hash: string };
   recoveryHash: string;
   sessionEpoch: number;
   failures: { count: number; until: number };
   createdAt: string;
-  access?: { active: boolean; modes: string[] };
+  access?: { active: boolean; features?: Feature[] };
 }
 export interface Stored {
   revision: number;
