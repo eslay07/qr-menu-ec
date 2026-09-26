@@ -1,0 +1,45 @@
+import { chromium } from '@playwright/test';
+import assert from 'node:assert/strict';
+
+const base =
+  process.env.PRODUCTION_URL || 'https://qr-menu-ec.consola.workers.dev';
+const browser = await chromium.launch({ headless: true });
+
+try {
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await page.goto(`${base}/demo`, { waitUntil: 'networkidle' });
+  await page
+    .getByRole('button', { name: 'Añadir Desayuno continental' })
+    .click();
+  await page.getByLabel('Café').check();
+  await page.getByLabel('Naranja').check();
+  await page.getByLabel('Nota para este plato').fill('sin azúcar');
+  await page.getByRole('button', { name: 'Añadir configurado' }).click();
+  await page.getByRole('button', { name: 'Revisar mi pedido' }).click();
+  await page.getByLabel('Nombre o alias opcional').fill('Prueba producción');
+  await page.getByRole('button', { name: 'Confirmar pedido' }).click();
+
+  await page
+    .getByRole('heading', { name: 'Muéstrale este pedido al mesero' })
+    .waitFor();
+  await page.getByText('Bebida caliente: Café').waitFor();
+  await page.getByText('Jugo: Naranja').waitFor();
+
+  const pdfUrl = await page
+    .getByRole('link', { name: 'Abrir PDF' })
+    .getAttribute('href');
+  assert(pdfUrl, 'La confirmación no incluyó el enlace PDF.');
+  const pdf = await page.request.get(new URL(pdfUrl, base).toString());
+  assert.equal(pdf.status(), 200);
+  assert.match(pdf.headers()['content-type'] || '', /application\/pdf/);
+
+  await page.getByRole('button', { name: 'Generar QR para el mesero' }).click();
+  await page.getByText('El mesero puede escanear este QR').waitFor();
+  assert.equal(await page.locator('.order-handoff-qr svg').count(), 1);
+
+  console.log(
+    'Producción: pedido configurable, confirmación, QR y PDF verificados.',
+  );
+} finally {
+  await browser.close();
+}
