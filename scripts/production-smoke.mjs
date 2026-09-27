@@ -12,14 +12,14 @@ const browser = await chromium.launch({ headless: true });
 try {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
   await mkdir('outputs/experience-qa', { recursive: true });
-  await page.goto(`${base}/owner`, { waitUntil: 'networkidle' });
+  await page.goto(`${base}/owner`, { waitUntil: 'domcontentloaded' });
   await page.getByLabel('Correo electrónico').waitFor();
   assert.equal(await page.getByLabel('Código del restaurante').count(), 0);
   await page.screenshot({ path: 'outputs/experience-qa/production-owner.png' });
   const security = await (await page.request.get(`${base}/api/creator/session`)).json();
   assert.equal(typeof security.recoveryEmailReady, 'boolean');
   console.log(`Producción: acceso por correo disponible; envío de recuperación ${security.recoveryEmailReady ? 'configurado' : 'pendiente de proveedor de correo'}.`);
-  await page.goto(restaurantUrl, { waitUntil: 'networkidle' });
+  await page.goto(restaurantUrl, { waitUntil: 'domcontentloaded' });
   await page.locator('.customer').waitFor();
   assert.equal(
     await page.getByLabel('Código del restaurante').count(),
@@ -27,7 +27,7 @@ try {
     'El subdominio mostró el acceso privado en lugar del menú público.',
   );
 
-  await page.goto(`${base}/demo`, { waitUntil: 'networkidle' });
+  await page.goto(`${base}/demo`, { waitUntil: 'domcontentloaded' });
   const banner = await page.locator('.promotion-banner').first().boundingBox();
   assert(banner && banner.height < 422, 'La promoción supera media pantalla.');
   await page.screenshot({ path: 'outputs/experience-qa/production-menu.png' });
