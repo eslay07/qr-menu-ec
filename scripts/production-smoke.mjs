@@ -3,10 +3,21 @@ import assert from 'node:assert/strict';
 
 const base =
   process.env.PRODUCTION_URL || 'https://qr-menu-ec.consola.workers.dev';
+const restaurantUrl =
+  process.env.RESTAURANT_URL ||
+  'https://la-sazon-marinera.consola.workers.dev/menu';
 const browser = await chromium.launch({ headless: true });
 
 try {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await page.goto(restaurantUrl, { waitUntil: 'networkidle' });
+  await page.locator('.customer').waitFor();
+  assert.equal(
+    await page.getByLabel('Código del restaurante').count(),
+    0,
+    'El subdominio mostró el acceso privado en lugar del menú público.',
+  );
+
   await page.goto(`${base}/demo`, { waitUntil: 'networkidle' });
   await page
     .getByRole('button', { name: 'Añadir Desayuno continental' })

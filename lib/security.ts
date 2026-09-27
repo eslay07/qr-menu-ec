@@ -4,7 +4,60 @@ export function unb64(s:string){return Uint8Array.from(atob(s),c=>c.charCodeAt(0
 export function randomToken(){return b64(crypto.getRandomValues(new Uint8Array(32))).replace(/[^a-zA-Z0-9]/g,'');}
 export async function digest(s:string){return b64(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s))));}
 export const passwordIterations = 600_000;
-export async function passwordHash(password:string,salt:string,iterations=passwordIterations){const k=await crypto.subtle.importKey('raw',new TextEncoder().encode(password.normalize('NFKC')),'PBKDF2',false,['deriveBits']);return b64(new Uint8Array(await crypto.subtle.deriveBits({name:'PBKDF2',hash:'SHA-256',salt:new TextEncoder().encode(salt),iterations},k,256)));}
+const workerPbkdf2Limit = 100_000;
+
+async function pbkdf2Layer(
+  material: Uint8Array,
+  salt: string,
+  iterations: number,
+) {
+  const keyBytes = new Uint8Array(material.byteLength);
+  keyBytes.set(material);
+  const key = await crypto.subtle.importKey(
+    'raw',
+    keyBytes.buffer,
+    'PBKDF2',
+    false,
+    ['deriveBits'],
+  );
+  return new Uint8Array(
+    await crypto.subtle.deriveBits(
+      {
+        name: 'PBKDF2',
+        hash: 'SHA-256',
+        salt: new TextEncoder().encode(salt),
+        iterations,
+      },
+      key,
+      256,
+    ),
+  );
+}
+
+export async function passwordHash(
+  password: string,
+  salt: string,
+  iterations = passwordIterations,
+) {
+  const normalized = new TextEncoder().encode(password.normalize('NFKC'));
+  if (iterations <= workerPbkdf2Limit)
+    return b64(await pbkdf2Layer(normalized, salt, iterations));
+
+  // Workers limita cada llamada WebCrypto a 100 000 iteraciones. Encadenamos
+  // capas con sales separadas para conservar 600 000 iteraciones efectivas sin
+  // rebajar el factor de trabajo. Los hashes legacy de 100 000 se verifican por
+  // la rama anterior y migran después del primer acceso correcto.
+  let material = normalized;
+  let remaining = iterations;
+  let layer = 0;
+  while (remaining > 0) {
+    const current = Math.min(workerPbkdf2Limit, remaining);
+    material = await pbkdf2Layer(material, `${salt}:layer:${layer}`, current);
+    remaining -= current;
+    layer++;
+  }
+  return b64(material);
+}
 
 const base32Alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
 export function base32(bytes: Uint8Array) {

@@ -1216,6 +1216,7 @@ function Auth({
   onSubmit,
 }: any) {
   const [turnstileToken, setTurnstileToken] = useState('');
+  const [turnstileAttempt, setTurnstileAttempt] = useState(0);
   return (
     <main className="auth-page">
       <div className="auth-brand">
@@ -1239,11 +1240,17 @@ function Auth({
           </div>
         )}
         <form
-          onSubmit={(e) => {
+          onSubmit={async (e) => {
             e.preventDefault();
             const form = new FormData(e.currentTarget);
+            form.delete('cf-turnstile-response');
             if (turnstileToken) form.set('turnstileToken', turnstileToken);
-            onSubmit(form);
+            try {
+              await onSubmit(form);
+            } finally {
+              setTurnstileToken('');
+              setTurnstileAttempt((value) => value + 1);
+            }
           }}
         >
           {!session.configured && (
@@ -1282,6 +1289,7 @@ function Auth({
           <Turnstile
             siteKey={session.turnstileSiteKey}
             onToken={setTurnstileToken}
+            resetKey={turnstileAttempt}
           />
           <button className="btn primary" disabled={busy}>
             {busy

@@ -9,6 +9,8 @@ declare global {
           sitekey: string;
           callback: (token: string) => void;
           'expired-callback': () => void;
+          'error-callback': () => void;
+          'response-field': false;
           theme: 'auto';
         },
       ) => string;
@@ -20,9 +22,11 @@ declare global {
 export default function Turnstile({
   siteKey,
   onToken,
+  resetKey = 0,
 }: {
   siteKey?: string | null;
   onToken: (token: string) => void;
+  resetKey?: number;
 }) {
   const element = useRef<HTMLDivElement>(null);
   const widget = useRef('');
@@ -35,6 +39,8 @@ export default function Turnstile({
         sitekey: siteKey,
         callback: onToken,
         'expired-callback': () => onToken(''),
+        'error-callback': () => onToken(''),
+        'response-field': false,
         theme: 'auto',
       });
     };
@@ -56,7 +62,7 @@ export default function Turnstile({
       if (widget.current && window.turnstile) window.turnstile.remove(widget.current);
       widget.current = '';
     };
-  }, [siteKey, onToken]);
+  }, [siteKey, onToken, resetKey]);
   if (!siteKey) return null;
   return <div id={id} ref={element} aria-label="Verificación contra bots" />;
 }

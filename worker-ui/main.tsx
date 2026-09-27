@@ -18,13 +18,13 @@ createRoot(document.getElementById('root')!).render(
     <CreatorDashboard />
   ) : path === '/owner' ? (
     <OwnerLauncher />
-  ) : sub === '/menu' ? (
+  ) : sub === '/menu' || path === '/menu' ? (
     <Menu />
   ) : sub.startsWith('/order/') || path.startsWith('/order/') ? (
     <OrderView />
   ) : path === '/demo' ? (
     <Menu demo />
-  ) : sub === '/preview' ? (
+  ) : sub === '/preview' || path === '/preview' ? (
     <Menu preview />
   ) : (
     <Dashboard />

@@ -58,7 +58,8 @@ export default function Menu({
     [version, setVersion] = useState(0),
     [ordersEnabled, setOrdersEnabled] = useState(demo),
     [turnstileSiteKey, setTurnstileSiteKey] = useState<string | null>(null),
-    [turnstileToken, setTurnstileToken] = useState('');
+    [turnstileToken, setTurnstileToken] = useState(''),
+    [turnstileAttempt, setTurnstileAttempt] = useState(0);
   const [query, setQuery] = useState(''),
     [cat, setCat] = useState('all'),
     [cart, setCart] = useState<CartLine[]>([]),
@@ -130,6 +131,8 @@ export default function Menu({
     } catch (e) {
       setError((e as Error).message);
     } finally {
+      setTurnstileToken('');
+      setTurnstileAttempt((value) => value + 1);
       setBusy(false);
     }
   };
@@ -468,6 +471,7 @@ export default function Menu({
                 <Turnstile
                   siteKey={turnstileSiteKey}
                   onToken={setTurnstileToken}
+                  resetKey={turnstileAttempt}
                 />
                 <button
                   className="btn primary confirm-order"

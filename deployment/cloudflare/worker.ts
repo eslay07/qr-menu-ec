@@ -116,6 +116,8 @@ async function routeRequest(request: Request, env: Env) {
       orderStore: new D1OrderStore(env.DB),
       security,
     });
+  if (id && hostRow && scopedPath === '/')
+    return Response.redirect(`${url.origin}/menu`, 302);
   if (url.pathname === '/')
     return Response.redirect(`${url.origin}/creator`, 302);
   if (

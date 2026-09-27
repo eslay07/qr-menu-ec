@@ -77,7 +77,8 @@ export default function CreatorDashboard() {
     [mfa, setMfa] = useState<any>(null),
     [domainSettings, setDomainSettings] = useState<any>(null),
     [turnstileToken, setTurnstileToken] = useState(''),
-    [turnstileSiteKey, setTurnstileSiteKey] = useState<string | null>(null);
+    [turnstileSiteKey, setTurnstileSiteKey] = useState<string | null>(null),
+    [turnstileAttempt, setTurnstileAttempt] = useState(0);
   const load = useCallback(async () => {
     try {
       const session = await creatorApi('session');
@@ -137,6 +138,8 @@ export default function CreatorDashboard() {
     } catch (e) {
       setError((e as Error).message);
     } finally {
+      setTurnstileToken('');
+      setTurnstileAttempt((value) => value + 1);
       setBusy(false);
     }
   }
@@ -317,6 +320,7 @@ export default function CreatorDashboard() {
             <Turnstile
               siteKey={turnstileSiteKey}
               onToken={setTurnstileToken}
+              resetKey={turnstileAttempt}
             />
             <button disabled={busy} className="btn primary" type="submit">
               {busy
