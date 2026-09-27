@@ -21,7 +21,7 @@ class OwnerActivity : Activity() {
     private lateinit var webView: WebView
     private var fileCallback: ValueCallback<Array<Uri>>? = null
     private val fileRequest = 701
-    private val platformHost = "qr-menu-ec.consola.workers.dev"
+    private val platformHost = "qr-menu-ec.consola.workers.dev" // Cloudflare production
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
