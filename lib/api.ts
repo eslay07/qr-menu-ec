@@ -451,31 +451,6 @@ export async function handleApi(
           s.password.hash = await passwordHash(password, s.password.salt);
           s.password.iterations = passwordIterations;
         }
-        const kind = s.security?.totpCiphertext ? 'mfa_login' : 'mfa_setup';
-        let enrollment: { secret: string; uri: string } | undefined;
-        let payload: Record<string, unknown> = {};
-        if (kind === 'mfa_setup') {
-          const secret = totpSecret();
-          payload = {
-            secretCiphertext: await opts.security.encrypt(secret),
-          };
-          enrollment = {
-            secret,
-            uri: `otpauth://totp/${encodeURIComponent(`QR Menu EC:${s.draft.name}`)}?secret=${secret}&issuer=${encodeURIComponent('QR Menu EC')}`,
-          };
-        }
-        await save();
-        const challenge = await opts.security.challenge(
-          'owner',
-          s.restaurantId,
-          kind,
-          payload,
-        );
-        return json(
-          { mfaRequired: true, enrollment },
-          200,
-          { 'Set-Cookie': challenge.cookie },
-        );
       }
       let recovery: string | undefined;
       if (path === 'recover') {
@@ -487,30 +462,7 @@ export async function handleApi(
         recovery = randomToken();
         s.recoveryHash = await digest(recovery);
         if (opts.security?.encryptionReady) {
-          const kind = s.security?.totpCiphertext ? 'mfa_login' : 'mfa_setup';
-          let enrollment: { secret: string; uri: string } | undefined;
-          let payload: Record<string, unknown> = {};
-          if (kind === 'mfa_setup') {
-            const secret = totpSecret();
-            payload = { secretCiphertext: await opts.security.encrypt(secret) };
-            enrollment = {
-              secret,
-              uri: `otpauth://totp/${encodeURIComponent(`QR Menu EC:${s.draft.name}`)}?secret=${secret}&issuer=${encodeURIComponent('QR Menu EC')}`,
-            };
-          }
-          await save();
           await opts.security.revokeSubject('owner', s.restaurantId);
-          const challenge = await opts.security.challenge(
-            'owner',
-            s.restaurantId,
-            kind,
-            payload,
-          );
-          return json(
-            { mfaRequired: true, enrollment, recovery },
-            200,
-            { 'Set-Cookie': challenge.cookie },
-          );
         }
       }
       await save();

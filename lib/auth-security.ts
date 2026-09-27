@@ -49,6 +49,10 @@ export class AuthSecurity {
     return this.env.EMAIL_VERIFICATION_ENABLED === 'true';
   }
 
+  get emailDeliveryReady() {
+    return !!this.env.RESEND_API_KEY && !!this.env.EMAIL_FROM;
+  }
+
   async encrypt(value: string) {
     if (!this.env.DATA_ENCRYPTION_KEY)
       throw Error('El cifrado de seguridad no está configurado.');
@@ -298,12 +302,13 @@ export class AuthSecurity {
   }
 
   async sendEmail(to: string, subject: string, html: string) {
-    if (
-      !this.emailVerificationEnabled ||
-      !this.env.RESEND_API_KEY ||
-      !this.env.EMAIL_FROM
-    )
+    if (!this.emailVerificationEnabled)
       throw Error('La verificación por correo todavía no está activada.');
+    return this.deliverEmail(to, subject, html);
+  }
+
+  async deliverEmail(to: string, subject: string, html: string) {
+    if (!this.emailDeliveryReady) throw Error('El envío de correos todavía no está configurado.');
     const response = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
@@ -318,6 +323,12 @@ export class AuthSecurity {
       }),
     });
     if (!response.ok) throw Error('No se pudo enviar el correo de seguridad.');
+  }
+
+  async takeActionToken(token: string, scope: AuthScope, restaurantId: string | null, kind: 'password_reset') {
+    return this.env.DB.prepare(
+      'DELETE FROM auth_challenges WHERE id_hash = ? AND scope = ? AND restaurant_id IS ? AND kind = ? AND expires_at > ? RETURNING payload',
+    ).bind(await digest(token), scope, restaurantId, kind, new Date().toISOString()).first<{ payload: string }>();
   }
 
   private async clientKey(request: Request, subject: string) {

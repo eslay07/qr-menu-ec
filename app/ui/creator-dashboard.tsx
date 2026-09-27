@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import type { Feature } from '@/lib/contracts';
 import Turnstile from './turnstile';
+import CreatorRecovery from './creator-recovery';
 import { MfaPanel } from './dashboard';
 
 type Restaurant = {
@@ -67,6 +68,10 @@ async function creatorApi(path: string, method = 'GET', data?: unknown) {
 }
 
 export default function CreatorDashboard() {
+  const [recoveryToken] = useState(() => typeof location === 'undefined' ? '' : new URLSearchParams(location.hash.slice(1)).get('recover') || '');
+  const [recoverAccount, setRecoverAccount] = useState(!!recoveryToken);
+  const [emailRecoveryReady, setEmailRecoveryReady] = useState(false);
+  useEffect(() => { if (recoveryToken) history.replaceState(null, '', location.pathname); }, [recoveryToken]);
   const [ready, setReady] = useState(false),
     [configured, setConfigured] = useState(false),
     [authenticated, setAuthenticated] = useState(false);
@@ -83,6 +88,7 @@ export default function CreatorDashboard() {
     try {
       const session = await creatorApi('session');
       setConfigured(session.configured);
+      setEmailRecoveryReady(session.recoveryEmailReady === true);
       setAuthenticated(session.authenticated);
       setTurnstileSiteKey(session.turnstileSiteKey || null);
       if (session.authenticated) {
@@ -238,6 +244,7 @@ export default function CreatorDashboard() {
         </div>
       </main>
     );
+  if (!authenticated && recoverAccount) return <CreatorRecovery siteKey={turnstileSiteKey} enabled={emailRecoveryReady} token={recoveryToken} onBack={() => setRecoverAccount(false)} />;
   if (!authenticated && mfa)
     return (
       <MfaPanel
@@ -330,6 +337,7 @@ export default function CreatorDashboard() {
                   : 'Activar panel privado'}
             </button>
           </form>
+          {configured && <button className="text-button" onClick={() => setRecoverAccount(true)}>Recuperar mi cuenta por correo</button>}
         </section>
       </main>
     );
@@ -524,6 +532,7 @@ export default function CreatorDashboard() {
                 </a>
               </p>
               <RestaurantDomains restaurant={item} />
+              <OwnerEmailEditor restaurant={item} />
               <div className="creator-modes">
                 {featureOptions.map((m) => (
                   <label className="check-label" key={m.value}>
@@ -572,6 +581,25 @@ export default function CreatorDashboard() {
       </main>
     </div>
   );
+}
+
+function OwnerEmailEditor({ restaurant }: { restaurant: Restaurant }) {
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState('');
+  return <details className="owner-email-editor"><summary>Correo de acceso del dueño</summary>
+    <p>Asigna el correo que usará para entrar con su contraseña. Al cambiarlo se cerrarán sus sesiones abiertas.</p>
+    <form onSubmit={async event => {
+      event.preventDefault();
+      const email = new FormData(event.currentTarget).get('email');
+      setBusy(true); setNotice('');
+      try { await creatorApi(`restaurants/${restaurant.id}/email`, 'PUT', { email }); setNotice('Correo guardado. El dueño ya puede entrar con correo y contraseña.'); }
+      catch (error) { setNotice((error as Error).message); }
+      finally { setBusy(false); }
+    }}><label>Correo del dueño<input type="email" name="email" autoComplete="email" required maxLength={254} /></label>
+      <button className="btn" disabled={busy}>{busy ? 'Guardando…' : 'Guardar correo de acceso'}</button>
+      {notice && <p role="status">{notice}</p>}
+    </form>
+  </details>;
 }
 
 function RestaurantDomains({ restaurant }: { restaurant: Restaurant }) {

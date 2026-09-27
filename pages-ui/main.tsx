@@ -8,6 +8,7 @@ import demo from '../data/restaurants/restaurante-demo.json';
 import '../app/globals.css';
 import '../app/product.css';
 import './pages.css';
+import '../app/experience.css';
 
 const restaurants: Record<string, Catalog> = {
   'restaurante-demo': Catalog.parse(demo),

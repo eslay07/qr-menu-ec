@@ -29,6 +29,9 @@ export type CentralEnv = DomainEnv & {
   EMAIL_VERIFICATION_ENABLED?: string;
   RESEND_API_KEY?: string;
   EMAIL_FROM?: string;
+  CREATOR_RECOVERY_EMAIL?: string;
+  PUBLIC_APP_ORIGIN?: string;
+  OWNER_EMAIL_MIGRATION?: string;
 };
 type CreatorState = {
   password: { salt: string; hash: string; iterations?: number };
@@ -160,6 +163,7 @@ export async function handleCreatorApi(
         csrfToken: authenticated ? (await secureSession())?.csrfToken || null : null,
         mfaConfigured: !!creator?.state.security?.totpEnabledAt,
         turnstileSiteKey: security?.turnstileSiteKey || null,
+        recoveryEmailReady: !!env.CREATOR_RECOVERY_EMAIL && !!security?.emailDeliveryReady,
       });
     }
     if (path === 'setup' && method === 'POST') {
@@ -233,6 +237,42 @@ export async function handleCreatorApi(
     }
     if (!creator)
       return json({ error: 'Configura primero el panel del creador.' }, 404);
+    if (path === 'recovery/request' && method === 'POST' && security) {
+      const input = z.object({ turnstileToken: z.string().max(4096) }).strict().parse(await requestBody(request));
+      const rate = await security.rateLimitAccountAndIp(request, 'creator-recovery', 'creator', 3, 10, 60 * 60_000);
+      if (!rate.allowed) return json({ error: 'Espera antes de solicitar otro enlace.' }, 429);
+      if (!await security.verifyTurnstile(input.turnstileToken, request))
+        return json({ error: 'Completa nuevamente la verificación de seguridad.' }, 403);
+      if (!env.CREATOR_RECOVERY_EMAIL || !security.emailDeliveryReady)
+        return json({ error: 'El envío de recuperación todavía no está configurado.' }, 503);
+      const recipient = z.string().email().parse(env.CREATOR_RECOVERY_EMAIL);
+      const actionToken = await security.issueActionToken('creator', null, 'password_reset', { passwordHash: creator.state.password.hash });
+      const recoveryUrl = new URL('/creator', env.PUBLIC_APP_ORIGIN || 'https://qr-menu-ec.consola.workers.dev');
+      recoveryUrl.hash = `recover=${encodeURIComponent(actionToken)}`;
+      await security.deliverEmail(recipient, 'Recupera tu cuenta de QR Menu EC',
+        `<p>Solicitaste recuperar tu cuenta de creador.</p><p><a href="${recoveryUrl.href}">Crear una nueva contraseña</a></p><p>Este enlace caduca en 30 minutos y solo puede usarse una vez. Al recuperar la cuenta configurarás nuevamente tu autenticador. Si no lo solicitaste, ignora este mensaje.</p>`);
+      await security.audit(null, 'creator:recovery', 'auth.recovery.request', 'success', Date.now());
+      return json({ ok: true, message: 'Enlace enviado a tu correo de recuperación. Revisa también spam.' });
+    }
+    if (path === 'recovery/reset' && method === 'POST' && security) {
+      const input = z.object({ token: z.string().min(30).max(200), password: z.string().min(12).max(128), turnstileToken: z.string().max(4096) }).strict().parse(await requestBody(request));
+      const rate = await security.rateLimit(request, 'creator-reset', 'creator', 10, 60 * 60_000);
+      if (!rate.allowed) return json({ error: 'Demasiados intentos. Intenta más tarde.' }, 429);
+      if (!await security.verifyTurnstile(input.turnstileToken, request)) return json({ error: 'Completa nuevamente la verificación de seguridad.' }, 403);
+      const token = await security.takeActionToken(input.token, 'creator', null, 'password_reset');
+      if (!token || JSON.parse(token.payload).passwordHash !== creator.state.password.hash)
+        return json({ error: 'El enlace venció o ya fue utilizado. Solicita otro.' }, 400);
+      const salt = randomToken();
+      creator.state.password = { salt, hash: await passwordHash(input.password, salt), iterations: passwordIterations };
+      creator.state.security = { ...creator.state.security, totpCiphertext: undefined, totpEnabledAt: undefined, recoveryCodeHashes: undefined };
+      creator.state.failures = { count: 0, until: 0 };
+      creator.state.sessionEpoch++;
+      if (!await saveCreator(env, creator.state, creator.revision)) return json({ error: 'La cuenta cambió. Solicita un enlace nuevo.' }, 409);
+      await security.revokeSubject('creator', null);
+      await env.DB.prepare("DELETE FROM auth_challenges WHERE scope = 'creator'").run();
+      await security.audit(null, 'creator:recovery', 'auth.recovery.completed', 'success', Date.now());
+      return json({ ok: true }, 200, { 'Set-Cookie': security.clearSessionCookie('creator') });
+    }
     if (path === 'login' && method === 'POST') {
       const rate = security
         ? await security.rateLimitAccountAndIp(
@@ -460,6 +500,9 @@ export async function handleCreatorApi(
         salt = randomToken(),
         recovery = randomToken();
       const settings = structuredClone(defaultSettings);
+      const ownerEmailHash = await digest(input.ownerEmail.trim().toLowerCase());
+      const duplicateEmail = await env.DB.prepare("SELECT id FROM application WHERE id <> '__creator__' AND json_extract(data, '$.security.emailHash') = ? LIMIT 1").bind(ownerEmailHash).first();
+      if (duplicateEmail) return json({ error: 'Ese correo ya tiene un restaurante asignado.' }, 409);
       settings.webUrl = `${url.origin}/r/${id}/menu`;
       const state: State = {
         schemaVersion: 1,
@@ -484,7 +527,7 @@ export async function handleCreatorApi(
               emailCiphertext: await security.encrypt(
                 input.ownerEmail.toLowerCase(),
               ),
-              emailHash: await digest(input.ownerEmail.toLowerCase()),
+              emailHash: ownerEmailHash,
             }
           : undefined,
       };
@@ -580,6 +623,21 @@ export async function handleCreatorApi(
       return json(
         await new DomainService(env).removeCustom(customDomainMatch[1]),
       );
+    const emailMatch = path.match(/^restaurants\/([a-f0-9-]{36})\/email$/);
+    if (emailMatch && method === 'PUT' && security) {
+      const input = z.object({ email: z.string().trim().toLowerCase().email().max(254) }).strict().parse(await requestBody(request));
+      const emailHash = await digest(input.email);
+      const duplicate = await env.DB.prepare("SELECT id FROM application WHERE id <> ? AND id <> '__creator__' AND json_extract(data, '$.security.emailHash') = ? LIMIT 1").bind(emailMatch[1], emailHash).first();
+      if (duplicate) return json({ error: 'Ese correo pertenece a otro restaurante.' }, 409);
+      const row = await env.DB.prepare('SELECT revision,data FROM application WHERE id = ?').bind(emailMatch[1]).first<{ revision: number; data: string }>();
+      if (!row) return json({ error: 'Restaurante no encontrado.' }, 404);
+      const state = JSON.parse(row.data) as State;
+      state.security = { ...state.security, emailHash, emailCiphertext: await security.encrypt(input.email), emailVerifiedAt: undefined };
+      const result = await env.DB.prepare('UPDATE application SET data = ?, revision = revision + 1 WHERE id = ? AND revision = ?').bind(JSON.stringify(state), emailMatch[1], row.revision).run();
+      if (result.meta.changes !== 1) return json({ error: 'La cuenta cambió. Recarga e intenta otra vez.' }, 409);
+      await security.revokeSubject('owner', emailMatch[1]);
+      return json({ ok: true });
+    }
     const resetMatch = path.match(/^restaurants\/([a-f0-9-]{36})\/reset$/);
     if (resetMatch && method === 'POST') {
       const input = z

@@ -24,6 +24,8 @@ import {
 } from '@/lib/contracts';
 import { api, restaurantBase } from './client';
 import Turnstile from './turnstile';
+import Promotions from './promotions';
+import { useDialogBehavior } from './dialog-behavior';
 
 type CartLine = {
   id: string;
@@ -70,6 +72,7 @@ export default function Menu({
     [alias, setAlias] = useState(''),
     [busy, setBusy] = useState(false),
     [qrSvg, setQrSvg] = useState('');
+  useDialogBehavior(bag || !!configuring, () => { setBag(false); setConfiguring(null); });
   useEffect(() => {
     if (demo || initialCatalog) return;
     api(preview ? 'state' : 'menu')
@@ -217,55 +220,7 @@ export default function Menu({
           Precios en USD <span>•</span> Pedido confirmado frente al mesero
         </div>
       </section>
-      {catalog.promotions.filter(
-        (promotion) => activePromotion(catalog, promotion.dishId)?.id === promotion.id,
-      ).length > 0 && (
-        <section className="promotion-carousel" aria-label="Promociones destacadas">
-          {catalog.promotions
-            .filter(
-              (promotion) =>
-                activePromotion(catalog, promotion.dishId)?.id === promotion.id,
-            )
-            .map((promotion) => {
-              const dish = catalog.dishes.find(
-                (candidate) => candidate.id === promotion.dishId,
-              );
-              if (!dish) return null;
-              const image = promotion.image || dish.image;
-              return (
-                <article className="promotion-banner" key={promotion.id}>
-                  <div>
-                    <span className="promotion-badge">{promotion.badge || 'PROMOCIÓN'}</span>
-                    <h2>{promotion.title}</h2>
-                    <p>{promotion.description}</p>
-                    <div className="promotion-price">
-                      {promotion.promotionalPriceCents !== null && (
-                        <del>{money(dish.priceCents)}</del>
-                      )}
-                      <strong>
-                        {money(
-                          promotion.promotionalPriceCents ?? dish.priceCents,
-                        )}
-                      </strong>
-                    </div>
-                    <button
-                      className="btn primary"
-                      disabled={!dish.available || preview}
-                      onClick={() => startDish(dish)}
-                    >
-                      Pedir esta promoción
-                    </button>
-                  </div>
-                  {image ? (
-                    <img src={media(image)} alt={dish.name} />
-                  ) : (
-                    <span className="promotion-placeholder"><Utensils /></span>
-                  )}
-                </article>
-              );
-            })}
-        </section>
-      )}
+      <Promotions catalog={catalog} media={media} onChoose={startDish} disabled={preview} />
       <div className="menu-controls">
         <label className="search">
           <Search />
@@ -400,13 +355,13 @@ export default function Menu({
             aria-modal="true"
             aria-labelledby="order-review-title"
           >
-            <button className="btn" onClick={() => setBag(false)}>
+            <button className="close-button" onClick={() => setBag(false)}>
               <ArrowLeft />
               Volver al menú
             </button>
             <h2 id="order-review-title">Revisa tu pedido</h2>
             <p className="muted">
-              Al confirmar se guardará una instantánea para el restaurante.
+              Revisa los platos y muéstrale tu pedido al mesero al confirmar.
             </p>
             {error && <div className="notice error">{error}</div>}
             {priced.map((line) => (
@@ -583,8 +538,8 @@ function Configurator({
             <span className="eyebrow">PERSONALIZA</span>
             <h2 id="dish-configurator-title">{dish.name}</h2>
           </div>
-          <button className="text-button" onClick={onCancel}>
-            Cerrar
+          <button className="close-button" onClick={onCancel}>
+            <span aria-hidden="true">×</span> Cerrar
           </button>
         </div>
         {error && <div className="notice error">{error}</div>}

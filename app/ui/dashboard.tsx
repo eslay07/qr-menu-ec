@@ -34,6 +34,9 @@ import {
 } from '@/lib/contracts';
 import { api, download, restaurantBase, uploadPhoto } from './client';
 import Turnstile from './turnstile';
+import PhotoPicker from './photo-picker';
+import OwnerLauncher from './owner-launcher';
+import { useDialogBehavior } from './dialog-behavior';
 
 type PanelState = {
   restaurantId: string;
@@ -57,6 +60,7 @@ const uid = (prefix: string) => `${prefix}-${crypto.randomUUID().slice(0, 8)}`;
 
 export default function Dashboard() {
   const base = restaurantBase();
+  const [photoBusy, setPhotoBusy] = useState(false);
   const [tab, setTab] = useState('Carta'),
     [session, setSession] = useState<any>(null),
     [state, setState] = useState<PanelState | null>(null);
@@ -77,9 +81,15 @@ export default function Dashboard() {
   const settingsDirty =
     !!state && JSON.stringify(settings) !== JSON.stringify(state.settings);
   const pendingRef = useRef(false);
+  useDialogBehavior(!!editing, () => { if (!photoBusy && !busy) setEditing(null); });
   pendingRef.current = dirty || settingsDirty;
+  useEffect(() => {
+    if (!message) return;
+    const timer = window.setTimeout(() => setMessage(''), 6500);
+    return () => clearTimeout(timer);
+  }, [message]);
 
-  async function loadState(force = false) {
+  async function loadState(force = false, preserve?: 'draft' | 'settings') {
     const current = await api('session');
     setSession(current);
     if (!current.authenticated) {
@@ -89,8 +99,8 @@ export default function Dashboard() {
     if (pendingRef.current && !force) return;
     const loaded = await api('state');
     setState(loaded);
-    setDraft(loaded.draft);
-    setSettings(loaded.settings);
+    if (preserve !== 'draft') setDraft(loaded.draft);
+    if (preserve !== 'settings') setSettings(loaded.settings);
     setCodes(null);
   }
   useEffect(() => {
@@ -118,21 +128,21 @@ export default function Dashboard() {
   }
   async function saveDraft() {
     await api('draft', 'PUT', { revision: state!.revision, catalog: draft });
-    await loadState(true);
+    await loadState(true, 'settings');
     setMessage(
       'Borrador guardado. Publica para actualizar el menú de tus clientes.',
     );
   }
   async function saveSettings() {
     await api('settings', 'PUT', { revision: state!.revision, settings });
-    await loadState(true);
+    await loadState(true, 'draft');
     setMessage('Configuración guardada.');
   }
   async function publish() {
     if (dirty) await saveDraft();
     const latest = await api('state');
     await api('publish', 'POST', { revision: latest.revision });
-    await loadState(true);
+    await loadState(true, 'settings');
     setMessage('Menú publicado correctamente.');
   }
   async function loadDomains() {
@@ -228,6 +238,7 @@ export default function Dashboard() {
           }
         />
       );
+    else if (session.configured && session.runtime === 'cloud') return <OwnerLauncher />;
     else
     return (
       <Auth
@@ -394,7 +405,7 @@ export default function Dashboard() {
               <div>
                 <h2>Tu carta</h2>
                 <p className="muted">
-                  Configura platos, elecciones y recargos.
+                  Añade fotos, precios y opciones. Publica cuando tu carta esté lista.
                 </p>
               </div>
               <div className="actions">
@@ -469,11 +480,11 @@ export default function Dashboard() {
                     {dish.available ? 'Disponible' : 'Agotado'}
                   </button>
                   <button
-                    className="icon-button"
+                    className="btn edit-dish-button"
                     aria-label={`Editar ${dish.name}`}
                     onClick={() => setEditing(structuredClone(dish))}
                   >
-                    <Pencil />
+                    <Pencil size={16} /> Editar
                   </button>
                 </article>
               ))}
@@ -796,18 +807,24 @@ export default function Dashboard() {
             aria-labelledby="dish-editor-title"
             onSubmit={(e) => {
               e.preventDefault();
+              if (photoBusy || busy) return;
               const exists = draft.dishes.some(
                 (dish) => dish.id === editing.id,
               );
-              setDraft({
+              const nextCatalog = {
                 ...draft,
                 dishes: exists
                   ? draft.dishes.map((dish) =>
                       dish.id === editing.id ? editing : dish,
                     )
                   : [...draft.dishes, editing],
+              };
+              run(async () => {
+                await api('draft', 'PUT', { revision: state.revision, catalog: nextCatalog });
+                await loadState(true, 'settings');
+                setEditing(null);
+                setMessage('Plato guardado. Pulsa Publicar menú para que lo vean tus clientes.');
               });
-              setEditing(null);
             }}
           >
             <div className="section-title">
@@ -818,12 +835,15 @@ export default function Dashboard() {
               </h2>
               <button
                 type="button"
-                className="text-button"
+                className="close-button"
+                disabled={photoBusy || busy}
                 onClick={() => setEditing(null)}
               >
-                Cerrar
+                <span aria-hidden="true">×</span> Cerrar
               </button>
             </div>
+            <PhotoPicker value={editing.image} onBusy={setPhotoBusy}
+              onChange={image => setEditing(current => current ? { ...current, image } : current)} />
             <label>
               Nombre
               <input
@@ -1178,13 +1198,14 @@ export default function Dashboard() {
               ))}
             </div>
             <div className="actions">
-              <button className="btn primary" type="submit">
-                Aplicar al borrador
+              <button className="btn primary" type="submit" disabled={photoBusy || busy}>
+                <Check size={17} /> {busy ? 'Guardando plato…' : 'Guardar plato'}
               </button>
               {draft.dishes.some((dish) => dish.id === editing.id) && (
                 <button
                   type="button"
                   className="btn danger"
+                  disabled={busy || photoBusy}
                   onClick={() => {
                     setDraft({
                       ...draft,

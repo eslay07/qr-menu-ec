@@ -21,7 +21,8 @@
     "preview:pages": "vite preview --config vite.pages.config.ts --host 127.0.0.1 --port 4173",
     "deploy:pages": "npm run build:pages && wrangler pages deploy dist-pages --project-name qr-menu-ec --branch main",
     "test:pages": "node scripts/pages-qa.mjs",
-    "test:production": "node scripts/production-smoke.mjs"
+    "test:production": "node scripts/production-smoke.mjs",
+    "test:experience": "tsx scripts/experience-qa.ts"
   },
   "dependencies": {
     "@base-ui/react": "1.7.0",

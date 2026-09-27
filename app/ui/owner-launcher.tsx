@@ -1,59 +1,45 @@
-"use client";
-import { FormEvent, useEffect, useState } from "react";
-import { ArrowRight, Smartphone, Store } from "lucide-react";
+'use client';
+import { useEffect, useState, type FormEvent } from 'react';
+import { ArrowRight, Store } from 'lucide-react';
+import Turnstile from './turnstile';
 
 export default function OwnerLauncher() {
-  const [code, setCode] = useState(
-      () => localStorage.getItem("qrmenu_restaurant_code") || "",
-    ),
-    [error, setError] = useState("");
+  const [siteKey, setSiteKey] = useState<string | null>(null);
+  const [token, setToken] = useState('');
+  const [attempt, setAttempt] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [ready, setReady] = useState(false);
+  const [error, setError] = useState('');
   useEffect(() => {
-    const saved = localStorage.getItem("qrmenu_restaurant_code") || "";
-    if (/^[a-f0-9-]{36}$/.test(saved)) location.replace(`/r/${saved}/`);
+    fetch('/api/owner/login').then(r => { if (!r.ok) throw Error('Acceso no disponible'); return r.json(); }).then((data: any) => {
+      setSiteKey(data.turnstileSiteKey); setReady(true);
+    }).catch(() => setError('No se pudo cargar el acceso. Recarga la página.'));
   }, []);
-  function open(event: FormEvent) {
+  async function login(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const value = code.trim().toLowerCase();
-    if (!/^[a-f0-9-]{36}$/.test(value)) {
-      setError("Escribe el código completo que te entregó el creador.");
-      return;
-    }
-    localStorage.setItem("qrmenu_restaurant_code", value);
-    location.href = `/r/${value}/`;
+    const values = new FormData(event.currentTarget);
+    setBusy(true); setError('');
+    try {
+      const response = await fetch('/api/owner/login', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: values.get('email'), password: values.get('password'), turnstileToken: token }),
+      });
+      const result = await response.json() as any;
+      if (!response.ok) throw Error(result.error);
+      location.assign(result.ownerUrl);
+    } catch (failure) { setError((failure as Error).message); }
+    finally { setBusy(false); setToken(''); setAttempt(value => value + 1); }
   }
-  return (
-    <main className="creator-auth">
-      <section className="creator-login card">
-        <Smartphone size={42} />
-        <p className="eyebrow">APP DEL DUEÑO</p>
-        <h1>Administrar mi restaurante</h1>
-        <p>
-          Escribe una vez el código que te entregó el creador. Luego iniciarás
-          sesión con tu contraseña.
-        </p>
-        {error && <div className="notice error">{error}</div>}
-        <form onSubmit={open}>
-          <label>
-            Código del restaurante
-            <input
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              required
-              autoCapitalize="none"
-              autoCorrect="off"
-              placeholder="00000000-0000-0000-0000-000000000000"
-            />
-          </label>
-          <button className="btn primary" type="submit">
-            <Store size={17} />
-            Continuar <ArrowRight size={16} />
-          </button>
-        </form>
-        <small className="muted">
-          El creador controla si tu acceso está habilitado y qué funciones
-          puedes usar.
-        </small>
-      </section>
-    </main>
-  );
+  return <main className="creator-auth"><section className="creator-login card owner-login">
+    <Store size={38} /><p className="eyebrow">TU RESTAURANTE, AL DÍA</p>
+    <h1>Bienvenido a tu carta</h1><p>Entra para editar tus platos, destacar promociones y revisar pedidos.</p>
+    {error && <p className="notice error" role="alert">{error}</p>}
+    <form onSubmit={login}>
+      <label>Correo electrónico<input name="email" type="email" autoComplete="username" placeholder="tu@restaurante.com" required maxLength={254} /></label>
+      <label>Contraseña<input name="password" type="password" autoComplete="current-password" required maxLength={128} /></label>
+      <Turnstile siteKey={siteKey} onToken={setToken} resetKey={attempt} />
+      <button className="btn primary" disabled={busy || !ready || (!!siteKey && !token)}>{busy ? 'Entrando…' : 'Entrar a mi restaurante'}<ArrowRight size={18} /></button>
+    </form>
+    <p className="login-footnote">¿Necesitas recuperar el acceso? Pide al administrador que actualice tu correo o restablezca tu contraseña.</p>
+  </section></main>;
 }

@@ -47,7 +47,10 @@ export default function Turnstile({
     const existing = document.querySelector<HTMLScriptElement>(
       'script[data-qrmenu-turnstile]',
     );
-    if (existing) render();
+    if (existing) {
+      render();
+      existing.addEventListener('load', render, { once: true });
+    }
     else {
       const script = document.createElement('script');
       script.src =
@@ -59,6 +62,7 @@ export default function Turnstile({
       document.head.appendChild(script);
     }
     return () => {
+      existing?.removeEventListener('load', render);
       if (widget.current && window.turnstile) window.turnstile.remove(widget.current);
       widget.current = '';
     };
