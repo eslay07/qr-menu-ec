@@ -19,6 +19,7 @@ export type SecurityEnv = {
 const ownerCookie = '__Host-qrmenu_owner';
 const creatorCookie = '__Host-qrmenu_creator';
 const challengeCookie = '__Host-qrmenu_challenge';
+const deviceCookie = '__Host-qrmenu_device';
 const cookieValue = (request: Request, name: string) =>
   request.headers
     .get('cookie')
@@ -75,6 +76,65 @@ export class AuthSecurity {
 
   clearChallengeCookie() {
     return secureCookie(challengeCookie, '', 0);
+  }
+
+  clearDeviceCookie() { return secureCookie(deviceCookie, '', 0); }
+
+  async createDevice(restaurantId: string) {
+    const token = randomToken() + randomToken();
+    const csrfToken = randomToken();
+    const now = new Date();
+    const absoluteExpiresAt = new Date(now.getTime() + 180 * 86_400_000).toISOString();
+    await this.env.DB.prepare('INSERT INTO owner_devices (id_hash,restaurant_id,csrf_token,created_at,last_seen_at,idle_expires_at,absolute_expires_at,revoked_at) VALUES (?,?,?,?,?,?,?,NULL)')
+      .bind(await digest(token), restaurantId, csrfToken, now.toISOString(), now.toISOString(), new Date(now.getTime() + 30 * 86_400_000).toISOString(), absoluteExpiresAt).run();
+    return { cookie: secureCookie(deviceCookie, token, 180 * 86_400), csrfToken };
+  }
+
+  async device(request: Request) {
+    const token = cookieValue(request, deviceCookie);
+    if (!token) return null;
+    const hash = await digest(token);
+    const now = new Date().toISOString();
+    const row = await this.env.DB.prepare('SELECT id_hash,restaurant_id,csrf_token,idle_expires_at,absolute_expires_at FROM owner_devices WHERE id_hash = ? AND revoked_at IS NULL AND idle_expires_at > ? AND absolute_expires_at > ?')
+      .bind(hash, now, now).first<{ id_hash: string; restaurant_id: string; csrf_token: string; idle_expires_at: string; absolute_expires_at: string }>();
+    return row || null;
+  }
+
+  async rotateDevice(request: Request, csrfToken: string) {
+    if (request.headers.get('origin') !== new URL(request.url).origin) return null;
+    const row = await this.device(request);
+    if (!row || row.csrf_token !== csrfToken) return null;
+    const nextToken = randomToken() + randomToken();
+    const nextCsrf = randomToken();
+    const now = new Date();
+    const result = await this.env.DB.prepare('UPDATE owner_devices SET id_hash = ?,csrf_token = ?,last_seen_at = ?,idle_expires_at = ? WHERE id_hash = ? AND csrf_token = ? AND revoked_at IS NULL AND idle_expires_at > ? AND absolute_expires_at > ?')
+      .bind(await digest(nextToken), nextCsrf, now.toISOString(), new Date(now.getTime() + 30 * 86_400_000).toISOString(), row.id_hash, csrfToken, now.toISOString(), now.toISOString()).run();
+    if (result.meta.changes !== 1) return null;
+    return { restaurantId: row.restaurant_id, cookie: secureCookie(deviceCookie, nextToken, Math.max(1, Math.floor((Date.parse(row.absolute_expires_at) - now.getTime()) / 1000))) };
+  }
+
+  async revokeDevice(request: Request) {
+    const token = cookieValue(request, deviceCookie);
+    if (!token) return;
+    await this.env.DB.prepare('UPDATE owner_devices SET revoked_at = ? WHERE id_hash = ?')
+      .bind(new Date().toISOString(), await digest(token)).run();
+  }
+
+  async revokeDevicesForRestaurant(restaurantId: string) {
+    await this.env.DB.prepare('UPDATE owner_devices SET revoked_at = ? WHERE restaurant_id = ? AND revoked_at IS NULL')
+      .bind(new Date().toISOString(), restaurantId).run();
+  }
+
+  async listDevices(restaurantId: string) {
+    const now = new Date().toISOString();
+    const rows = await this.env.DB.prepare('SELECT id_hash,created_at,last_seen_at,absolute_expires_at FROM owner_devices WHERE restaurant_id = ? AND revoked_at IS NULL AND idle_expires_at > ? AND absolute_expires_at > ? ORDER BY last_seen_at DESC LIMIT 20')
+      .bind(restaurantId, now, now).all<{ id_hash: string; created_at: string; last_seen_at: string; absolute_expires_at: string }>();
+    return rows.results.map(row => ({ id: row.id_hash, createdAt: row.created_at, lastSeenAt: row.last_seen_at, expiresAt: row.absolute_expires_at }));
+  }
+
+  async revokeDeviceById(restaurantId: string, idHash: string) {
+    await this.env.DB.prepare('UPDATE owner_devices SET revoked_at = ? WHERE restaurant_id = ? AND id_hash = ?')
+      .bind(new Date().toISOString(), restaurantId, idHash).run();
   }
 
   async createSession(scope: AuthScope, restaurantId: string | null) {
@@ -462,6 +522,7 @@ export class AuthSecurity {
     const auditCutoff = new Date(Date.now() - 90 * 24 * 60 * 60_000).toISOString();
     await this.env.DB.batch([
       this.env.DB.prepare('DELETE FROM auth_sessions WHERE absolute_expires_at <= ? OR revoked_at IS NOT NULL').bind(now),
+      this.env.DB.prepare('DELETE FROM owner_devices WHERE absolute_expires_at <= ? OR idle_expires_at <= ? OR revoked_at IS NOT NULL').bind(now, now),
       this.env.DB.prepare('DELETE FROM auth_challenges WHERE expires_at <= ?').bind(now),
       this.env.DB.prepare('DELETE FROM rate_limits WHERE reset_at <= ?').bind(now),
       this.env.DB.prepare('DELETE FROM audit_events WHERE created_at <= ?').bind(auditCutoff),

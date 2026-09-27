@@ -8,6 +8,7 @@ export const ownerLoginSchema = z.object({
   email: z.string().trim().toLowerCase().email().max(254),
   password: z.string().min(1).max(128),
   turnstileToken: z.string().max(4096),
+  rememberDevice: z.boolean().optional(),
 }).strict();
 const json = (body: unknown, status = 200, headers: Record<string, string> = {}) =>
   Response.json(body, { status, headers: { 'Cache-Control': 'no-store', ...headers } });
@@ -58,10 +59,40 @@ export async function handleOwnerAuth(request: Request, env: CentralEnv, loadSto
     if (!await store.commit(state, stored.revision)) return json({ error: 'Intenta ingresar nuevamente.' }, 409);
     const session = await security.createSession('owner', state.restaurantId);
     await security.audit(state.restaurantId, `owner:${state.restaurantId}`, 'auth.email-login', 'success', Date.now());
-    return json({ ownerUrl: `/r/${state.restaurantId}/` }, 200, { 'Set-Cookie': session.cookie });
+    const response = json({ ownerUrl: `/r/${state.restaurantId}/` }, 200, { 'Set-Cookie': session.cookie });
+    if (input.rememberDevice) {
+      const device = await security.createDevice(state.restaurantId);
+      response.headers.append('Set-Cookie', device.cookie);
+    }
+    return response;
   } catch (error) {
     return json({ error: error instanceof z.ZodError ? 'Revisa tu correo y contraseña.' : 'No se pudo iniciar sesión. Intenta nuevamente.' }, 400);
   }
+}
+
+export async function handleOwnerDevice(request: Request, env: CentralEnv, loadStore: (id: string) => Store) {
+  const security = new AuthSecurity(env);
+  const path = new URL(request.url).pathname;
+  if (path === '/api/owner/device-session' && request.method === 'GET') {
+    const device = await security.device(request);
+    return json({ remembered: !!device, csrfToken: device?.csrf_token || null });
+  }
+  if (path !== '/api/owner/device-session/refresh' || request.method !== 'POST')
+    return json({ error: 'Ruta no encontrada.' }, 404);
+  if (request.headers.get('origin') !== new URL(request.url).origin ||
+      request.headers.get('content-type') !== 'application/json' ||
+      request.headers.get('x-csrf-token')?.length !== 64)
+    return json({ error: 'Solicitud no autorizada.' }, 403);
+  const current = await security.device(request);
+  if (!current) return json({ error: 'Vuelve a iniciar sesión.' }, 401);
+  const stored = await loadStore(current.restaurant_id).read();
+  if (!stored || stored.state.access?.active === false) return json({ error: 'Acceso no disponible.' }, 403);
+  const rotated = await security.rotateDevice(request, request.headers.get('x-csrf-token')!);
+  if (!rotated) return json({ error: 'Vuelve a iniciar sesión.' }, 401);
+  const session = await security.createSession('owner', rotated.restaurantId);
+  const response = json({ ownerUrl: `/r/${rotated.restaurantId}/` }, 200, { 'Set-Cookie': session.cookie });
+  response.headers.append('Set-Cookie', rotated.cookie);
+  return response;
 }
 
 // Operator-supplied, one-time migration. Never reads the email or restaurant

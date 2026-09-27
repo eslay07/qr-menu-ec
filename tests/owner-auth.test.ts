@@ -17,6 +17,7 @@ function database() {
     CREATE TABLE rate_limits (key_hash TEXT,bucket TEXT,count INTEGER,reset_at TEXT,PRIMARY KEY(key_hash,bucket));
     CREATE TABLE audit_events (id TEXT,restaurant_id TEXT,actor TEXT,action TEXT,outcome TEXT,duration_ms INTEGER,created_at TEXT,detail TEXT);`);
   sql.exec(readFileSync(new URL('../drizzle/0004_owner_email_index.sql', import.meta.url), 'utf8'));
+  sql.exec(readFileSync(new URL('../drizzle/0005_device_access.sql', import.meta.url), 'utf8'));
   const db = { async batch(statements: { run: () => Promise<unknown> }[]) {
     sql.exec('BEGIN');
     try { const results = []; for (const statement of statements) results.push(await statement.run()); sql.exec('COMMIT'); return results; }
@@ -34,6 +35,29 @@ function database() {
   } } as unknown as D1Database;
   return { sql, db };
 }
+
+test('remembered device rotates, expires by inactivity and can be revoked without exposing its token', async () => {
+  const { sql, db } = database();
+  const security = new AuthSecurity({ DB: db } as CentralEnv);
+  const restaurantId = '11111111-1111-4111-8111-111111111111';
+  try {
+    const issued = await security.createDevice(restaurantId);
+    assert.match(issued.cookie, /__Host-qrmenu_device=.*HttpOnly; Secure; SameSite=Strict/);
+    assert.equal(sql.prepare('SELECT COUNT(*) AS count FROM owner_devices').get()!.count, 1);
+    assert.equal(sql.prepare('SELECT id_hash FROM owner_devices').get()!.id_hash === issued.cookie, false);
+    const request = (cookie: string, csrf = issued.csrfToken, origin = 'https://menu.test') => new Request('https://menu.test/api/owner/device-session/refresh', {
+      method: 'POST', headers: { cookie: cookie.split(';')[0], origin, 'x-csrf-token': csrf, 'content-type': 'application/json' }, body: '{}',
+    });
+    assert.equal(await security.rotateDevice(request(issued.cookie, 'bad'), 'bad'), null);
+    assert.equal(await security.rotateDevice(request(issued.cookie, issued.csrfToken, 'https://attacker.test'), issued.csrfToken), null);
+    const rotated = await security.rotateDevice(request(issued.cookie), issued.csrfToken);
+    assert.equal(rotated?.restaurantId, restaurantId);
+    assert.equal(await security.device(request(issued.cookie)), null);
+    assert.ok(await security.device(request(rotated!.cookie)));
+    await security.revokeDevicesForRestaurant(restaurantId);
+    assert.equal(await security.device(request(rotated!.cookie)), null);
+  } finally { sql.close(); }
+});
 
 test('operator email migration is encrypted, revokes sessions, preserves restaurant and only runs once', async () => {
   const { sql, db } = database();

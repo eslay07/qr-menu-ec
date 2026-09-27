@@ -21,7 +21,7 @@ export type Feature = z.infer<typeof Feature>;
 export const Asset = z
   .string()
   .regex(
-    /^(|\/demo\/encebollado\.jpg|(?:\/r\/[a-f0-9-]{36})?\/api\/v1\/media\/[a-f0-9-]{36})$/,
+    /^(|\/demo\/encebollado\.jpg|\/demo\/platos\/[a-z0-9-]+\.webp|(?:\/r\/[a-f0-9-]{36})?\/api\/v1\/media\/[a-f0-9-]{36})$/,
   );
 
 export const ModifierOption = z.object({

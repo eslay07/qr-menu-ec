@@ -14,6 +14,7 @@ try {
     const page = await browser.newPage({ viewport: { width, height: 844 } });
     await page.route('**/api/v1/menu', route => route.fulfill({ json: { catalog, ordersEnabled: true } }));
     await page.goto(`${base}/menu`);
+    await page.locator('.promotion-banner').first().waitFor({ timeout: 30_000 });
     await expect(page.locator('.promotion-banner')).toHaveCount(2);
     const banner = await page.locator('.promotion-banner').first().boundingBox();
     assert(banner && banner.height < 844 / 2);
@@ -33,6 +34,7 @@ try {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce' });
   await page.route('**/api/v1/menu', route => route.fulfill({ json: { catalog } }));
   await page.goto(`${base}/menu`);
+  await page.locator('.promotion-banner').first().waitFor({ timeout: 30_000 });
   await expect(page.locator('.promotion-banner').first()).toHaveCSS('animation-name', 'none');
   const id = '11111111-1111-4111-8111-111111111111';
   let draft = structuredClone(demoCatalog);
@@ -40,10 +42,11 @@ try {
   let uploaded = false;
   let failUpload = false;
   let failSave = true;
+  let loggedIn = true;
   const image = await readFile('public/demo/encebollado.jpg');
   await page.route('**/api/v1/**', async route => {
     const url = new URL(route.request().url());
-    if (url.pathname.endsWith('/session')) return route.fulfill({ json: { authenticated: true, configured: true, runtime: 'cloud', csrfToken: 'test-csrf' } });
+    if (url.pathname.endsWith('/session')) return route.fulfill({ json: { authenticated: loggedIn, configured: true, runtime: 'cloud', csrfToken: 'test-csrf' } });
     if (url.pathname.endsWith('/state')) return route.fulfill({ json: { restaurantId: id, revision: 1, draft, settings: defaultSettings, published: null, role: 'owner', features: ['orders', 'promotions'] } });
     if (url.pathname.endsWith('/media') && route.request().method() === 'POST') {
       if (failUpload) return route.fulfill({ status: 503, json: { error: 'No se pudo subir la foto. Intenta de nuevo.' } });
@@ -60,7 +63,9 @@ try {
     }
     return route.fulfill({ json: {} });
   });
-  await page.goto(`${base}/r/${id}/`);
+  // The production Worker rewrites /r/<id>/ to the SPA root. Vinext's local
+  // dev server has no dynamic /r route, so exercise the same Dashboard at /.
+  await page.goto(`${base}/`);
   await page.getByRole('button', { name: 'Añadir plato', exact: true }).click();
   const dialog = page.getByRole('dialog');
   await dialog.getByLabel('Nombre', { exact: true }).fill('Plato con foto');
@@ -89,7 +94,8 @@ try {
   await expect(dialog).toHaveCount(0);
   await page.screenshot({ path: 'outputs/experience-qa/owner-carta.png' });
   await page.route('**/api/owner/login', route => route.fulfill({ json: { turnstileSiteKey: null } }));
-  await page.goto(`${base}/owner`);
+  loggedIn = false;
+  await page.goto(`${base}/`);
   await expect(page.getByLabel('Correo electrónico')).toBeVisible();
   await expect(page.getByLabel('Código del restaurante')).toHaveCount(0);
   await page.screenshot({ path: 'outputs/experience-qa/owner-login.png' });

@@ -45,4 +45,4 @@ Consulta [deployment/cloudflare/README.md](deployment/cloudflare/README.md) para
 
 La foto de encebollado es únicamente ilustrativa y no representa un producto real.
 
-La APK actual es la versión 0.7.0 (código 10), con icono adaptativo de QR Menu EC y WebView restringida a HTTPS y navegación interna segura.
+La APK actual es la versión 0.8.0 (código 11), con icono adaptativo de QR Menu EC, WebView restringida a HTTPS y desbloqueo local opcional para celulares recordados.

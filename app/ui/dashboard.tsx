@@ -37,6 +37,7 @@ import Turnstile from './turnstile';
 import PhotoPicker from './photo-picker';
 import OwnerLauncher from './owner-launcher';
 import { useDialogBehavior } from './dialog-behavior';
+import { revealIssue } from './reveal-issue';
 
 type PanelState = {
   restaurantId: string;
@@ -44,6 +45,8 @@ type PanelState = {
   draft: Catalog;
   settings: Settings;
   published: null | { version: number; at: string; catalog: Catalog };
+  maxDishes: number;
+  sampleMenuEnabled: boolean;
   role: 'creator' | 'owner';
   features: Feature[];
 };
@@ -61,6 +64,9 @@ const uid = (prefix: string) => `${prefix}-${crypto.randomUUID().slice(0, 8)}`;
 export default function Dashboard() {
   const base = restaurantBase();
   const [photoBusy, setPhotoBusy] = useState(false);
+  const [editorError, setEditorError] = useState('');
+  const [sampleConfirm, setSampleConfirm] = useState(false);
+  const [visibleDishes, setVisibleDishes] = useState(30);
   const [tab, setTab] = useState('Carta'),
     [session, setSession] = useState<any>(null),
     [state, setState] = useState<PanelState | null>(null);
@@ -81,7 +87,7 @@ export default function Dashboard() {
   const settingsDirty =
     !!state && JSON.stringify(settings) !== JSON.stringify(state.settings);
   const pendingRef = useRef(false);
-  useDialogBehavior(!!editing, () => { if (!photoBusy && !busy) setEditing(null); });
+  useDialogBehavior(!!editing || sampleConfirm, () => { if (!photoBusy && !busy) { setEditing(null); setSampleConfirm(false); } });
   pendingRef.current = dirty || settingsDirty;
   useEffect(() => {
     if (!message) return;
@@ -122,6 +128,7 @@ export default function Dashboard() {
       await fn();
     } catch (e) {
       setError((e as Error).message);
+      revealIssue('.modal[role="dialog"] .notice.error, .feedback-toast[role="alert"]');
     } finally {
       setBusy(false);
     }
@@ -382,8 +389,8 @@ export default function Dashboard() {
           <>
             <section className="summary-grid">
               <div className="summary-item">
-                <span>Platos</span>
-                <strong>{draft.dishes.length}</strong>
+                <span>Platos en la carta</span>
+                <strong>{draft.dishes.length} de {state.maxDishes ?? 150}</strong>
               </div>
               <div className="summary-item">
                 <span>Disponibles</span>
@@ -411,12 +418,15 @@ export default function Dashboard() {
               <div className="actions">
                 <button
                   className="btn"
-                  onClick={() => setDraft({ ...demoCatalog, name: draft.name })}
+                  disabled={!state.sampleMenuEnabled || busy}
+                  onClick={() => setSampleConfirm(true)}
                 >
                   Cargar ejemplo profesional
                 </button>
+                {!state.sampleMenuEnabled && <small>El creador puede habilitar esta carga para tu restaurante.</small>}
                 <button
                   className="btn primary"
+                  disabled={draft.dishes.length >= (state.maxDishes ?? 150)}
                   onClick={() =>
                     setEditing({
                       id: uid('plato'),
@@ -436,7 +446,7 @@ export default function Dashboard() {
               </div>
             </div>
             <section className="menu-list">
-              {draft.dishes.map((dish) => (
+              {draft.dishes.slice(0, visibleDishes).map((dish) => (
                 <article className="menu-row" key={dish.id}>
                   {dish.image ? (
                     <img src={dish.image} alt="" />
@@ -489,6 +499,7 @@ export default function Dashboard() {
                 </article>
               ))}
             </section>
+            {draft.dishes.length > visibleDishes && <button className="btn" onClick={() => setVisibleDishes(count => count + 30)}>Mostrar 30 platos más</button>}
             <div className="save-bar">
               <span>
                 {dirty ? 'Tienes cambios sin guardar' : 'Borrador guardado'}
@@ -665,14 +676,11 @@ export default function Dashboard() {
             <Reports
               data={reportData}
               refresh={(query) => run(() => loadReports(query))}
-              cancel={(id) =>
-                run(async () => {
-                  await api(`orders/${id}/status`, 'PATCH', {
-                    status: 'cancelled',
-                  });
-                  await loadReports();
-                })
-              }
+              cancel={async (id) => {
+                await api(`orders/${id}/status`, 'PATCH', { status: 'cancelled' });
+                await loadReports();
+                setMessage('Pedido cancelado. Se conserva en el historial.');
+              }}
             />
           ) : (
             <section className="card empty">
@@ -742,7 +750,7 @@ export default function Dashboard() {
         )}
 
         {tab === 'Ajustes' && (
-          <SecuritySettings busy={busy} run={run} />
+          <SecuritySettings busy={busy} run={run} role={state.role} />
         )}
 
         {tab === 'Ajustes' && (
@@ -798,6 +806,18 @@ export default function Dashboard() {
         )}
       </main>
 
+      {sampleConfirm && <div className="modal-backdrop" role="presentation"><section className="modal" role="dialog" aria-modal="true" aria-labelledby="sample-title">
+        <div className="section-title"><h2 id="sample-title">Reemplazar borrador con ejemplos</h2><button className="close-button" disabled={busy} onClick={() => setSampleConfirm(false)}>× Cerrar</button></div>
+        <p>Esto reemplazará todos los platos, categorías y promociones de tu borrador. El menú publicado no cambiará hasta que pulses Publicar.</p>
+        <p>Se cargarán hasta {state.maxDishes ?? 150} platos de muestra. Podrás editar cada uno antes de publicar.</p>
+        <div className="actions"><button type="button" className="btn" onClick={() => setSampleConfirm(false)}>Volver</button>
+          <button type="button" className="btn" onClick={() => run(async () => { const backup = await api('backup'); download('qr-menu-respaldo.json', JSON.stringify(backup)); })}>Descargar respaldo</button>
+          <button type="button" className="btn danger" disabled={busy} onClick={() => run(async () => {
+            await api('sample-menu', 'POST', { revision: state.revision, confirm: true });
+            await loadState(true, 'settings'); setSampleConfirm(false); setVisibleDishes(30);
+            setMessage('Ejemplo cargado en el borrador. Revísalo antes de publicar.');
+          })}>{busy ? 'Cargando…' : 'Sí, reemplazar borrador'}</button></div>
+      </section></div>}
       {editing && (
         <div className="modal-backdrop" role="presentation">
           <form
@@ -808,6 +828,13 @@ export default function Dashboard() {
             onSubmit={(e) => {
               e.preventDefault();
               if (photoBusy || busy) return;
+              const missingOptions = editing.modifierGroups.find(group => group.options.length === 0);
+              if (missingOptions) {
+                setEditorError(`Agrega al menos una opción en “${missingOptions.name}” o elimina ese grupo.`);
+                revealIssue('.dish-editor .modifier-builder');
+                return;
+              }
+              setEditorError('');
               const exists = draft.dishes.some(
                 (dish) => dish.id === editing.id,
               );
@@ -842,6 +869,7 @@ export default function Dashboard() {
                 <span aria-hidden="true">×</span> Cerrar
               </button>
             </div>
+            {editorError && <p className="notice error" role="alert">{editorError}</p>}
             <PhotoPicker value={editing.image} onBusy={setPhotoBusy}
               onChange={image => setEditing(current => current ? { ...current, image } : current)} />
             <label>
@@ -1339,19 +1367,24 @@ function Auth({
 function SecuritySettings({
   busy,
   run,
+  role,
 }: {
   busy: boolean;
   run: (action: () => Promise<void>) => Promise<void>;
+  role: 'creator' | 'owner';
 }) {
   const [email, setEmail] = useState<any>(null);
   const [sessions, setSessions] = useState<any[]>([]);
+  const [devices, setDevices] = useState<any[]>([]);
   const load = async () => {
-    const [emailState, sessionState] = await Promise.all([
+    const [emailState, sessionState, deviceState] = await Promise.all([
       api('email'),
       api('sessions'),
+      role === 'owner' ? api('devices') : Promise.resolve({ devices: [] }),
     ]);
     setEmail(emailState);
     setSessions(sessionState.sessions || []);
+    setDevices(deviceState.devices || []);
   };
   useEffect(() => {
     load().catch(() => undefined);
@@ -1364,9 +1397,7 @@ function SecuritySettings({
         tiene un máximo absoluto de 12 horas.
       </p>
       <div className="status-list">
-        <p>
-          Autenticación en dos pasos <strong>Activa</strong>
-        </p>
+        <p>Acceso <strong>{role === 'creator' ? 'Contraseña y código de autenticación' : 'Correo y contraseña; desbloqueo local opcional en la APK'}</strong></p>
         <p>
           Correo de seguridad{' '}
           <strong>
@@ -1435,6 +1466,15 @@ function SecuritySettings({
           </div>
         ))}
       </details>
+      {role === 'owner' && <details className="settings-section">
+        <summary>Celulares recordados ({devices.length})</summary>
+        <p className="muted">Puedes revocar cualquier celular; dejará de renovar la sesión automáticamente.</p>
+        {devices.length === 0 && <p>No hay celulares recordados.</p>}
+        {devices.map(device => <div className="status-line" key={device.id}>
+          <span>Último uso: {new Date(device.lastSeenAt).toLocaleString('es-EC')} · vence: {new Date(device.expiresAt).toLocaleDateString('es-EC')}</span>
+          <button className="btn danger" disabled={busy} onClick={() => run(async () => { await api(`devices/${device.id}`, 'DELETE', {}); await load(); })}>Olvidar celular</button>
+        </div>)}
+      </details>}
     </section>
   );
 }
@@ -1748,11 +1788,15 @@ function Reports({
 }: {
   data: any;
   refresh: (query?: string) => void;
-  cancel: (id: string) => void;
+  cancel: (id: string) => Promise<void>;
 }) {
   const report = data?.report;
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
+  const [pendingCancel, setPendingCancel] = useState<any>(null);
+  const [cancelBusy, setCancelBusy] = useState(false);
+  const [cancelError, setCancelError] = useState('');
+  useDialogBehavior(!!pendingCancel, () => { if (!cancelBusy) setPendingCancel(null); });
   return (
     <>
       {!report ? (
@@ -1934,7 +1978,7 @@ function Reports({
                 {order.status === 'confirmed' && (
                   <button
                     className="btn danger"
-                    onClick={() => cancel(order.id)}
+                    onClick={() => { setCancelError(''); setPendingCancel(order); }}
                   >
                     Cancelar
                   </button>
@@ -1964,6 +2008,19 @@ function Reports({
           </section>
         </>
       )}
+      {pendingCancel && <div className="modal-backdrop" role="presentation"><section className="modal" role="dialog" aria-modal="true" aria-labelledby="cancel-title">
+        <div className="section-title"><h2 id="cancel-title">¿Cancelar este pedido?</h2><button className="close-button" disabled={cancelBusy} onClick={() => setPendingCancel(null)}>× Cerrar</button></div>
+        <p>Pedido <strong>{pendingCancel.number}</strong> · {money(pendingCancel.totalCents)}. Permanecerá en el historial marcado como cancelado.</p>
+        {cancelError && <p className="notice error" role="alert">{cancelError}</p>}
+        <div className="actions"><button className="btn primary" disabled={cancelBusy} onClick={() => setPendingCancel(null)}>Volver</button>
+          <button className="btn danger" disabled={cancelBusy} onClick={async () => {
+            if (cancelBusy) return;
+            setCancelBusy(true); setCancelError('');
+            try { await cancel(pendingCancel.id); setPendingCancel(null); }
+            catch (failure) { setCancelError((failure as Error).message); }
+            finally { setCancelBusy(false); }
+          }}>{cancelBusy ? 'Cancelando…' : 'Sí, cancelar pedido'}</button></div>
+      </section></div>}
     </>
   );
 }

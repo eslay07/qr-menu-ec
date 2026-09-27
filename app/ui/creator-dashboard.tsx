@@ -21,6 +21,8 @@ type Restaurant = {
   name: string;
   active: boolean;
   features: Feature[];
+  maxDishes: number;
+  sampleMenuEnabled: boolean;
   publishedVersion: number;
   createdAt: string;
 };
@@ -533,6 +535,7 @@ export default function CreatorDashboard() {
               </p>
               <RestaurantDomains restaurant={item} />
               <OwnerEmailEditor restaurant={item} />
+                <SampleMenuSettings restaurant={item} onSaved={load} />
               <div className="creator-modes">
                 {featureOptions.map((m) => (
                   <label className="check-label" key={m.value}>
@@ -597,6 +600,30 @@ function OwnerEmailEditor({ restaurant }: { restaurant: Restaurant }) {
       finally { setBusy(false); }
     }}><label>Correo del dueño<input type="email" name="email" autoComplete="email" required maxLength={254} /></label>
       <button className="btn" disabled={busy}>{busy ? 'Guardando…' : 'Guardar correo de acceso'}</button>
+      {notice && <p role="status">{notice}</p>}
+    </form>
+  </details>;
+}
+
+function SampleMenuSettings({ restaurant, onSaved }: { restaurant: Restaurant; onSaved: () => Promise<void> }) {
+  const [limit, setLimit] = useState(restaurant.maxDishes);
+  const [enabled, setEnabled] = useState(restaurant.sampleMenuEnabled);
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState('');
+  useEffect(() => { setLimit(restaurant.maxDishes); setEnabled(restaurant.sampleMenuEnabled); }, [restaurant.maxDishes, restaurant.sampleMenuEnabled]);
+  return <details className="owner-email-editor"><summary>Capacidad y carta de ejemplo</summary>
+    <p>El límite se aplica al guardar, publicar, restaurar y cargar ejemplos. No puede ser menor que una carta existente.</p>
+    <form onSubmit={async event => {
+      event.preventDefault(); setBusy(true); setNotice('');
+      try {
+        await creatorApi(`restaurants/${restaurant.id}/sample-config`, 'PUT', { revision: restaurant.revision, maxDishes: limit, sampleMenuEnabled: enabled });
+        await onSaved(); setNotice('Capacidad y ejemplo guardados correctamente.');
+      } catch (error) { setNotice((error as Error).message); }
+      finally { setBusy(false); }
+    }}>
+      <label>Máximo de platos (1 a 150)<input type="number" min={1} max={150} required value={limit} onChange={event => setLimit(Number(event.target.value))} /></label>
+      <label className="check-label"><input type="checkbox" checked={enabled} onChange={event => setEnabled(event.target.checked)} /> Habilitar “Cargar ejemplo profesional”</label>
+      <button className="btn primary" disabled={busy}>{busy ? 'Guardando…' : 'Guardar capacidad'}</button>
       {notice && <p role="status">{notice}</p>}
     </form>
   </details>;

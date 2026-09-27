@@ -18,7 +18,7 @@ export interface State {
   sessionEpoch: number;
   failures: { count: number; until: number };
   createdAt: string;
-  access?: { active: boolean; features?: Feature[] };
+  access?: { active: boolean; features?: Feature[]; maxDishes?: number; sampleMenuEnabled?: boolean };
   security?: {
     emailCiphertext?: string;
     emailHash?: string;

@@ -130,6 +130,10 @@ function harness(features: Array<'orders' | 'promotions'> = ['orders']) {
     suspend() {
       ownerAccess = false;
     },
+    setPolicy(maxDishes: number, sampleMenuEnabled: boolean) {
+      if (!data) throw Error('Create restaurant first');
+      data.state.access = { ...data.state.access, active: true, maxDishes, sampleMenuEnabled };
+    },
     orders,
   };
 }
@@ -178,6 +182,22 @@ test('legacy catalogs gain empty modifier groups', () => {
   delete legacy.dishes[0].modifierGroups;
   const parsed = Catalog.parse(legacy);
   assert.deepEqual(parsed.dishes[0].modifierGroups, []);
+});
+
+test('sample replacement requires creator permission, explicit consent and respects the assigned dish cap', async () => {
+  const h = harness();
+  await h.call('setup', 'POST', { name: 'Mesa', password: 'test-password-123', setupToken: 'setup-secret' });
+  let state = (await h.call('state')).body;
+  assert.equal((await h.call('sample-menu', 'POST', { revision: state.revision, confirm: true })).status, 403);
+  h.setPolicy(40, true);
+  assert.equal((await h.call('sample-menu', 'POST', { revision: state.revision, confirm: false })).status, 400);
+  assert.equal((await h.call('sample-menu', 'POST', { revision: state.revision, confirm: true })).status, 200);
+  state = (await h.call('state')).body;
+  assert.equal(state.draft.dishes.length, 40);
+  assert.equal(state.published, null);
+  assert.equal((await h.call('sample-menu', 'POST', { revision: state.revision - 1, confirm: true })).status, 409);
+  h.setPolicy(1, false);
+  assert.equal((await h.call('draft', 'PUT', { revision: state.revision, catalog: state.draft })).status, 400);
 });
 
 test('one permanent HTTPS menu QR is produced', async () => {

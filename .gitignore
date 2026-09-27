@@ -54,3 +54,7 @@ next-env.d.ts
 /native/go/outputs/
 
 /dist-pages/
+
+# Prospección comercial local: no publicar datos de contacto ni notas de ventas
+/lógica de negocio/prospectos.csv
+/lógica de negocio/contactos_verificados.csv

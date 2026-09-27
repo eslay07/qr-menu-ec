@@ -9,7 +9,7 @@ import type { Feature } from '../../lib/contracts';
 import { D1OrderStore } from '../../lib/orders';
 import { DomainService } from '../../lib/domains';
 import { AuthSecurity } from '../../lib/auth-security';
-import { handleOwnerAuth } from '../../lib/owner-auth';
+import { handleOwnerAuth, handleOwnerDevice } from '../../lib/owner-auth';
 
 type Env = CentralEnv & {
   ASSETS: Fetcher;
@@ -59,6 +59,7 @@ async function routeRequest(request: Request, env: Env) {
   if (url.pathname.startsWith('/api/creator/'))
     return handleCreatorApi(request, env);
   if (url.pathname === '/api/owner/login') return handleOwnerAuth(request, env, id => cloudStore(id, env));
+  if (url.pathname.startsWith('/api/owner/device-session')) return handleOwnerDevice(request, env, id => cloudStore(id, env));
   const match = url.pathname.match(restaurantPath);
   const hostRow = !match
     ? await env.DB.prepare(

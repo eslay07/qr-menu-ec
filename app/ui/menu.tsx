@@ -64,6 +64,7 @@ export default function Menu({
     [turnstileAttempt, setTurnstileAttempt] = useState(0);
   const [query, setQuery] = useState(''),
     [cat, setCat] = useState('all'),
+    [visibleDishes, setVisibleDishes] = useState(30),
     [cart, setCart] = useState<CartLine[]>([]),
     [bag, setBag] = useState(false),
     [configuring, setConfiguring] = useState<Dish | null>(null),
@@ -178,6 +179,11 @@ export default function Menu({
         }}
       />
     );
+  const matches = catalog.dishes.filter(dish =>
+    (cat === 'all' || dish.categoryId === cat) &&
+    `${dish.name} ${dish.description} ${dish.modifierGroups.flatMap(group => group.options.map(option => option.name)).join(' ')}`
+      .toLocaleLowerCase('es').includes(query.toLocaleLowerCase('es')));
+  const visibleIds = new Set(matches.slice(0, visibleDishes).map(dish => dish.id));
   return (
     <div
       className="customer"
@@ -226,7 +232,7 @@ export default function Menu({
           <Search />
           <input
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => { setQuery(e.target.value); setVisibleDishes(30); }}
             placeholder="¿Qué se te antoja?"
             aria-label="Buscar platos"
           />
@@ -234,7 +240,7 @@ export default function Menu({
         <div className="category-tabs">
           <button
             className={cat === 'all' ? 'selected' : ''}
-            onClick={() => setCat('all')}
+            onClick={() => { setCat('all'); setVisibleDishes(30); }}
           >
             Todo el menú
           </button>
@@ -242,7 +248,7 @@ export default function Menu({
             <button
               key={category.id}
               className={cat === category.id ? 'selected' : ''}
-              onClick={() => setCat(category.id)}
+              onClick={() => { setCat(category.id); setVisibleDishes(30); }}
             >
               {category.name}
             </button>
@@ -256,9 +262,7 @@ export default function Menu({
             const dishes = catalog.dishes.filter(
               (dish) =>
                 dish.categoryId === category.id &&
-                `${dish.name} ${dish.description} ${dish.modifierGroups.flatMap((group) => group.options.map((option) => option.name)).join(' ')}`
-                  .toLowerCase()
-                  .includes(query.toLowerCase()),
+                visibleIds.has(dish.id),
             );
             return dishes.length ? (
               <section key={category.id}>
@@ -277,7 +281,7 @@ export default function Menu({
                     >
                       <div className="dish-photo">
                         {dish.image ? (
-                          <img src={media(dish.image)} alt={dish.name} />
+                          <img src={media(dish.image)} alt={dish.name} loading="lazy" decoding="async" />
                         ) : (
                           <span className="no-photo">
                             <Utensils />
@@ -335,6 +339,7 @@ export default function Menu({
               </section>
             ) : null;
           })}
+        {matches.length > visibleDishes && <button className="btn" onClick={() => setVisibleDishes(count => count + 30)}>Mostrar 30 platos más de {matches.length}</button>}
       </main>
       <footer className="customer-footer">
         <p>Confirma tu pedido y muéstrale la pantalla al mesero.</p>

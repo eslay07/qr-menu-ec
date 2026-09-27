@@ -468,6 +468,8 @@ export async function handleCreatorApi(
           name: state.draft.name,
           active: state.access?.active !== false,
           features: normalizeFeatures(state.access?.features),
+          maxDishes: state.access?.maxDishes ?? 150,
+          sampleMenuEnabled: state.access?.sampleMenuEnabled === true,
           publishedVersion: state.published?.version || 0,
           createdAt: state.createdAt,
         };
@@ -521,7 +523,7 @@ export async function handleCreatorApi(
         sessionEpoch: 0,
         failures: { count: 0, until: 0 },
         createdAt: new Date().toISOString(),
-        access: { active: true, features: input.features },
+        access: { active: true, features: input.features, maxDishes: 150, sampleMenuEnabled: false },
         security: security
           ? {
               emailCiphertext: await security.encrypt(
@@ -575,8 +577,12 @@ export async function handleCreatorApi(
         .first<{ revision: number; data: string }>();
       if (!row) return json({ error: 'Restaurante no encontrado.' }, 404);
       const state = JSON.parse(row.data) as State;
-      if (state.access?.active !== false && !input.active) state.sessionEpoch++;
-      state.access = { active: input.active, features: input.features };
+      if (state.access?.active !== false && !input.active) {
+        state.sessionEpoch++;
+        await security?.revokeSubject('owner', accessMatch[1]);
+        await security?.revokeDevicesForRestaurant(accessMatch[1]);
+      }
+      state.access = { ...state.access, active: input.active, features: input.features };
       const result = await env.DB.prepare(
         'UPDATE application SET revision = revision + 1, data = ? WHERE id = ? AND revision = ?',
       )
@@ -588,6 +594,21 @@ export async function handleCreatorApi(
           409,
         );
       return json({ ok: true });
+    }
+    const sampleConfigMatch = path.match(/^restaurants\/([a-f0-9-]{36})\/sample-config$/);
+    if (sampleConfigMatch && method === 'PUT') {
+      const input = z.object({ maxDishes: z.number().int().min(1).max(150), sampleMenuEnabled: z.boolean(), revision: z.number().int().min(0) }).strict().parse(await requestBody(request));
+      const row = await env.DB.prepare('SELECT revision,data FROM application WHERE id = ?').bind(sampleConfigMatch[1]).first<{ revision: number; data: string }>();
+      if (!row) return json({ error: 'Restaurante no encontrado.' }, 404);
+      if (input.revision !== row.revision) return json({ error: 'La configuración cambió. Recarga.' }, 409);
+      const state = JSON.parse(row.data) as State;
+      if (state.draft.dishes.length > input.maxDishes || (state.published?.catalog.dishes.length || 0) > input.maxDishes)
+        return json({ error: 'El nuevo límite es menor que la carta actual o publicada.' }, 400);
+      state.access = { ...state.access, active: state.access?.active !== false, maxDishes: input.maxDishes, sampleMenuEnabled: input.sampleMenuEnabled };
+      const updated = await env.DB.prepare('UPDATE application SET revision = revision + 1,data = ? WHERE id = ? AND revision = ?')
+        .bind(JSON.stringify(state), sampleConfigMatch[1], row.revision).run();
+      if (updated.meta.changes !== 1) return json({ error: 'La configuración cambió. Recarga.' }, 409);
+      return json({ maxDishes: input.maxDishes, sampleMenuEnabled: input.sampleMenuEnabled });
     }
     const hostnameMatch = path.match(
       /^restaurants\/([a-f0-9-]{36})\/hostname$/,
@@ -636,6 +657,7 @@ export async function handleCreatorApi(
       const result = await env.DB.prepare('UPDATE application SET data = ?, revision = revision + 1 WHERE id = ? AND revision = ?').bind(JSON.stringify(state), emailMatch[1], row.revision).run();
       if (result.meta.changes !== 1) return json({ error: 'La cuenta cambió. Recarga e intenta otra vez.' }, 409);
       await security.revokeSubject('owner', emailMatch[1]);
+      await security.revokeDevicesForRestaurant(emailMatch[1]);
       return json({ ok: true });
     }
     const resetMatch = path.match(/^restaurants\/([a-f0-9-]{36})\/reset$/);
@@ -663,7 +685,10 @@ export async function handleCreatorApi(
         totpEnabledAt: undefined,
         recoveryCodeHashes: undefined,
       };
-      if (security) await security.revokeSubject('owner', resetMatch[1]);
+      if (security) {
+        await security.revokeSubject('owner', resetMatch[1]);
+        await security.revokeDevicesForRestaurant(resetMatch[1]);
+      }
       state.recoveryHash = await digest(recovery);
       state.sessionEpoch++;
       state.failures = { count: 0, until: 0 };

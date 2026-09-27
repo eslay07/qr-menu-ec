@@ -30,6 +30,7 @@ import {
   type OrderStore,
 } from './orders';
 import { orderPdf } from './order-pdf';
+import { professionalSample } from './sample-menu';
 import type { DomainService } from './domains';
 import type { ActiveSession, AuthSecurity } from './auth-security';
 
@@ -144,6 +145,8 @@ function publicState(
     hasLicense: !!s.license,
     role,
     features,
+    maxDishes: s.access?.maxDishes ?? 150,
+    sampleMenuEnabled: s.access?.sampleMenuEnabled === true,
     createdAt: s.createdAt,
   };
 }
@@ -463,6 +466,7 @@ export async function handleApi(
         s.recoveryHash = await digest(recovery);
         if (opts.security?.encryptionReady) {
           await opts.security.revokeSubject('owner', s.restaurantId);
+          await opts.security.revokeDevicesForRestaurant(s.restaurantId);
         }
       }
       await save();
@@ -672,9 +676,12 @@ export async function handleApi(
     if (path === 'logout' && method === 'POST') {
       if (opts.security) {
         await opts.security.revokeSession(req, securityScope);
-        return json({ ok: true }, 200, {
+        if (securityScope === 'owner') await opts.security.revokeDevice(req);
+        const response = json({ ok: true }, 200, {
           'Set-Cookie': opts.security.clearSessionCookie(securityScope),
         });
+        if (securityScope === 'owner') response.headers.append('Set-Cookie', opts.security.clearDeviceCookie());
+        return response;
       }
       s.sessionEpoch++;
       await save();
@@ -724,6 +731,13 @@ export async function handleApi(
       return json({
         sessions: await opts.security.listSessions('owner', s.restaurantId),
       });
+    if (path === 'devices' && method === 'GET' && opts.security)
+      return json({ devices: await opts.security.listDevices(s.restaurantId) });
+    const deviceMatch = path.match(/^devices\/([a-f0-9]{64})$/);
+    if (deviceMatch && method === 'DELETE' && opts.security) {
+      await opts.security.revokeDeviceById(s.restaurantId, deviceMatch[1]);
+      return json({ ok: true });
+    }
     const sessionMatch = path.match(/^sessions\/([a-f0-9]{64})$/);
     if (sessionMatch && method === 'DELETE' && opts.security) {
       await opts.security.revokeSessionById(
@@ -777,9 +791,22 @@ export async function handleApi(
           { error: 'Hay cambios de otro dispositivo. Recarga el editor.' },
           409,
         );
-      s.draft = Catalog.parse(value.catalog);
+      const next = Catalog.parse(value.catalog);
+      if (next.dishes.length > (s.access?.maxDishes ?? 150))
+        return json({ error: `Este restaurante admite hasta ${s.access?.maxDishes ?? 150} platos.` }, 400);
+      s.draft = next;
       await save();
       return json({ revision: stored.revision + 1 });
+    }
+    if (path === 'sample-menu' && method === 'POST') {
+      if (s.access?.sampleMenuEnabled !== true)
+        return json({ error: 'El creador aún no habilitó la carga de ejemplos.' }, 403);
+      const input = z.object({ revision: z.number().int().min(0), confirm: z.literal(true) }).strict().parse(await body(req));
+      if (input.revision !== stored.revision)
+        return json({ error: 'La carta cambió. Recarga antes de reemplazar el borrador.' }, 409);
+      s.draft = Catalog.parse(professionalSample(s.draft.name, s.access?.maxDishes ?? 150));
+      await save();
+      return json({ revision: stored.revision + 1, dishes: s.draft.dishes.length });
     }
     if (path === 'settings' && method === 'PUT') {
       const value = await body(req);
@@ -804,6 +831,8 @@ export async function handleApi(
         );
       if (!s.draft.dishes.length)
         return json({ error: 'Añade al menos un plato.' }, 400);
+      if (s.draft.dishes.length > (s.access?.maxDishes ?? 150))
+        return json({ error: 'La carta supera el límite asignado por el creador.' }, 400);
       for (const mediaId of assetIds(s.draft))
         if (!(await store.mediaGet(mediaId)))
           return json(
@@ -890,6 +919,8 @@ export async function handleApi(
       const raw = await body(req, 30_000_000),
         draft = normalizeCatalog(raw.draft),
         settings = normalizeSettings(raw.settings);
+      if (draft.dishes.length > (s.access?.maxDishes ?? 150))
+        return json({ error: 'El respaldo supera el límite de platos asignado a este restaurante.' }, 400);
       const mediaInput = z
         .array(
           z.object({

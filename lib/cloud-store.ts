@@ -36,17 +36,20 @@ export function cloudStore(id = 'restaurant', source?: Bindings): Store {
         : null;
     },
     async commit(state, revision) {
+      const serialized = JSON.stringify(state);
+      if (new TextEncoder().encode(serialized).byteLength > 1_800_000)
+        throw Error('La carta y la publicación superan el tamaño permitido. Reduce textos u opciones antes de guardar.');
       const r =
         revision === null
           ? await e.DB.prepare(
               'INSERT OR IGNORE INTO application (id,revision,data) VALUES (?,0,?)',
             )
-              .bind(id, JSON.stringify(state))
+              .bind(id, serialized)
               .run()
           : await e.DB.prepare(
               'UPDATE application SET revision = revision + 1, data = ? WHERE id = ? AND revision = ?',
             )
-              .bind(JSON.stringify(state), id, revision)
+              .bind(serialized, id, revision)
               .run();
       return r.meta.changes === 1;
     },
