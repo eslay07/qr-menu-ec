@@ -32,6 +32,10 @@ class OwnerActivity : Activity() {
             settings.cacheMode = WebSettings.LOAD_DEFAULT
             settings.allowFileAccess = false
             settings.allowContentAccess = true
+            settings.allowFileAccessFromFileURLs = false
+            settings.allowUniversalAccessFromFileURLs = false
+            settings.saveFormData = false
+            settings.safeBrowsingEnabled = true
             settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
             CookieManager.getInstance().setAcceptCookie(true)
             CookieManager.getInstance().setAcceptThirdPartyCookies(this, false)

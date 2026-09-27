@@ -16,7 +16,7 @@ const singleLine = (max: number) =>
 // Migration-only. New records are always served on the web.
 export const Mode = z.enum(['web', 'local', 'text', 'dual_web_vcard']);
 export type Mode = z.infer<typeof Mode>;
-export const Feature = z.enum(['orders']);
+export const Feature = z.enum(['orders', 'promotions']);
 export type Feature = z.infer<typeof Feature>;
 export const Asset = z
   .string()
@@ -84,6 +84,48 @@ export const Dish = z.object({
 });
 export type Dish = z.infer<typeof Dish>;
 
+export const Promotion = z
+  .object({
+    id,
+    dishId: id,
+    title: z.string().trim().min(1).max(80),
+    description: z.string().trim().max(220),
+    badge: singleLine(30),
+    image: Asset,
+    promotionalPriceCents: z.number().int().min(0).max(9_999_999).nullable(),
+    startsAt: z.string().datetime().nullable(),
+    endsAt: z.string().datetime().nullable(),
+    enabled: z.boolean(),
+  })
+  .strict()
+  .superRefine((promotion, context) => {
+    if (
+      promotion.startsAt &&
+      promotion.endsAt &&
+      Date.parse(promotion.startsAt) >= Date.parse(promotion.endsAt)
+    )
+      context.addIssue({
+        code: 'custom',
+        message: `La fecha final de “${promotion.title}” debe ser posterior al inicio.`,
+      });
+  });
+export type Promotion = z.infer<typeof Promotion>;
+
+export function activePromotion(
+  catalog: Catalog,
+  dishId: string,
+  at = new Date(),
+) {
+  const timestamp = at.getTime();
+  return catalog.promotions.find(
+    (promotion) =>
+      promotion.enabled &&
+      promotion.dishId === dishId &&
+      (!promotion.startsAt || Date.parse(promotion.startsAt) <= timestamp) &&
+      (!promotion.endsAt || Date.parse(promotion.endsAt) > timestamp),
+  );
+}
+
 export const Catalog = z
   .object({
     name: z.string().trim().min(1).max(80),
@@ -95,6 +137,7 @@ export const Catalog = z
       .min(1)
       .max(30),
     dishes: z.array(Dish).max(150),
+    promotions: z.array(Promotion).max(8).default([]),
   })
   .superRefine((value, context) => {
     const categories = new Set(value.categories.map((item) => item.id));
@@ -111,6 +154,42 @@ export const Catalog = z
         code: 'custom',
         message: 'Un plato tiene una categoría inexistente.',
       });
+    const dishes = new Map(value.dishes.map((dish) => [dish.id, dish]));
+    for (const promotion of value.promotions) {
+      const dish = dishes.get(promotion.dishId);
+      if (!dish)
+        context.addIssue({
+          code: 'custom',
+          message: `La promoción “${promotion.title}” apunta a un plato inexistente.`,
+        });
+      if (
+        dish &&
+        promotion.promotionalPriceCents !== null &&
+        promotion.promotionalPriceCents >= dish.priceCents
+      )
+        context.addIssue({
+          code: 'custom',
+          message: `El precio promocional de “${promotion.title}” debe ser menor al precio normal.`,
+        });
+    }
+    for (let index = 0; index < value.promotions.length; index++) {
+      const left = value.promotions[index];
+      if (!left.enabled) continue;
+      for (const right of value.promotions.slice(index + 1)) {
+        if (!right.enabled || right.dishId !== left.dishId) continue;
+        const leftStart = left.startsAt ? Date.parse(left.startsAt) : -Infinity;
+        const leftEnd = left.endsAt ? Date.parse(left.endsAt) : Infinity;
+        const rightStart = right.startsAt
+          ? Date.parse(right.startsAt)
+          : -Infinity;
+        const rightEnd = right.endsAt ? Date.parse(right.endsAt) : Infinity;
+        if (leftStart < rightEnd && rightStart < leftEnd)
+          context.addIssue({
+            code: 'custom',
+            message: `Las promociones “${left.title}” y “${right.title}” se superponen.`,
+          });
+      }
+    }
     for (const dish of value.dishes)
       if (
         new Set(dish.modifierGroups.map((group) => group.id)).size !==
@@ -135,7 +214,11 @@ export function normalizeCatalog(value: unknown): Catalog {
           : [],
       }))
     : [];
-  return Catalog.parse({ ...raw, dishes });
+  return Catalog.parse({
+    ...raw,
+    dishes,
+    promotions: Array.isArray(raw?.promotions) ? raw.promotions : [],
+  });
 }
 
 export const Settings = z.object({
@@ -203,6 +286,7 @@ export const blankCatalog: Catalog = {
     { id: 'bebidas', name: 'Bebidas' },
   ],
   dishes: [],
+  promotions: [],
 };
 
 const optionId = (name: string) =>
@@ -316,6 +400,21 @@ export const demoCatalog: Catalog = {
       modifierGroups: [],
     },
   ],
+  promotions: [
+    {
+      id: 'promo-desayuno',
+      dishId: 'desayuno-continental',
+      title: 'Empieza el día a tu gusto',
+      description:
+        'Configura tu bebida caliente, elige tu jugo favorito y ahorra.',
+      badge: 'PROMOCIÓN DEL DÍA',
+      image: '',
+      promotionalPriceCents: 595,
+      startsAt: null,
+      endsAt: null,
+      enabled: true,
+    },
+  ],
 };
 
 export const money = (cents: number) =>
@@ -334,8 +433,10 @@ export const OrderLineInput = z.object({
   note: singleLine(240),
 });
 export const CreateOrderInput = z.object({
-  alias: singleLine(80),
+  alias: singleLine(80).trim().min(1, 'Escribe tu nombre o alias.'),
   lines: z.array(OrderLineInput).min(1).max(100),
+  expectedTotalCents: z.number().int().min(0).max(999_999_999),
   demo: z.boolean().optional(),
-});
+  turnstileToken: z.string().max(4096).optional(),
+}).strict();
 export type CreateOrderInput = z.infer<typeof CreateOrderInput>;

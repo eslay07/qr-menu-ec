@@ -11,6 +11,8 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import type { Feature } from '@/lib/contracts';
+import Turnstile from './turnstile';
+import { MfaPanel } from './dashboard';
 
 type Restaurant = {
   id: string;
@@ -29,17 +31,36 @@ type Credentials = {
   ownerUrl?: string;
   menuUrl?: string;
 };
+type ManagedDomain = {
+  primaryUrl?: string | null;
+  aliases?: Array<{
+    hostname: string;
+    kind: string;
+    status: string;
+    lastError?: string | null;
+  }>;
+  custom?: null | { hostname: string; status: string };
+  cnameTarget?: string | null;
+  capacity?: { used: number; warningAt: number; limit: number };
+};
 const featureOptions: { value: Feature; label: string }[] = [
   { value: 'orders', label: 'Pedidos por QR y reportes' },
+  { value: 'promotions', label: 'Campañas y precios promocionales' },
 ];
 
+let creatorCsrfToken = '';
 async function creatorApi(path: string, method = 'GET', data?: unknown) {
+  const headers: Record<string, string> =
+    data === undefined ? {} : { 'Content-Type': 'application/json' };
+  if (!['GET', 'HEAD'].includes(method) && creatorCsrfToken)
+    headers['X-CSRF-Token'] = creatorCsrfToken;
   const response = await fetch(`/api/creator/${path}`, {
     method,
-    headers: data === undefined ? {} : { 'Content-Type': 'application/json' },
+    headers,
     body: data === undefined ? undefined : JSON.stringify(data),
   });
   const body = (await response.json()) as any;
+  if (body?.csrfToken) creatorCsrfToken = body.csrfToken;
   if (!response.ok)
     throw Error(body.error || 'No se pudo completar la operación.');
   return body;
@@ -52,15 +73,24 @@ export default function CreatorDashboard() {
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]),
     [error, setError] = useState(''),
     [busy, setBusy] = useState(false),
-    [credentials, setCredentials] = useState<Credentials | null>(null);
+    [credentials, setCredentials] = useState<Credentials | null>(null),
+    [mfa, setMfa] = useState<any>(null),
+    [domainSettings, setDomainSettings] = useState<any>(null),
+    [turnstileToken, setTurnstileToken] = useState(''),
+    [turnstileSiteKey, setTurnstileSiteKey] = useState<string | null>(null);
   const load = useCallback(async () => {
     try {
       const session = await creatorApi('session');
       setConfigured(session.configured);
       setAuthenticated(session.authenticated);
+      setTurnstileSiteKey(session.turnstileSiteKey || null);
       if (session.authenticated) {
-        const result = await creatorApi('restaurants');
+        const [result, platformDomains] = await Promise.all([
+          creatorApi('restaurants'),
+          creatorApi('domain-settings'),
+        ]);
         setRestaurants(result.restaurants);
+        setDomainSettings(platformDomains);
       }
     } catch (e) {
       setError((e as Error).message);
@@ -77,17 +107,29 @@ export default function CreatorDashboard() {
     setError('');
     try {
       const values = new FormData(event.currentTarget);
+      let authResult;
       if (configured)
-        await creatorApi('login', 'POST', { password: values.get('password') });
+        authResult = await creatorApi('login', 'POST', {
+          password: values.get('password'),
+          turnstileToken,
+        });
       else {
         const result = await creatorApi('setup', 'POST', {
           setupToken: values.get('setupToken'),
           password: values.get('password'),
+          email: values.get('email'),
+          turnstileToken,
         });
+        authResult = result;
         setCredentials({
           title: 'Recuperación del creador',
           recovery: result.recovery,
         });
+      }
+      if (authResult?.mfaRequired) {
+        setMfa(authResult);
+        setConfigured(true);
+        return;
       }
       setAuthenticated(true);
       setConfigured(true);
@@ -111,6 +153,7 @@ export default function CreatorDashboard() {
       const result = await creatorApi('restaurants', 'POST', {
         name: values.get('name'),
         ownerPassword: values.get('ownerPassword'),
+        ownerEmail: values.get('ownerEmail'),
         features,
       });
       setCredentials({
@@ -179,10 +222,55 @@ export default function CreatorDashboard() {
   }
   if (!ready)
     return (
-      <main className="creator-auth">
-        <ShieldCheck size={42} />
-        <h1>Abriendo panel privado…</h1>
+      <main className="skeleton-shell" aria-busy="true">
+        <span className="sr-only" role="status">
+          Abriendo panel privado…
+        </span>
+        <div className="skeleton-line" />
+        <div className="skeleton-block" />
+        <div className="skeleton-grid">
+          <div className="skeleton-card" />
+          <div className="skeleton-card" />
+          <div className="skeleton-card" />
+        </div>
       </main>
+    );
+  if (!authenticated && mfa)
+    return (
+      <MfaPanel
+        enrollment={mfa.enrollment}
+        busy={busy}
+        error={error}
+        onVerify={(code: string) => {
+          setBusy(true);
+          setError('');
+          creatorApi('auth/mfa/verify', 'POST', { code })
+            .then((result) => {
+              setMfa(null);
+              setAuthenticated(true);
+              if (result.recoveryCodes)
+                setCredentials({
+                  title: 'Códigos de recuperación 2FA',
+                  recovery: result.recoveryCodes.join('\n'),
+                });
+              return load();
+            })
+            .catch((failure) => setError(failure.message))
+            .finally(() => setBusy(false));
+        }}
+        onRecover={(code: string) => {
+          setBusy(true);
+          setError('');
+          creatorApi('auth/mfa/recover', 'POST', { code })
+            .then(() => {
+              setMfa(null);
+              setAuthenticated(true);
+              return load();
+            })
+            .catch((failure) => setError(failure.message))
+            .finally(() => setBusy(false));
+        }}
+      />
     );
   if (!authenticated)
     return (
@@ -208,6 +296,13 @@ export default function CreatorDashboard() {
                 />
               </label>
             )}
+            {!configured && (
+              <label>
+                Correo del creador
+                <input name="email" type="email" required maxLength={254} />
+                <small>Quedará cifrado y listo para verificación futura.</small>
+              </label>
+            )}
             <label>
               Contraseña del creador
               <input
@@ -219,6 +314,10 @@ export default function CreatorDashboard() {
               />
               <small>Mínimo 12 caracteres.</small>
             </label>
+            <Turnstile
+              siteKey={turnstileSiteKey}
+              onToken={setTurnstileToken}
+            />
             <button disabled={busy} className="btn primary" type="submit">
               {busy
                 ? 'Verificando…'
@@ -247,7 +346,11 @@ export default function CreatorDashboard() {
         </button>
       </header>
       <main className="creator-main">
-        {error && <div className="notice error">{error}</div>}
+        {error && (
+          <div className="notice error feedback-toast" role="alert">
+            {error}
+          </div>
+        )}
         {credentials && (
           <section className="card creator-credentials">
             <div>
@@ -287,6 +390,47 @@ export default function CreatorDashboard() {
         )}
         <section className="card creator-create">
           <div>
+            <p className="eyebrow">DOMINIO GLOBAL OPCIONAL</p>
+            <h2>Direcciones futuras de QR Menu</h2>
+            <p className="muted">
+              Al disponer del dominio global, escribe aquí su host base. Se
+              preparará automáticamente un alias por restaurante sin quitar
+              sus enlaces actuales.
+            </p>
+            {domainSettings?.status && (
+              <p className="badge">Estado: {domainSettings.status}</p>
+            )}
+          </div>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              const form = new FormData(event.currentTarget);
+              setBusy(true);
+              setError('');
+              creatorApi('domain-settings', 'PUT', {
+                baseHostname: form.get('baseHostname'),
+              })
+                .then(setDomainSettings)
+                .catch((failure) => setError(failure.message))
+                .finally(() => setBusy(false));
+            }}
+          >
+            <label>
+              Dominio base
+              <input
+                name="baseHostname"
+                placeholder="menus.qrmenuec.com"
+                defaultValue={domainSettings?.baseHostname || ''}
+                required
+              />
+            </label>
+            <button className="btn primary" disabled={busy}>
+              {busy ? 'Guardando…' : 'Preparar aliases globales'}
+            </button>
+          </form>
+        </section>
+        <section className="card creator-create">
+          <div>
             <p className="eyebrow">NUEVO CLIENTE</p>
             <h2>Crear restaurante</h2>
             <p className="muted">
@@ -310,6 +454,10 @@ export default function CreatorDashboard() {
                   minLength={12}
                   required
                 />
+              </label>
+              <label>
+                Correo del dueño
+                <input name="ownerEmail" type="email" required maxLength={254} />
               </label>
             </div>
             <fieldset>
@@ -371,6 +519,7 @@ export default function CreatorDashboard() {
                   Abrir dirección permanente
                 </a>
               </p>
+              <RestaurantDomains restaurant={item} />
               <div className="creator-modes">
                 {featureOptions.map((m) => (
                   <label className="check-label" key={m.value}>
@@ -418,5 +567,125 @@ export default function CreatorDashboard() {
         </section>
       </main>
     </div>
+  );
+}
+
+function RestaurantDomains({ restaurant }: { restaurant: Restaurant }) {
+  const [domain, setDomain] = useState<ManagedDomain | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const run = async (action: () => Promise<ManagedDomain>) => {
+    setBusy(true);
+    setError('');
+    try {
+      setDomain(await action());
+    } catch (failure) {
+      setError((failure as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <details
+      className="domain-manager"
+      onToggle={(event) => {
+        if (event.currentTarget.open && !domain)
+          run(() =>
+            creatorApi(`restaurants/${restaurant.id}/hostname`, 'POST'),
+          );
+      }}
+    >
+      <summary>Administrar direcciones y dominio propio</summary>
+      {busy && <p role="status">Consultando Cloudflare…</p>}
+      {error && <div className="notice error" role="alert">{error}</div>}
+      {domain?.primaryUrl && (
+        <p>
+          Dirección principal: <a href={domain.primaryUrl}>{domain.primaryUrl}</a>
+        </p>
+      )}
+      {domain?.capacity && (
+        <p>
+          Workers gratuitos: {domain.capacity.used}/{domain.capacity.limit}
+          {domain.capacity.used >= domain.capacity.warningAt
+            ? ' · Capacidad cercana al límite.'
+            : ''}
+        </p>
+      )}
+      <ul>
+        {domain?.aliases?.map((alias) => (
+          <li key={alias.hostname}>
+            <code>{alias.hostname}</code> · {alias.kind} · {alias.status}
+          </li>
+        ))}
+      </ul>
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          const values = new FormData(event.currentTarget);
+          run(() =>
+            creatorApi(
+              `restaurants/${restaurant.id}/custom-domain`,
+              'PUT',
+              { hostname: values.get('hostname') },
+            ),
+          );
+        }}
+      >
+        <label>
+          Dominio propio del cliente
+          <input
+            name="hostname"
+            placeholder="menu.restaurante.com"
+            defaultValue={domain?.custom?.hostname || ''}
+            required
+          />
+          <small>
+            El cliente creará un CNAME hacia{' '}
+            {domain?.cnameTarget || 'el destino configurado en Cloudflare'}.
+          </small>
+        </label>
+        <div className="actions">
+          <button className="btn primary" disabled={busy}>
+            Conectar dominio
+          </button>
+          {domain?.custom && (
+            <>
+              <button
+                type="button"
+                className="btn"
+                disabled={busy}
+                onClick={() =>
+                  run(() =>
+                    creatorApi(
+                      `restaurants/${restaurant.id}/custom-domain`,
+                      'POST',
+                      {},
+                    ),
+                  )
+                }
+              >
+                Verificar certificado
+              </button>
+              <button
+                type="button"
+                className="btn danger"
+                disabled={busy}
+                onClick={() =>
+                  run(() =>
+                    creatorApi(
+                      `restaurants/${restaurant.id}/custom-domain`,
+                      'DELETE',
+                      {},
+                    ),
+                  )
+                }
+              >
+                Quitar dominio
+              </button>
+            </>
+          )}
+        </div>
+      </form>
+    </details>
   );
 }

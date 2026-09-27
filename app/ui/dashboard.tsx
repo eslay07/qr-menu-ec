@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import QRCodeGenerator from 'qrcode';
 import {
   ArrowDown,
   ArrowUp,
@@ -17,12 +18,14 @@ import {
   Trash2,
   Upload,
   Utensils,
+  Megaphone,
 } from 'lucide-react';
 import {
   type Catalog,
   type Dish,
   type Feature,
   type ModifierGroup,
+  type Promotion,
   type Settings,
   blankCatalog,
   defaultSettings,
@@ -30,6 +33,7 @@ import {
   money,
 } from '@/lib/contracts';
 import { api, download, restaurantBase, uploadPhoto } from './client';
+import Turnstile from './turnstile';
 
 type PanelState = {
   restaurantId: string;
@@ -41,23 +45,19 @@ type PanelState = {
   features: Feature[];
 };
 type DomainState = {
+  primary?: null | { hostname: string; status: string };
+  primaryUrl?: string | null;
+  aliases?: Array<{ hostname: string; kind: string; status: string }>;
   free: null | { hostname: string; status: string };
   custom: null | { hostname: string; status: string; validation?: any };
   cnameTarget: string | null;
+  capacity?: { used: number; warningAt: number; limit: number };
 };
-const nav = [
-  'Mi menú',
-  'Códigos QR',
-  'Acceso y pedidos',
-  'Pedidos y reportes',
-  'Mi restaurante',
-  'Respaldos',
-];
 const uid = (prefix: string) => `${prefix}-${crypto.randomUUID().slice(0, 8)}`;
 
 export default function Dashboard() {
   const base = restaurantBase();
-  const [tab, setTab] = useState('Mi menú'),
+  const [tab, setTab] = useState('Carta'),
     [session, setSession] = useState<any>(null),
     [state, setState] = useState<PanelState | null>(null);
   const [draft, setDraft] = useState<Catalog>(blankCatalog),
@@ -71,7 +71,7 @@ export default function Dashboard() {
     [reportData, setReportData] = useState<any>(null);
   const [recovery, setRecovery] = useState(''),
     [recoverMode, setRecoverMode] = useState(false),
-    [customDomain, setCustomDomain] = useState('');
+    [mfa, setMfa] = useState<any>(null);
   const dirty =
     !!state && JSON.stringify(draft) !== JSON.stringify(state.draft);
   const settingsDirty =
@@ -142,18 +142,18 @@ export default function Dashboard() {
     setReportData(await api(`reports/orders${query}`));
   }
   useEffect(() => {
-    if (state && tab === 'Acceso y pedidos')
+    if (state && tab === 'Compartir')
       loadDomains().catch((e) => setError(e.message));
     if (
       state &&
-      tab === 'Pedidos y reportes' &&
+      tab === 'Pedidos' &&
       state.features.includes('orders')
     )
       loadReports().catch((e) => setError(e.message));
   }, [tab, !!state]);
   useEffect(() => {
     if (
-      tab !== 'Acceso y pedidos' ||
+      tab !== 'Compartir' ||
       !domain?.custom ||
       domain.custom.status === 'active'
     )
@@ -190,12 +190,45 @@ export default function Dashboard() {
 
   if (!session)
     return (
-      <main className="customer-empty">
-        <Utensils />
-        <h1>Abriendo tu restaurante…</h1>
+      <main className="skeleton-shell" aria-busy="true">
+        <span className="sr-only" role="status">
+          Abriendo tu restaurante…
+        </span>
+        <div className="skeleton-line" />
+        <div className="skeleton-block" />
+        <div className="skeleton-grid">
+          <div className="skeleton-card" />
+          <div className="skeleton-card" />
+          <div className="skeleton-card" />
+        </div>
       </main>
     );
   if (!state)
+    if (mfa)
+      return (
+        <MfaPanel
+          enrollment={mfa.enrollment}
+          busy={busy}
+          error={error}
+          onVerify={(code: string) =>
+            run(async () => {
+              const result = await api('auth/mfa/verify', 'POST', { code });
+              setMfa(null);
+              if (result.recoveryCodes)
+                setRecovery(result.recoveryCodes.join('\n'));
+              await loadState(true);
+            })
+          }
+          onRecover={(code: string) =>
+            run(async () => {
+              await api('auth/mfa/recover', 'POST', { code });
+              setMfa(null);
+              await loadState(true);
+            })
+          }
+        />
+      );
+    else
     return (
       <Auth
         session={session}
@@ -212,6 +245,10 @@ export default function Dashboard() {
               Object.fromEntries(form),
             );
             if (result.recovery) setRecovery(result.recovery);
+            if (result.mfaRequired) {
+              setMfa(result);
+              return;
+            }
             await loadState(true);
           })
         }
@@ -231,6 +268,13 @@ export default function Dashboard() {
     });
   const categoryName = (id: string) =>
     draft.categories.find((category) => category.id === id)?.name || id;
+  const nav = [
+    'Carta',
+    ...(state.features.includes('promotions') ? ['Promociones'] : []),
+    ...(state.features.includes('orders') ? ['Pedidos'] : []),
+    'Compartir',
+    'Ajustes',
+  ];
 
   return (
     <div className="workspace">
@@ -257,16 +301,14 @@ export default function Dashboard() {
               className={tab === item ? 'active' : ''}
               onClick={() => setTab(item)}
             >
-              {item === 'Mi menú' ? (
+              {item === 'Carta' ? (
                 <Utensils />
-              ) : item === 'Códigos QR' ? (
-                <QrCode />
-              ) : item === 'Pedidos y reportes' ? (
+              ) : item === 'Promociones' ? (
+                <Megaphone />
+              ) : item === 'Pedidos' ? (
                 <BarChart3 />
-              ) : item === 'Acceso y pedidos' ? (
+              ) : item === 'Compartir' ? (
                 <Globe />
-              ) : item === 'Respaldos' ? (
-                <ShieldCheck />
               ) : (
                 <SettingsIcon />
               )}
@@ -314,10 +356,18 @@ export default function Dashboard() {
             <h1>{tab}</h1>
           </div>
         </div>
-        {error && <div className="notice error">{error}</div>}
-        {message && <div className="notice">{message}</div>}
+        {error && (
+          <div className="notice error feedback-toast" role="alert">
+            {error}
+          </div>
+        )}
+        {message && (
+          <div className="notice feedback-toast" role="status" aria-live="polite">
+            {message}
+          </div>
+        )}
 
-        {tab === 'Mi menú' && (
+        {tab === 'Carta' && (
           <>
             <section className="summary-grid">
               <div className="summary-item">
@@ -439,13 +489,22 @@ export default function Dashboard() {
                 onClick={() => run(saveDraft)}
               >
                 <Save size={16} />
-                Guardar borrador
+                {busy ? 'Guardando…' : dirty ? 'Guardar borrador' : 'Guardado ✓'}
               </button>
             </div>
           </>
         )}
 
-        {tab === 'Códigos QR' && (
+        {tab === 'Promociones' && state.features.includes('promotions') && (
+          <PromotionsEditor
+            catalog={draft}
+            setCatalog={setDraft}
+            busy={busy}
+            save={() => run(saveDraft)}
+          />
+        )}
+
+        {tab === 'Compartir' && (
           <section className="card">
             <h2>QR permanente del menú</h2>
             <p className="muted">
@@ -471,9 +530,10 @@ export default function Dashboard() {
               <article className="qr-card" key={code.payload}>
                 <span className="eyebrow">MENÚ ONLINE</span>
                 <h2>{codes.name}</h2>
-                <div
-                  className="qr-svg"
-                  dangerouslySetInnerHTML={{ __html: code.svg }}
+                <img
+                  className="qr-image"
+                  src={`data:image/svg+xml,${encodeURIComponent(code.svg)}`}
+                  alt={`QR del menú de ${codes.name}`}
                 />
                 <strong>Escanea para ver el menú</strong>
                 <small>{code.payload}</small>
@@ -494,7 +554,7 @@ export default function Dashboard() {
           </section>
         )}
 
-        {tab === 'Acceso y pedidos' && (
+        {tab === 'Compartir' && (
           <>
             <section className="card settings-section">
               <h2>Dirección online gratuita</h2>
@@ -503,53 +563,22 @@ export default function Dashboard() {
                 un dominio propio.
               </p>
               <code className="id-block">
-                {domain?.free
-                  ? `https://${domain.free.hostname}/menu`
+                {domain?.primaryUrl || domain?.free
+                  ? domain?.primaryUrl || `https://${domain?.free?.hostname}/menu`
                   : settings.webUrl || `${location.origin}${base}/menu`}
               </code>
+              {domain?.capacity && (
+                <p className="muted">
+                  Direcciones gratuitas utilizadas: {domain.capacity.used} de{' '}
+                  {domain.capacity.limit}
+                  {domain.capacity.used >= domain.capacity.warningAt
+                    ? ' · Se recomienda activar el dominio global de QR Menu.'
+                    : ''}
+                </p>
+              )}
             </section>
             <section className="card settings-section">
               <h2>Dominio propio</h2>
-              <label>
-                Subdominio
-                <input
-                  placeholder="menu.restaurante.com"
-                  value={customDomain}
-                  onChange={(e) =>
-                    setCustomDomain(e.target.value.toLowerCase())
-                  }
-                />
-              </label>
-              <div className="actions">
-                <button
-                  className="btn primary"
-                  disabled={busy || !customDomain}
-                  onClick={() =>
-                    run(async () => {
-                      setDomain(
-                        await api('domain', 'PUT', { hostname: customDomain }),
-                      );
-                      setMessage(
-                        'Dominio registrado. Crea el CNAME mostrado y verifica.',
-                      );
-                    })
-                  }
-                >
-                  Conectar dominio
-                </button>
-                {domain?.custom && (
-                  <button
-                    className="btn"
-                    onClick={() =>
-                      run(async () =>
-                        setDomain(await api('domain/verify', 'POST', {})),
-                      )
-                    }
-                  >
-                    Verificar ahora
-                  </button>
-                )}
-              </div>
               {domain?.custom && (
                 <div className="notice">
                   <p>
@@ -568,6 +597,12 @@ export default function Dashboard() {
                       {domain.cnameTarget || 'configuración pendiente'}
                     </code>
                   </p>
+                </div>
+              )}
+              {!domain?.custom && (
+                <div className="notice">
+                  El creador puede conectar y verificar un dominio propio para
+                  este restaurante desde el panel central.
                 </div>
               )}
             </section>
@@ -597,7 +632,11 @@ export default function Dashboard() {
                     disabled={!settingsDirty || busy}
                     onClick={() => run(saveSettings)}
                   >
-                    Guardar configuración
+                    {busy
+                      ? 'Guardando…'
+                      : settingsDirty
+                        ? 'Guardar configuración'
+                        : 'Guardado ✓'}
                   </button>
                 </>
               ) : (
@@ -610,7 +649,7 @@ export default function Dashboard() {
           </>
         )}
 
-        {tab === 'Pedidos y reportes' &&
+        {tab === 'Pedidos' &&
           (state.features.includes('orders') ? (
             <Reports
               data={reportData}
@@ -634,7 +673,7 @@ export default function Dashboard() {
             </section>
           ))}
 
-        {tab === 'Mi restaurante' && (
+        {tab === 'Ajustes' && (
           <section className="card settings-section">
             <h2>Identidad del restaurante</h2>
             <div className="form-grid">
@@ -686,12 +725,16 @@ export default function Dashboard() {
               disabled={!dirty || busy}
               onClick={() => run(saveDraft)}
             >
-              Guardar identidad
+              {busy ? 'Guardando…' : dirty ? 'Guardar identidad' : 'Guardado ✓'}
             </button>
           </section>
         )}
 
-        {tab === 'Respaldos' && (
+        {tab === 'Ajustes' && (
+          <SecuritySettings busy={busy} run={run} />
+        )}
+
+        {tab === 'Ajustes' && (
           <section className="onboard-grid">
             <article className="card">
               <h2>Descargar respaldo</h2>
@@ -745,9 +788,12 @@ export default function Dashboard() {
       </main>
 
       {editing && (
-        <div className="modal-backdrop">
+        <div className="modal-backdrop" role="presentation">
           <form
             className="modal dish-editor"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="dish-editor-title"
             onSubmit={(e) => {
               e.preventDefault();
               const exists = draft.dishes.some(
@@ -765,7 +811,7 @@ export default function Dashboard() {
             }}
           >
             <div className="section-title">
-              <h2>
+              <h2 id="dish-editor-title">
                 {draft.dishes.some((dish) => dish.id === editing.id)
                   ? 'Editar plato'
                   : 'Nuevo plato'}
@@ -1169,6 +1215,7 @@ function Auth({
   recovery,
   onSubmit,
 }: any) {
+  const [turnstileToken, setTurnstileToken] = useState('');
   return (
     <main className="auth-page">
       <div className="auth-brand">
@@ -1194,7 +1241,9 @@ function Auth({
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            onSubmit(new FormData(e.currentTarget));
+            const form = new FormData(e.currentTarget);
+            if (turnstileToken) form.set('turnstileToken', turnstileToken);
+            onSubmit(form);
           }}
         >
           {!session.configured && (
@@ -1230,6 +1279,10 @@ function Auth({
               minLength={!session.configured || recoverMode ? 12 : 1}
             />
           </label>
+          <Turnstile
+            siteKey={session.turnstileSiteKey}
+            onToken={setTurnstileToken}
+          />
           <button className="btn primary" disabled={busy}>
             {busy
               ? 'Un momento…'
@@ -1251,6 +1304,411 @@ function Auth({
         </form>
       </section>
     </main>
+  );
+}
+
+function SecuritySettings({
+  busy,
+  run,
+}: {
+  busy: boolean;
+  run: (action: () => Promise<void>) => Promise<void>;
+}) {
+  const [email, setEmail] = useState<any>(null);
+  const [sessions, setSessions] = useState<any[]>([]);
+  const load = async () => {
+    const [emailState, sessionState] = await Promise.all([
+      api('email'),
+      api('sessions'),
+    ]);
+    setEmail(emailState);
+    setSessions(sessionState.sessions || []);
+  };
+  useEffect(() => {
+    load().catch(() => undefined);
+  }, []);
+  return (
+    <section className="card settings-section">
+      <h2>Seguridad de la cuenta</h2>
+      <p className="muted">
+        La sesión usa una cookie segura, vence tras 30 minutos sin actividad y
+        tiene un máximo absoluto de 12 horas.
+      </p>
+      <div className="status-list">
+        <p>
+          Autenticación en dos pasos <strong>Activa</strong>
+        </p>
+        <p>
+          Correo de seguridad{' '}
+          <strong>
+            {email?.verified
+              ? 'Verificado'
+              : email?.configured
+                ? 'Pendiente'
+                : 'No configurado'}
+          </strong>
+        </p>
+      </div>
+      {email?.configured && !email?.verified && (
+        <button
+          className="btn"
+          disabled={busy || !email.verificationEnabled}
+          onClick={() =>
+            run(async () => {
+              await api('email/verification', 'POST', {});
+            })
+          }
+        >
+          {email.verificationEnabled
+            ? 'Enviar verificación'
+            : 'Verificación por correo aún no activada'}
+        </button>
+      )}
+      {email && !email.configured && (
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            const value = new FormData(event.currentTarget).get('email');
+            run(async () => {
+              await api('email', 'PUT', { email: value });
+              await load();
+            });
+          }}
+        >
+          <label>
+            Correo de seguridad
+            <input name="email" type="email" required maxLength={254} />
+          </label>
+          <button className="btn primary" disabled={busy}>
+            Guardar correo
+          </button>
+        </form>
+      )}
+      <details className="settings-section">
+        <summary>Sesiones activas ({sessions.length})</summary>
+        {sessions.map((session) => (
+          <div className="status-line" key={session.id}>
+            <span>
+              Último uso: {new Date(session.lastSeenAt).toLocaleString('es-EC')}
+            </span>
+            <button
+              className="btn danger"
+              disabled={busy}
+              onClick={() =>
+                run(async () => {
+                  await api(`sessions/${session.id}`, 'DELETE', {});
+                  await load();
+                })
+              }
+            >
+              Cerrar sesión
+            </button>
+          </div>
+        ))}
+      </details>
+    </section>
+  );
+}
+
+export function MfaPanel({ enrollment, busy, error, onVerify, onRecover }: any) {
+  const [qr, setQr] = useState('');
+  useEffect(() => {
+    if (enrollment?.uri)
+      QRCodeGenerator.toDataURL(enrollment.uri, { width: 260, margin: 2 }).then(
+        setQr,
+      );
+  }, [enrollment?.uri]);
+  return (
+    <main className="auth-page">
+      <section className="card auth-card" aria-labelledby="mfa-heading">
+        <p className="eyebrow">SEGURIDAD</p>
+        <h1 id="mfa-heading">
+          {enrollment ? 'Protege tu cuenta' : 'Código de autenticación'}
+        </h1>
+        <p className="muted">
+          {enrollment
+            ? 'Escanea el QR con tu aplicación de autenticación y confirma el primer código.'
+            : 'Escribe el código de seis dígitos de tu aplicación.'}
+        </p>
+        {enrollment && qr && (
+          <img className="mfa-qr" src={qr} alt="QR para configurar autenticación de dos factores" />
+        )}
+        {enrollment?.secret && (
+          <p className="mfa-secret">
+            Clave manual <code>{enrollment.secret}</code>
+          </p>
+        )}
+        {error && <div className="notice error" role="alert">{error}</div>}
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            onVerify(String(new FormData(event.currentTarget).get('code')));
+          }}
+        >
+          <label>
+            Código de seis dígitos
+            <input
+              name="code"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              pattern="[0-9]{6}"
+              maxLength={6}
+              required
+            />
+          </label>
+          <button className="btn primary" disabled={busy}>
+            {busy ? 'Verificando…' : 'Verificar y entrar'}
+          </button>
+        </form>
+      {!enrollment && onRecover && (
+        <details className="settings-section">
+          <summary>Usar un código de recuperación</summary>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              onRecover(String(new FormData(event.currentTarget).get('code') || ''));
+            }}
+          >
+            <label>
+              Código de un solo uso
+              <input name="code" required autoComplete="one-time-code" />
+            </label>
+            <button className="btn" disabled={busy}>
+              Recuperar acceso
+            </button>
+          </form>
+        </details>
+      )}
+      </section>
+    </main>
+  );
+}
+
+function PromotionsEditor({
+  catalog,
+  setCatalog,
+  busy,
+  save,
+}: {
+  catalog: Catalog;
+  setCatalog: (catalog: Catalog) => void;
+  busy: boolean;
+  save: () => void;
+}) {
+  const toLocal = (value: string | null) => {
+    if (!value) return '';
+    return new Intl.DateTimeFormat('sv-SE', {
+      timeZone: 'America/Guayaquil',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    })
+      .format(new Date(value))
+      .replace(' ', 'T');
+  };
+  const fromLocal = (value: string) =>
+    value ? new Date(`${value}:00-05:00`).toISOString() : null;
+  const change = (id: string, update: Partial<Promotion>) =>
+    setCatalog({
+      ...catalog,
+      promotions: catalog.promotions.map((promotion) =>
+        promotion.id === id ? { ...promotion, ...update } : promotion,
+      ),
+    });
+  const add = () => {
+    const dish = catalog.dishes[0];
+    if (!dish || catalog.promotions.length >= 8) return;
+    setCatalog({
+      ...catalog,
+      promotions: [
+        ...catalog.promotions,
+        {
+          id: uid('promo'),
+          dishId: dish.id,
+          title: `Descubre ${dish.name}`,
+          description: 'Una recomendación especial de nuestra cocina.',
+          badge: 'DESTACADO',
+          image: '',
+          promotionalPriceCents: null,
+          startsAt: null,
+          endsAt: null,
+          enabled: false,
+        },
+      ],
+    });
+  };
+  return (
+    <section aria-labelledby="promotions-heading">
+      <div className="editor-toolbar">
+        <div>
+          <p className="eyebrow">VENTAS Y VISIBILIDAD</p>
+          <h2 id="promotions-heading">Campañas promocionales</h2>
+          <p className="muted">
+            Destaca hasta ocho platos con fechas y precio promocional opcional.
+          </p>
+        </div>
+        <button
+          className="btn primary"
+          disabled={busy || !catalog.dishes.length || catalog.promotions.length >= 8}
+          onClick={add}
+        >
+          <Plus size={16} /> Nueva campaña
+        </button>
+      </div>
+      {!catalog.dishes.length && (
+        <div className="notice">Añade un plato antes de crear promociones.</div>
+      )}
+      <div className="promotion-editor-list">
+        {catalog.promotions.map((promotion, index) => (
+          <details className="card promotion-editor" key={promotion.id} open={index === 0}>
+            <summary>
+              <span>
+                <strong>{promotion.title}</strong>
+                <small>
+                  {catalog.dishes.find((dish) => dish.id === promotion.dishId)?.name ||
+                    'Plato no disponible'}
+                </small>
+              </span>
+              <span className={`badge ${promotion.enabled ? '' : 'amber'}`}>
+                {promotion.enabled ? 'Activa' : 'Pausada'}
+              </span>
+            </summary>
+            <div className="form-grid">
+              <label>
+                Título
+                <input
+                  maxLength={80}
+                  value={promotion.title}
+                  onChange={(event) => change(promotion.id, { title: event.target.value })}
+                />
+              </label>
+              <label>
+                Insignia
+                <input
+                  maxLength={30}
+                  value={promotion.badge}
+                  onChange={(event) => change(promotion.id, { badge: event.target.value })}
+                />
+              </label>
+              <label>
+                Plato
+                <select
+                  value={promotion.dishId}
+                  onChange={(event) =>
+                    change(promotion.id, { dishId: event.target.value })
+                  }
+                >
+                  {catalog.dishes.map((dish) => (
+                    <option key={dish.id} value={dish.id}>{dish.name}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Precio promocional opcional
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={
+                    promotion.promotionalPriceCents === null
+                      ? ''
+                      : promotion.promotionalPriceCents / 100
+                  }
+                  onChange={(event) =>
+                    change(promotion.id, {
+                      promotionalPriceCents: event.target.value
+                        ? Math.round(Number(event.target.value) * 100)
+                        : null,
+                    })
+                  }
+                />
+              </label>
+              <label>
+                Inicio · hora de Ecuador
+                <input
+                  type="datetime-local"
+                  value={toLocal(promotion.startsAt)}
+                  onChange={(event) =>
+                    change(promotion.id, { startsAt: fromLocal(event.target.value) })
+                  }
+                />
+              </label>
+              <label>
+                Final · hora de Ecuador
+                <input
+                  type="datetime-local"
+                  value={toLocal(promotion.endsAt)}
+                  onChange={(event) =>
+                    change(promotion.id, { endsAt: fromLocal(event.target.value) })
+                  }
+                />
+              </label>
+            </div>
+            <label>
+              Descripción
+              <textarea
+                rows={3}
+                maxLength={220}
+                value={promotion.description}
+                onChange={(event) =>
+                  change(promotion.id, { description: event.target.value })
+                }
+              />
+            </label>
+            <label>
+              Imagen opcional
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                onChange={async (event) => {
+                  const file = event.target.files?.[0];
+                  if (file)
+                    change(promotion.id, { image: await uploadPhoto(file) });
+                }}
+              />
+              <small>Si no eliges una, se utilizará la foto del plato.</small>
+            </label>
+            <div className="actions">
+              <label className="check-label">
+                <input
+                  type="checkbox"
+                  checked={promotion.enabled}
+                  onChange={(event) =>
+                    change(promotion.id, { enabled: event.target.checked })
+                  }
+                />
+                Publicar esta campaña
+              </label>
+              <button
+                className="btn danger"
+                onClick={() =>
+                  setCatalog({
+                    ...catalog,
+                    promotions: catalog.promotions.filter(
+                      (candidate) => candidate.id !== promotion.id,
+                    ),
+                  })
+                }
+              >
+                <Trash2 size={16} /> Eliminar
+              </button>
+            </div>
+          </details>
+        ))}
+      </div>
+      <div className="save-bar">
+        <span>
+          Configura tus campañas y guarda el borrador.
+          <small>Los clientes las verán después de publicar el menú.</small>
+        </span>
+        <button className="btn primary" disabled={busy} onClick={save}>
+          <Save size={16} /> {busy ? 'Guardando…' : 'Guardar promociones'}
+        </button>
+      </div>
+    </section>
   );
 }
 

@@ -1,0 +1,9 @@
+title = "QR Menu EC secret scanning"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Documented placeholder values"
+paths = ['''\.env\.example$''', '''README\.md$''']
+regexes = ['''replace-me''', '''example''']

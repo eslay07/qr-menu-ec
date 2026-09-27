@@ -8,6 +8,13 @@
       "when": 1788730582893,
       "tag": "0000_even_inhumans",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1790424000000,
+      "tag": "0003_security_promotions_domains",
+      "breakpoints": true
     }
   ]
 }

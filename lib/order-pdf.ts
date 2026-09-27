@@ -127,6 +127,11 @@ export async function orderPdf(order: OrderRecord) {
       size: 12,
       gap: 2,
     });
+    if (item.promotion)
+      line(
+        `${item.promotion.title}: ${usd(item.promotion.regularPriceCents)} → ${usd(item.promotion.promotionalPriceCents)} (ahorro ${usd(item.promotion.savingsCents)})`,
+        { size: 9, color: rgb(0.29, 0.47, 0.18), indent: 16, gap: 1 },
+      );
     for (const option of item.options)
       line(
         `${option.groupName}: ${option.optionName}${option.priceDeltaCents ? ` (+${usd(option.priceDeltaCents)})` : ''}`,

@@ -70,7 +70,7 @@ function fakeDb(initial: HostRow[] = []) {
             );
             if (index >= 0) rows.splice(index, 1);
           } else if (sql.startsWith('UPDATE restaurant_hosts')) {
-            const row = rows.find((item) => item.hostname === values[2]);
+            const row = rows.find((item) => item.hostname === values[3]);
             if (row) {
               row.status = String(values[0]);
               row.validation_data = String(values[1]);

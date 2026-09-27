@@ -15,8 +15,15 @@ import {
   WifiOff,
 } from 'lucide-react';
 import QRCode from 'qrcode';
-import { type Catalog, type Dish, money, demoCatalog } from '@/lib/contracts';
+import {
+  activePromotion,
+  type Catalog,
+  type Dish,
+  money,
+  demoCatalog,
+} from '@/lib/contracts';
 import { api, restaurantBase } from './client';
+import Turnstile from './turnstile';
 
 type CartLine = {
   id: string;
@@ -49,7 +56,9 @@ export default function Menu({
     ),
     [error, setError] = useState(''),
     [version, setVersion] = useState(0),
-    [ordersEnabled, setOrdersEnabled] = useState(demo);
+    [ordersEnabled, setOrdersEnabled] = useState(demo),
+    [turnstileSiteKey, setTurnstileSiteKey] = useState<string | null>(null),
+    [turnstileToken, setTurnstileToken] = useState('');
   const [query, setQuery] = useState(''),
     [cat, setCat] = useState('all'),
     [cart, setCart] = useState<CartLine[]>([]),
@@ -67,6 +76,7 @@ export default function Menu({
         setCatalog(preview ? value.draft : value.catalog);
         setVersion(value.version || 0);
         setOrdersEnabled(value.ordersEnabled === true);
+        setTurnstileSiteKey(value.turnstileSiteKey || null);
       })
       .catch((e) => setError(e.message));
   }, [demo, preview, initialCatalog]);
@@ -111,6 +121,8 @@ export default function Menu({
           note,
         })),
         demo,
+        expectedTotalCents: total,
+        turnstileToken: turnstileToken || undefined,
       });
       setConfirmation(result);
       setBag(false);
@@ -134,9 +146,17 @@ export default function Menu({
     );
   if (!catalog)
     return (
-      <main className="customer-empty">
-        <Utensils />
-        <h1>Preparando la mesa…</h1>
+      <main className="skeleton-shell" aria-busy="true">
+        <span className="sr-only" role="status">
+          Preparando el menú…
+        </span>
+        <div className="skeleton-line" />
+        <div className="skeleton-block" />
+        <div className="skeleton-grid">
+          <div className="skeleton-card" />
+          <div className="skeleton-card" />
+          <div className="skeleton-card" />
+        </div>
       </main>
     );
   if (confirmation)
@@ -194,6 +214,55 @@ export default function Menu({
           Precios en USD <span>•</span> Pedido confirmado frente al mesero
         </div>
       </section>
+      {catalog.promotions.filter(
+        (promotion) => activePromotion(catalog, promotion.dishId)?.id === promotion.id,
+      ).length > 0 && (
+        <section className="promotion-carousel" aria-label="Promociones destacadas">
+          {catalog.promotions
+            .filter(
+              (promotion) =>
+                activePromotion(catalog, promotion.dishId)?.id === promotion.id,
+            )
+            .map((promotion) => {
+              const dish = catalog.dishes.find(
+                (candidate) => candidate.id === promotion.dishId,
+              );
+              if (!dish) return null;
+              const image = promotion.image || dish.image;
+              return (
+                <article className="promotion-banner" key={promotion.id}>
+                  <div>
+                    <span className="promotion-badge">{promotion.badge || 'PROMOCIÓN'}</span>
+                    <h2>{promotion.title}</h2>
+                    <p>{promotion.description}</p>
+                    <div className="promotion-price">
+                      {promotion.promotionalPriceCents !== null && (
+                        <del>{money(dish.priceCents)}</del>
+                      )}
+                      <strong>
+                        {money(
+                          promotion.promotionalPriceCents ?? dish.priceCents,
+                        )}
+                      </strong>
+                    </div>
+                    <button
+                      className="btn primary"
+                      disabled={!dish.available || preview}
+                      onClick={() => startDish(dish)}
+                    >
+                      Pedir esta promoción
+                    </button>
+                  </div>
+                  {image ? (
+                    <img src={media(image)} alt={dish.name} />
+                  ) : (
+                    <span className="promotion-placeholder"><Utensils /></span>
+                  )}
+                </article>
+              );
+            })}
+        </section>
+      )}
       <div className="menu-controls">
         <label className="search">
           <Search />
@@ -241,6 +310,9 @@ export default function Menu({
                 </div>
                 <div className="dish-grid">
                   {dishes.map((dish) => (
+                    (() => {
+                      const promotion = activePromotion(catalog, dish.id);
+                      return (
                     <article
                       className={`dish-card ${dish.available ? '' : 'unavailable'}`}
                       key={dish.id}
@@ -257,6 +329,11 @@ export default function Menu({
                         {!dish.available && (
                           <span className="photo-badge">Agotado</span>
                         )}
+                        {promotion && (
+                          <span className="photo-badge promo">
+                            {promotion.badge || 'Promoción'}
+                          </span>
+                        )}
                       </div>
                       <div className="dish-body">
                         <h3 className="dish-title">{dish.name}</h3>
@@ -270,7 +347,18 @@ export default function Menu({
                           </div>
                         )}
                         <div className="dish-bottom">
-                          <strong>{money(dish.priceCents)}</strong>
+                          <span className="dish-price">
+                            {promotion?.promotionalPriceCents !== null &&
+                              promotion?.promotionalPriceCents !== undefined && (
+                                <del>{money(dish.priceCents)}</del>
+                              )}
+                            <strong>
+                              {money(
+                                promotion?.promotionalPriceCents ??
+                                  dish.priceCents,
+                              )}
+                            </strong>
+                          </span>
                           <button
                             className="add-dish"
                             disabled={!dish.available || preview}
@@ -282,6 +370,8 @@ export default function Menu({
                         </div>
                       </div>
                     </article>
+                      );
+                    })()
                   ))}
                 </div>
               </section>
@@ -300,17 +390,18 @@ export default function Menu({
         </button>
       )}
       {bag && (
-        <div className="modal-backdrop">
+        <div className="modal-backdrop" role="presentation">
           <section
             className="modal order-review"
             role="dialog"
             aria-modal="true"
+            aria-labelledby="order-review-title"
           >
             <button className="btn" onClick={() => setBag(false)}>
               <ArrowLeft />
               Volver al menú
             </button>
-            <h2>Revisa tu pedido</h2>
+            <h2 id="order-review-title">Revisa tu pedido</h2>
             <p className="muted">
               Al confirmar se guardará una instantánea para el restaurante.
             </p>
@@ -364,17 +455,23 @@ export default function Menu({
             {ordersEnabled && !preview ? (
               <>
                 <label>
-                  Nombre o alias opcional
+                  Nombre o alias
                   <input
                     maxLength={80}
+                    required
+                    aria-required="true"
                     value={alias}
                     onChange={(e) => setAlias(e.target.value)}
                     placeholder="Ej. Ana"
                   />
                 </label>
+                <Turnstile
+                  siteKey={turnstileSiteKey}
+                  onToken={setTurnstileToken}
+                />
                 <button
                   className="btn primary confirm-order"
-                  disabled={busy || !cart.length}
+                  disabled={busy || !cart.length || !alias.trim()}
                   onClick={confirmOrder}
                 >
                   <Check />
@@ -470,12 +567,17 @@ function Configurator({
     onSave(value);
   };
   return (
-    <div className="modal-backdrop">
-      <section className="modal configurator">
+    <div className="modal-backdrop" role="presentation">
+      <section
+        className="modal configurator"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="dish-configurator-title"
+      >
         <div className="section-title">
           <div>
             <span className="eyebrow">PERSONALIZA</span>
-            <h2>{dish.name}</h2>
+            <h2 id="dish-configurator-title">{dish.name}</h2>
           </div>
           <button className="text-button" onClick={onCancel}>
             Cerrar
@@ -573,8 +675,7 @@ function ConfirmationScreen({
   const showQr = async () => {
     if (!qrSvg)
       setQrSvg(
-        await QRCode.toString(value.qrPayload, {
-          type: 'svg',
+        await QRCode.toDataURL(value.qrPayload, {
           width: 300,
           margin: 3,
           errorCorrectionLevel: 'M',
@@ -618,7 +719,7 @@ function ConfirmationScreen({
         </div>
         {qrSvg && (
           <div className="order-handoff-qr">
-            <div dangerouslySetInnerHTML={{ __html: qrSvg }} />
+            <img src={qrSvg} alt={`QR del pedido ${order.number}`} />
             <strong>El mesero puede escanear este QR</strong>
             <small>Abre el mismo detalle y su PDF durante 24 horas.</small>
           </div>
@@ -665,6 +766,7 @@ type PricedLine = {
   note: string;
   unitCents: number;
   totalCents: number;
+  promotionalPriceCents: number | null;
 };
 function priceLine(line: CartLine, catalog: Catalog): PricedLine | null {
   const dish = catalog.dishes.find((item) => item.id === line.dishId);
@@ -688,8 +790,10 @@ function priceLine(line: CartLine, catalog: Catalog): PricedLine | null {
         : [];
     });
   });
+  const promotion = activePromotion(catalog, dish.id);
+  const promotionalPriceCents = promotion?.promotionalPriceCents ?? null;
   const unitCents =
-    dish.priceCents +
+    (promotionalPriceCents ?? dish.priceCents) +
     options.reduce((sum, option) => sum + option.priceDeltaCents, 0);
   return {
     id: line.id,
@@ -699,6 +803,7 @@ function priceLine(line: CartLine, catalog: Catalog): PricedLine | null {
     note: line.note,
     unitCents,
     totalCents: unitCents * line.quantity,
+    promotionalPriceCents,
   };
 }
 function addOrCombine(lines: CartLine[], incoming: CartLine) {

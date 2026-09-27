@@ -1,0 +1,11 @@
+{
+  "name": "la-sazon-marinera",
+  "main": "alias-worker.ts",
+  "compatibility_date": "2026-05-15",
+  "services": [
+    {
+      "binding": "CORE",
+      "service": "qr-menu-ec"
+    }
+  ]
+}

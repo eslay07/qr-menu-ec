@@ -1,4 +1,8 @@
-import { CreateOrderInput, type Catalog } from './contracts';
+import {
+  CreateOrderInput,
+  activePromotion,
+  type Catalog,
+} from './contracts';
 import { digest, randomToken } from './security';
 
 export type OrderOptionSnapshot = {
@@ -18,6 +22,13 @@ export type OrderLineSnapshot = {
   totalCents: number;
   note: string;
   options: OrderOptionSnapshot[];
+  promotion?: null | {
+    id: string;
+    title: string;
+    regularPriceCents: number;
+    promotionalPriceCents: number;
+    savingsCents: number;
+  };
 };
 export type OrderRecord = {
   id: string;
@@ -72,6 +83,12 @@ export interface OrderStore {
   ): Promise<boolean>;
 }
 
+export class PriceChangedError extends Error {
+  constructor(readonly currentTotalCents: number) {
+    super('El precio cambió. Revisa el total actualizado antes de confirmar.');
+  }
+}
+
 export async function createOrderRecord(
   inputValue: unknown,
   catalog: Catalog,
@@ -79,8 +96,10 @@ export async function createOrderRecord(
   restaurantName: string,
   menuVersion: number,
   demo = false,
+  promotionsEnabled = true,
 ) {
   const input = CreateOrderInput.parse(inputValue);
+  const now = new Date();
   const lines: OrderLineSnapshot[] = input.lines.map((requested) => {
     const dish = catalog.dishes.find((item) => item.id === requested.dishId);
     if (!dish?.available)
@@ -119,8 +138,13 @@ export async function createOrderRecord(
     }
     if (requestedGroups.size)
       throw Error('El pedido contiene opciones que no pertenecen al plato.');
+    const campaign = promotionsEnabled
+      ? activePromotion(catalog, dish.id, now)
+      : undefined;
+    const basePriceCents =
+      campaign?.promotionalPriceCents ?? dish.priceCents;
     const unitPriceCents =
-      dish.priceCents +
+      basePriceCents +
       options.reduce((sum, option) => sum + option.priceDeltaCents, 0);
     return {
       id: crypto.randomUUID(),
@@ -132,10 +156,25 @@ export async function createOrderRecord(
       totalCents: unitPriceCents * requested.quantity,
       note: requested.note.trim(),
       options,
+      promotion:
+        campaign && campaign.promotionalPriceCents !== null
+          ? {
+              id: campaign.id,
+              title: campaign.title,
+              regularPriceCents: dish.priceCents,
+              promotionalPriceCents: campaign.promotionalPriceCents,
+              savingsCents: dish.priceCents - campaign.promotionalPriceCents,
+            }
+          : null,
     };
   });
+  const currentTotalCents = lines.reduce(
+    (sum, line) => sum + line.totalCents,
+    0,
+  );
+  if (input.expectedTotalCents !== currentTotalCents)
+    throw new PriceChangedError(currentTotalCents);
   const token = randomToken() + randomToken();
-  const now = new Date();
   const order: OrderRecord = {
     id: crypto.randomUUID(),
     restaurantId,
@@ -151,7 +190,7 @@ export async function createOrderRecord(
     restaurantName,
     menuVersion,
     currency: 'USD',
-    totalCents: lines.reduce((sum, line) => sum + line.totalCents, 0),
+    totalCents: currentTotalCents,
     createdAt: now.toISOString(),
     publicExpiresAt: new Date(
       now.getTime() + 24 * 60 * 60 * 1000,

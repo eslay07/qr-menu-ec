@@ -2,6 +2,7 @@ import { handleApi } from '@/lib/api';
 import { cloudStore, bindings } from '@/lib/cloud-store';
 import { D1OrderStore } from '@/lib/orders';
 import { DomainService } from '@/lib/domains';
+import { AuthSecurity } from '@/lib/auth-security';
 export const dynamic = 'force-dynamic';
 async function handle(req: Request) {
   const e = bindings();
@@ -12,6 +13,7 @@ async function handle(req: Request) {
     runtime: 'cloud',
     orderStore: new D1OrderStore(e.DB),
     domains: new DomainService(e),
+    security: new AuthSecurity(e),
   });
 }
 export const GET = handle;

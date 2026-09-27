@@ -13,16 +13,25 @@ import {
 import {
   randomToken,
   passwordHash,
+  passwordIterations,
   digest,
   constantEqual,
   verifyLicense,
   b64,
   unb64,
+  totpSecret,
+  verifyTotp,
 } from './security';
 import type { Store, State } from './store';
-import { createOrderRecord, reportFor, type OrderStore } from './orders';
+import {
+  PriceChangedError,
+  createOrderRecord,
+  reportFor,
+  type OrderStore,
+} from './orders';
 import { orderPdf } from './order-pdf';
 import type { DomainService } from './domains';
+import type { ActiveSession, AuthSecurity } from './auth-security';
 
 export type ApiOptions = {
   publicKey: string;
@@ -36,6 +45,7 @@ export type ApiOptions = {
   orderStore?: OrderStore;
   publicMenuUrl?: string;
   domains?: DomainService;
+  security?: AuthSecurity;
 };
 const jsonHeaders = {
   'Content-Type': 'application/json; charset=utf-8',
@@ -75,10 +85,43 @@ function cookie(token: string, req: Request) {
   return `${cookieName}=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${ownerSessionMs / 1000}${new URL(req.url).protocol === 'https:' ? '; Secure' : ''}`;
 }
 async function body(req: Request, max = 2_000_000) {
+  const type = req.headers.get('content-type') || '';
+  if (!type.toLowerCase().startsWith('application/json'))
+    throw Error('El cuerpo debe enviarse como application/json.');
   const bytes = await req.arrayBuffer();
   if (bytes.byteLength > max)
     throw Error('El archivo supera el tamaño permitido.');
   return JSON.parse(new TextDecoder().decode(bytes));
+}
+
+function imageDimensions(bytes: Uint8Array, type: string) {
+  if (type === 'image/png' && bytes.length >= 24) {
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    return { width: view.getUint32(16), height: view.getUint32(20) };
+  }
+  if (type === 'image/webp' && bytes.length >= 30) {
+    const chunk = new TextDecoder().decode(bytes.slice(12, 16));
+    if (chunk === 'VP8X')
+      return {
+        width: 1 + bytes[24] + (bytes[25] << 8) + (bytes[26] << 16),
+        height: 1 + bytes[27] + (bytes[28] << 8) + (bytes[29] << 16),
+      };
+  }
+  if (type === 'image/jpeg') {
+    let offset = 2;
+    while (offset + 8 < bytes.length) {
+      if (bytes[offset] !== 0xff) break;
+      const marker = bytes[offset + 1];
+      const length = (bytes[offset + 2] << 8) + bytes[offset + 3];
+      if (marker >= 0xc0 && marker <= 0xc3)
+        return {
+          height: (bytes[offset + 5] << 8) + bytes[offset + 6],
+          width: (bytes[offset + 7] << 8) + bytes[offset + 8],
+        };
+      offset += 2 + length;
+    }
+  }
+  return null;
 }
 function normalizeState(s: State) {
   s.draft = normalizeCatalog(s.draft);
@@ -105,7 +148,11 @@ function publicState(
   };
 }
 function assetIds(c: Catalog) {
-  return [c.logo, ...c.dishes.map((d) => d.image)]
+  return [
+    c.logo,
+    ...c.dishes.map((d) => d.image),
+    ...c.promotions.map((promotion) => promotion.image),
+  ]
     .filter((x) => /\/api\/v1\/media\/[a-f0-9-]{36}$/.test(x))
     .map((x) => x.split('/').pop()!);
 }
@@ -174,17 +221,25 @@ export async function handleApi(
         version: 0,
         demo: true,
         ordersEnabled: true,
+        turnstileSiteKey: opts.security?.turnstileSiteKey || null,
       });
 
     if (path === 'demo-order' && method === 'POST') {
       if (!opts.orderStore)
         return json({ error: 'Pedidos no disponibles.' }, 503);
+      const input = await body(req);
+      if (
+        opts.security &&
+        !(await opts.security.verifyTurnstile(input.turnstileToken, req))
+      )
+        return json({ error: 'No se pudo verificar que seas una persona.' }, 403);
       const created = await createOrderRecord(
-        await body(req),
+        input,
         demoCatalog,
         '__demo__',
         demoCatalog.name,
         0,
+        true,
         true,
       );
       await opts.orderStore.create(created.order, created.tokenHash);
@@ -256,7 +311,11 @@ export async function handleApi(
         settings: defaultSettings,
         published: null,
         license: null,
-        password: { salt, hash: await passwordHash(input.password, salt) },
+        password: {
+          salt,
+          hash: await passwordHash(input.password, salt),
+          iterations: passwordIterations,
+        },
         recoveryHash: await digest(recovery),
         sessionEpoch: 0,
         failures: { count: 0, until: 0 },
@@ -271,21 +330,39 @@ export async function handleApi(
         ),
       });
     }
+    let activeSession: ActiveSession | null | undefined;
+    const securityScope = opts.forcedRole === 'creator' ? 'creator' : 'owner';
+    const securityRestaurantId = opts.forcedRole === 'creator' ? null : s?.restaurantId || null;
+    const secureSession = async () => {
+      if (activeSession !== undefined) return activeSession;
+      activeSession = opts.security
+        ? await opts.security.session(req, securityScope, securityRestaurantId)
+        : null;
+      return activeSession;
+    };
     const isAuthed = async () =>
-      opts.forcedRole === 'creator' ||
-      (s ? await authenticated(req, s) : false);
+      opts.security
+        ? !!(await secureSession())
+        : opts.forcedRole === 'creator' || (s ? await authenticated(req, s) : false);
     if (path === 'session' && method === 'GET')
-      return json({
-        configured: !!s,
-        authenticated:
-          s && (opts.ownerAccess !== false || opts.forcedRole === 'creator')
+      {
+        const authenticated =
+          !!s && (opts.ownerAccess !== false || opts.forcedRole === 'creator')
             ? await isAuthed()
-            : false,
-        suspended:
-          !!s && opts.ownerAccess === false && opts.forcedRole !== 'creator',
-        platformSetup: !!opts.platformUser || opts.forcedRole === 'creator',
-        runtime: opts.runtime,
-      });
+            : false;
+        const session = authenticated ? await secureSession() : null;
+        return json({
+          configured: !!s,
+          authenticated,
+          suspended:
+            !!s && opts.ownerAccess === false && opts.forcedRole !== 'creator',
+          platformSetup: !!opts.platformUser || opts.forcedRole === 'creator',
+          runtime: opts.runtime,
+          csrfToken: session?.csrfToken || null,
+          mfaConfigured: !!s?.security?.totpEnabledAt,
+          turnstileSiteKey: opts.security?.turnstileSiteKey || null,
+        });
+      }
     if (!s || !stored)
       return json({ error: 'Configura primero el restaurante.' }, 404);
     if (opts.ownerAccess === false && opts.forcedRole !== 'creator')
@@ -304,21 +381,48 @@ export async function handleApi(
     };
 
     if ((path === 'login' || path === 'recover') && method === 'POST') {
+      const rate = opts.security
+        ? await opts.security.rateLimitAccountAndIp(
+            req,
+            path,
+            `${s.restaurantId}:${path}`,
+            path === 'login' ? 5 : 3,
+            path === 'login' ? 20 : 10,
+            path === 'login' ? 15 * 60_000 : 60 * 60_000,
+          )
+        : { allowed: true, retryAfter: 0 };
+      if (!rate.allowed)
+        return json(
+          { error: 'Demasiados intentos. Intenta nuevamente más tarde.' },
+          429,
+          { 'Retry-After': String(rate.retryAfter) },
+        );
       if (s.failures.until > Date.now())
         return json({ error: 'Demasiados intentos. Espera 15 minutos.' }, 429);
       const input = await body(req);
+      if (
+        opts.security &&
+        !(await opts.security.verifyTurnstile(input.turnstileToken, req))
+      )
+        return json({ error: 'No se pudo verificar que seas una persona.' }, 403);
       let valid = false;
       if (path === 'login') {
         const login = z
           .object({
             code: z.string().min(1).max(80),
             password: z.string().min(1).max(128),
+            turnstileToken: z.string().max(4096).optional(),
           })
+          .strict()
           .parse(input);
         valid =
           constantEqual(login.code, s.restaurantId) &&
           constantEqual(
-            await passwordHash(login.password, s.password.salt),
+            await passwordHash(
+              login.password,
+              s.password.salt,
+              s.password.iterations || 100_000,
+            ),
             s.password.hash,
           );
       } else
@@ -327,28 +431,187 @@ export async function handleApi(
           s.recoveryHash,
         );
       if (!valid) {
+        await opts.security?.audit(
+          s.restaurantId,
+          'owner:anonymous',
+          `auth.${path}.failed`,
+          'failure',
+          0,
+        );
         s.failures.count++;
         if (s.failures.count >= 5) s.failures.until = Date.now() + 900_000;
         await save();
         return json({ error: 'Credenciales incorrectas.' }, 401);
       }
       s.failures = { count: 0, until: 0 };
+      if (path === 'login' && opts.security?.encryptionReady) {
+        if (!s.password.iterations || s.password.iterations < passwordIterations) {
+          const password = z.object({ password: z.string() }).parse(input).password;
+          s.password.salt = randomToken();
+          s.password.hash = await passwordHash(password, s.password.salt);
+          s.password.iterations = passwordIterations;
+        }
+        const kind = s.security?.totpCiphertext ? 'mfa_login' : 'mfa_setup';
+        let enrollment: { secret: string; uri: string } | undefined;
+        let payload: Record<string, unknown> = {};
+        if (kind === 'mfa_setup') {
+          const secret = totpSecret();
+          payload = {
+            secretCiphertext: await opts.security.encrypt(secret),
+          };
+          enrollment = {
+            secret,
+            uri: `otpauth://totp/${encodeURIComponent(`QR Menu EC:${s.draft.name}`)}?secret=${secret}&issuer=${encodeURIComponent('QR Menu EC')}`,
+          };
+        }
+        await save();
+        const challenge = await opts.security.challenge(
+          'owner',
+          s.restaurantId,
+          kind,
+          payload,
+        );
+        return json(
+          { mfaRequired: true, enrollment },
+          200,
+          { 'Set-Cookie': challenge.cookie },
+        );
+      }
       let recovery: string | undefined;
       if (path === 'recover') {
         const password = z.string().min(12).max(128).parse(input.password);
         s.password.salt = randomToken();
         s.password.hash = await passwordHash(password, s.password.salt);
+        s.password.iterations = passwordIterations;
         s.sessionEpoch++;
         recovery = randomToken();
         s.recoveryHash = await digest(recovery);
+        if (opts.security?.encryptionReady) {
+          const kind = s.security?.totpCiphertext ? 'mfa_login' : 'mfa_setup';
+          let enrollment: { secret: string; uri: string } | undefined;
+          let payload: Record<string, unknown> = {};
+          if (kind === 'mfa_setup') {
+            const secret = totpSecret();
+            payload = { secretCiphertext: await opts.security.encrypt(secret) };
+            enrollment = {
+              secret,
+              uri: `otpauth://totp/${encodeURIComponent(`QR Menu EC:${s.draft.name}`)}?secret=${secret}&issuer=${encodeURIComponent('QR Menu EC')}`,
+            };
+          }
+          await save();
+          await opts.security.revokeSubject('owner', s.restaurantId);
+          const challenge = await opts.security.challenge(
+            'owner',
+            s.restaurantId,
+            kind,
+            payload,
+          );
+          return json(
+            { mfaRequired: true, enrollment, recovery },
+            200,
+            { 'Set-Cookie': challenge.cookie },
+          );
+        }
       }
       await save();
+      if (opts.security) {
+        const session = await opts.security.createSession('owner', s.restaurantId);
+        return json({ ok: true, recovery, csrfToken: session.csrfToken }, 200, {
+          'Set-Cookie': session.cookie,
+        });
+      }
       return json({ ok: true, recovery }, 200, {
-        'Set-Cookie': cookie(
-          await tokenFor(s, Date.now() + ownerSessionMs),
-          req,
-        ),
+        'Set-Cookie': cookie(await tokenFor(s, Date.now() + ownerSessionMs), req),
       });
+    }
+
+    if (path === 'auth/mfa/verify' && method === 'POST' && opts.security) {
+      if (!opts.security.encryptionReady)
+        return json({ error: 'El cifrado de seguridad no está configurado.' }, 503);
+      const input = z
+        .object({ code: z.string().regex(/^\d{6}$/) })
+        .strict()
+        .parse(await body(req));
+      const challenge = await opts.security.readChallenge(req, 'owner', s.restaurantId);
+      if (!challenge) return json({ error: 'El desafío venció. Inicia sesión otra vez.' }, 401);
+      const ciphertext =
+        challenge.kind === 'mfa_setup'
+          ? String(challenge.payload.secretCiphertext || '')
+          : s.security?.totpCiphertext || '';
+      const secret = await opts.security.decrypt(ciphertext);
+      if (!(await verifyTotp(secret, input.code))) {
+        await opts.security.failChallenge(challenge.hash);
+        return json({ error: 'Código de autenticación incorrecto.' }, 401);
+      }
+      let recoveryCodes: string[] | undefined;
+      if (challenge.kind === 'mfa_setup') {
+        recoveryCodes = Array.from({ length: 10 }, () =>
+          `${randomToken().slice(0, 5)}-${randomToken().slice(0, 5)}`,
+        );
+        s.security = {
+          ...s.security,
+          totpCiphertext: ciphertext,
+          totpEnabledAt: new Date().toISOString(),
+          recoveryCodeHashes: await Promise.all(recoveryCodes.map(digest)),
+        };
+        await save();
+      }
+      await opts.security.consumeChallenge(challenge.hash);
+      const session = await opts.security.createSession('owner', s.restaurantId);
+      return json(
+        { ok: true, csrfToken: session.csrfToken, recoveryCodes },
+        200,
+        { 'Set-Cookie': session.cookie },
+      );
+    }
+
+    if (path === 'auth/mfa/recover' && method === 'POST' && opts.security) {
+      const input = z
+        .object({ code: z.string().trim().min(8).max(100) })
+        .strict()
+        .parse(await body(req));
+      const challenge = await opts.security.readChallenge(
+        req,
+        'owner',
+        s.restaurantId,
+      );
+      if (!challenge)
+        return json({ error: 'El desafío venció. Inicia sesión otra vez.' }, 401);
+      const hash = await digest(input.code);
+      const codes = s.security?.recoveryCodeHashes || [];
+      const index = codes.findIndex((candidate) => constantEqual(candidate, hash));
+      if (index < 0) {
+        await opts.security.failChallenge(challenge.hash);
+        return json({ error: 'Código de recuperación incorrecto.' }, 401);
+      }
+      s.security = {
+        ...s.security,
+        recoveryCodeHashes: codes.filter((_, candidate) => candidate !== index),
+      };
+      await save();
+      await opts.security.consumeChallenge(challenge.hash);
+      const session = await opts.security.createSession('owner', s.restaurantId);
+      return json({ ok: true, csrfToken: session.csrfToken }, 200, {
+        'Set-Cookie': session.cookie,
+      });
+    }
+
+    if (path === 'email/verify' && method === 'GET' && opts.security) {
+      const token = z.string().min(40).max(300).parse(url.searchParams.get('token'));
+      const action = await opts.security.consumeActionToken(
+        token,
+        'owner',
+        s.restaurantId,
+        'email_verify',
+      );
+      if (!action)
+        return json({ error: 'El enlace venció o ya fue utilizado.' }, 410);
+      s.security = {
+        ...s.security,
+        emailVerifiedAt: new Date().toISOString(),
+      };
+      await save();
+      return json({ ok: true, message: 'Correo verificado correctamente.' });
     }
 
     const role: 'creator' | 'owner' =
@@ -358,7 +621,7 @@ export async function handleApi(
         : 'owner';
     const features =
       role === 'creator'
-        ? (['orders'] as Feature[])
+        ? (['orders', 'promotions'] as Feature[])
         : opts.grantedFeatures || s.access?.features || [];
     if (path === 'menu' && method === 'GET') {
       if (!s.published)
@@ -368,9 +631,12 @@ export async function handleApi(
         );
       return json({
         ...s.published,
-        catalog: s.published.catalog,
+        catalog: features.includes('promotions')
+          ? s.published.catalog
+          : { ...s.published.catalog, promotions: [] },
         restaurantId: s.restaurantId,
         ordersEnabled: s.settings.ordersEnabled && features.includes('orders'),
+        turnstileSiteKey: opts.security?.turnstileSiteKey || null,
       });
     }
     if (path === 'orders' && method === 'POST') {
@@ -381,12 +647,35 @@ export async function handleApi(
         !features.includes('orders')
       )
         return json({ error: 'Los pedidos por QR no están habilitados.' }, 403);
+      const orderRate = opts.security
+        ? await opts.security.rateLimit(
+            req,
+            'orders',
+            s.restaurantId,
+            30,
+            10 * 60_000,
+          )
+        : { allowed: true, retryAfter: 0 };
+      if (!orderRate.allowed)
+        return json(
+          { error: 'Se alcanzó el límite temporal de pedidos. Intenta más tarde.' },
+          429,
+          { 'Retry-After': String(orderRate.retryAfter) },
+        );
+      const input = await body(req);
+      if (
+        opts.security &&
+        !(await opts.security.verifyTurnstile(input.turnstileToken, req))
+      )
+        return json({ error: 'No se pudo verificar que seas una persona.' }, 403);
       const created = await createOrderRecord(
-        await body(req),
+        input,
         s.published.catalog,
         s.restaurantId,
         s.published.catalog.name,
         s.published.version,
+        false,
+        features.includes('promotions'),
       );
       await opts.orderStore.create(created.order, created.tokenHash);
       const publicUrl = orderPublicUrl(req, created.token, opts.basePath);
@@ -421,12 +710,76 @@ export async function handleApi(
         { error: 'Inicia sesión para administrar el restaurante.' },
         401,
       );
+    if (
+      opts.security &&
+      method !== 'GET' &&
+      method !== 'HEAD' &&
+      !(await opts.security.requireCsrf(req, await secureSession()))
+    )
+      return json({ error: 'La sesión de seguridad cambió. Recarga la página.' }, 403);
     if (path === 'logout' && method === 'POST') {
+      if (opts.security) {
+        await opts.security.revokeSession(req, securityScope);
+        return json({ ok: true }, 200, {
+          'Set-Cookie': opts.security.clearSessionCookie(securityScope),
+        });
+      }
       s.sessionEpoch++;
       await save();
       return json({ ok: true }, 200, {
         'Set-Cookie': `${cookieName}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0`,
       });
+    }
+    if (path === 'email' && method === 'GET')
+      return json({
+        configured: !!s.security?.emailCiphertext,
+        verified: !!s.security?.emailVerifiedAt,
+        verificationEnabled: opts.security?.emailVerificationEnabled || false,
+      });
+    if (path === 'email' && method === 'PUT' && opts.security) {
+      const input = z
+        .object({ email: z.string().trim().email().max(254) })
+        .strict()
+        .parse(await body(req));
+      const normalized = input.email.toLowerCase();
+      s.security = {
+        ...s.security,
+        emailCiphertext: await opts.security.encrypt(normalized),
+        emailHash: await digest(normalized),
+        emailVerifiedAt: undefined,
+      };
+      await save();
+      return json({ ok: true });
+    }
+    if (path === 'email/verification' && method === 'POST' && opts.security) {
+      if (!s.security?.emailCiphertext)
+        return json({ error: 'Esta cuenta todavía no tiene correo.' }, 409);
+      const email = await opts.security.decrypt(s.security.emailCiphertext);
+      const token = await opts.security.issueActionToken(
+        'owner',
+        s.restaurantId,
+        'email_verify',
+      );
+      const link = `${url.origin}${opts.basePath || ''}/api/v1/email/verify?token=${encodeURIComponent(token)}`;
+      await opts.security.sendEmail(
+        email,
+        'Verifica tu correo de QR Menu EC',
+        `<p>Confirma tu correo para QR Menu EC.</p><p><a href="${link}">Verificar correo</a></p><p>El enlace vence en 30 minutos.</p>`,
+      );
+      return json({ ok: true });
+    }
+    if (path === 'sessions' && method === 'GET' && opts.security)
+      return json({
+        sessions: await opts.security.listSessions('owner', s.restaurantId),
+      });
+    const sessionMatch = path.match(/^sessions\/([a-f0-9]{64})$/);
+    if (sessionMatch && method === 'DELETE' && opts.security) {
+      await opts.security.revokeSessionById(
+        'owner',
+        s.restaurantId,
+        sessionMatch[1],
+      );
+      return json({ ok: true });
     }
     if (path === 'state' && method === 'GET')
       return json(publicState(s, stored.revision, role, features));
@@ -445,12 +798,22 @@ export async function handleApi(
       return json(domains);
     }
     if (path === 'domain' && method === 'PUT') {
+      if (role !== 'creator')
+        return json(
+          { error: 'Solo el creador administra dominios propios.' },
+          403,
+        );
       if (!opts.domains)
         return json({ error: 'Dominios personalizados no disponibles.' }, 503);
       const input = z.object({ hostname: z.string() }).parse(await body(req));
       return json(await opts.domains.put(s.restaurantId, input.hostname));
     }
     if (path === 'domain/verify' && method === 'POST') {
+      if (role !== 'creator')
+        return json(
+          { error: 'Solo el creador administra dominios propios.' },
+          403,
+        );
       if (!opts.domains)
         return json({ error: 'Dominios personalizados no disponibles.' }, 503);
       return json(await opts.domains.verify(s.restaurantId));
@@ -529,6 +892,19 @@ export async function handleApi(
           new TextDecoder().decode(bytes.slice(8, 12)) === 'WEBP');
       if (!magic)
         return json({ error: 'Solo fotos JPEG, PNG o WebP válidas.' }, 415);
+      const dimensions = imageDimensions(bytes, type);
+      if (
+        !dimensions ||
+        dimensions.width < 1 ||
+        dimensions.height < 1 ||
+        dimensions.width > 4096 ||
+        dimensions.height > 4096 ||
+        dimensions.width * dimensions.height > 12_000_000
+      )
+        return json(
+          { error: 'La foto tiene dimensiones inválidas o demasiado grandes.' },
+          415,
+        );
       const mediaId = crypto.randomUUID();
       await store.mediaPut(mediaId, bytes, type);
       return json(
@@ -592,6 +968,10 @@ export async function handleApi(
         ...dish,
         image: mapAsset(dish.image),
       }));
+      draft.promotions = draft.promotions.map((promotion) => ({
+        ...promotion,
+        image: mapAsset(promotion.image),
+      }));
       s.draft = draft;
       s.settings = {
         ...settings,
@@ -609,8 +989,8 @@ export async function handleApi(
       const domains = opts.domains
         ? await opts.domains.get(s.restaurantId)
         : null;
-      const payload = domains?.free
-        ? `https://${domains.free.hostname}/menu`
+      const payload = domains?.primary
+        ? `https://${domains.primary.hostname}/menu`
         : opts.publicMenuUrl ||
           s.settings.webUrl ||
           `${url.origin}${opts.basePath || ''}/menu`;
@@ -640,14 +1020,18 @@ export async function handleApi(
     if (path === 'orders' && method === 'GET') {
       if (!opts.orderStore || !features.includes('orders'))
         return json({ error: 'Pedidos no disponibles.' }, 403);
+      const limit = Math.min(
+        100,
+        Math.max(1, Number(url.searchParams.get('limit') || 50)),
+      );
       const orders = await opts.orderStore.list(s.restaurantId, {
         status: url.searchParams.get('status') || undefined,
         from: url.searchParams.get('from') || undefined,
         to: url.searchParams.get('to') || undefined,
         query: url.searchParams.get('query') || undefined,
-        limit: 2000,
+        limit,
       });
-      return json({ orders });
+      return json({ orders, limit, hasMore: orders.length === limit });
     }
     const cancelMatch = path.match(/^orders\/([a-f0-9-]{36})\/status$/);
     if (cancelMatch && method === 'PATCH') {
@@ -670,6 +1054,7 @@ export async function handleApi(
       const orders = await opts.orderStore.list(s.restaurantId, {
         from: url.searchParams.get('from') || undefined,
         to: url.searchParams.get('to') || undefined,
+        limit: 5_000,
       });
       return new Response(ordersCsv(orders), {
         headers: {
@@ -685,6 +1070,7 @@ export async function handleApi(
       const orders = await opts.orderStore.list(s.restaurantId, {
         from: url.searchParams.get('from') || undefined,
         to: url.searchParams.get('to') || undefined,
+        limit: 500,
       });
       const report = reportFor(orders);
       const sold = new Map(report.dishes.map((dish) => [dish.id, dish]));
@@ -712,7 +1098,7 @@ export async function handleApi(
               ? error.message
               : 'No se pudo completar la operación.',
       },
-      400,
+      error instanceof PriceChangedError ? 409 : 400,
     );
   }
 }

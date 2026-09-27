@@ -14,7 +14,7 @@ const publicKey = Buffer.from(
   pair.publicKey.export({ type: 'spki', format: 'der' }).subarray(-32),
 ).toString('base64');
 
-function harness(features: 'orders'[] = ['orders']) {
+function harness(features: Array<'orders' | 'promotions'> = ['orders']) {
   let data: Stored | null = null,
     ownerAccess = true;
   const media = new Map<string, { bytes: Uint8Array; type: string }>(),
@@ -198,6 +198,7 @@ test('configured order pricing is rebuilt on the server', async () => {
   const { h } = await configured();
   const result = await h.call('orders', 'POST', {
     alias: 'Ana',
+    expectedTotalCents: 1500,
     lines: [
       {
         dishId: 'desayuno-continental',
@@ -254,7 +255,8 @@ test('invalid modifier choices and disabled ordering are rejected', async () => 
 test('reports exclude cancelled orders', async () => {
   const { h } = await configured();
   const created = await h.call('orders', 'POST', {
-    alias: '',
+    alias: 'Mesa 4',
+    expectedTotalCents: 750,
     lines: [{ dishId: 'seco', quantity: 1, note: '', selections: [] }],
   });
   let report = await h.call('reports/orders');
@@ -266,6 +268,66 @@ test('reports exclude cancelled orders', async () => {
   report = await h.call('reports/orders');
   assert.equal(report.body.report.confirmedOrders, 0);
   assert.equal(report.body.report.cancelledOrders, 1);
+});
+
+test('active promotions are snapshotted and stale totals are rejected', async () => {
+  const h = harness(['orders', 'promotions']);
+  await h.call('setup', 'POST', {
+    name: 'Mesa',
+    password: 'test-password-123',
+    setupToken: 'setup-secret',
+  });
+  let state = (await h.call('state')).body;
+  await h.call('draft', 'PUT', {
+    revision: state.revision,
+    catalog: demoCatalog,
+  });
+  state = (await h.call('state')).body;
+  await h.call('settings', 'PUT', {
+    revision: state.revision,
+    settings: { webUrl: '', ordersEnabled: true },
+  });
+  state = (await h.call('state')).body;
+  await h.call('publish', 'POST', { revision: state.revision });
+  const stale = await h.call('orders', 'POST', {
+    alias: 'Luis',
+    expectedTotalCents: 650,
+    lines: [
+      {
+        dishId: 'desayuno-continental',
+        quantity: 1,
+        note: '',
+        selections: [
+          { groupId: 'bebida-caliente', optionIds: ['cafe'] },
+          { groupId: 'jugo', optionIds: ['naranja'] },
+          { groupId: 'extras', optionIds: [] },
+        ],
+      },
+    ],
+  });
+  assert.equal(stale.status, 409);
+  const accepted = await h.call('orders', 'POST', {
+    alias: 'Luis',
+    expectedTotalCents: 595,
+    lines: [
+      {
+        dishId: 'desayuno-continental',
+        quantity: 1,
+        note: '',
+        selections: [
+          { groupId: 'bebida-caliente', optionIds: ['cafe'] },
+          { groupId: 'jugo', optionIds: ['naranja'] },
+          { groupId: 'extras', optionIds: [] },
+        ],
+      },
+    ],
+  });
+  assert.equal(accepted.status, 201);
+  assert.equal(
+    accepted.body.order.lines[0].promotion.promotionalPriceCents,
+    595,
+  );
+  assert.equal(accepted.body.order.lines[0].promotion.savingsCents, 55);
 });
 
 test('authentication, conflicts, suspension and recovery remain enforced', async () => {

@@ -9,6 +9,15 @@ export type Bindings = {
   CLOUDFLARE_ZONE_ID?: string;
   CLOUDFLARE_API_TOKEN?: string;
   CLOUDFLARE_CNAME_TARGET?: string;
+  CLOUDFLARE_ACCOUNT_ID?: string;
+  CLOUDFLARE_WORKERS_SUBDOMAIN?: string;
+  CORE_WORKER_SERVICE?: string;
+  DATA_ENCRYPTION_KEY?: string;
+  TURNSTILE_SECRET_KEY?: string;
+  TURNSTILE_SITE_KEY?: string;
+  EMAIL_VERIFICATION_ENABLED?: string;
+  RESEND_API_KEY?: string;
+  EMAIL_FROM?: string;
 };
 export function bindings() {
   return env as unknown as Bindings;

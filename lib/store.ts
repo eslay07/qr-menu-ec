@@ -13,12 +13,20 @@ export interface State {
     settings?: Settings;
   };
   license: License | null;
-  password: { salt: string; hash: string };
+  password: { salt: string; hash: string; iterations?: number };
   recoveryHash: string;
   sessionEpoch: number;
   failures: { count: number; until: number };
   createdAt: string;
   access?: { active: boolean; features?: Feature[] };
+  security?: {
+    emailCiphertext?: string;
+    emailHash?: string;
+    emailVerifiedAt?: string;
+    totpCiphertext?: string;
+    totpEnabledAt?: string;
+    recoveryCodeHashes?: string[];
+  };
 }
 export interface Stored {
   revision: number;

@@ -6,25 +6,42 @@ import {
   normalizeCatalog,
   normalizeSettings,
 } from './contracts';
-import { constantEqual, digest, passwordHash, randomToken } from './security';
+import {
+  constantEqual,
+  digest,
+  passwordHash,
+  passwordIterations,
+  randomToken,
+  totpSecret,
+  verifyTotp,
+} from './security';
 import type { State } from './store';
 import { DomainService, type DomainEnv } from './domains';
+import { AuthSecurity, type ActiveSession } from './auth-security';
 
 export type CentralEnv = DomainEnv & {
   DB: D1Database;
   CREATOR_SETUP_TOKEN: string;
   LICENSE_PUBLIC_KEY?: string;
+  DATA_ENCRYPTION_KEY?: string;
+  TURNSTILE_SECRET_KEY?: string;
+  TURNSTILE_SITE_KEY?: string;
+  EMAIL_VERIFICATION_ENABLED?: string;
+  RESEND_API_KEY?: string;
+  EMAIL_FROM?: string;
 };
 type CreatorState = {
-  password: { salt: string; hash: string };
+  password: { salt: string; hash: string; iterations?: number };
   recoveryHash: string;
   sessionEpoch: number;
   failures: { count: number; until: number };
   createdAt: string;
+  security?: State['security'];
 };
 const normalizeFeatures = (features?: string[]) =>
   (features || []).filter(
-    (feature): feature is Feature => feature === 'orders',
+    (feature): feature is Feature =>
+      feature === 'orders' || feature === 'promotions',
   );
 const creatorId = '__creator__';
 const cookieName = 'qrmenu_creator_session';
@@ -100,7 +117,10 @@ async function creatorAuthenticated(request: Request, state: CreatorState) {
 }
 export async function isCreatorRequest(request: Request, env: CentralEnv) {
   const creator = await readCreator(env);
-  return !!creator && (await creatorAuthenticated(request, creator.state));
+  if (!creator) return false;
+  if (env.DATA_ENCRYPTION_KEY)
+    return !!(await new AuthSecurity(env).session(request, 'creator', null));
+  return creatorAuthenticated(request, creator.state);
 }
 
 export async function handleCreatorApi(
@@ -111,6 +131,7 @@ export async function handleCreatorApi(
     const url = new URL(request.url);
     const path = url.pathname.replace(/^\/api\/creator\/?/, '');
     const method = request.method;
+    const security = env.DATA_ENCRYPTION_KEY ? new AuthSecurity(env) : null;
     if (method !== 'GET' && method !== 'HEAD') {
       const origin = request.headers.get('origin');
       if (origin && origin !== url.origin)
@@ -119,13 +140,28 @@ export async function handleCreatorApi(
         return json({ error: 'Se requiere JSON.' }, 415);
     }
     const creator = await readCreator(env);
-    if (path === 'session' && method === 'GET')
+    let activeSession: ActiveSession | null | undefined;
+    const secureSession = async () => {
+      if (activeSession !== undefined) return activeSession;
+      activeSession = security
+        ? await security.session(request, 'creator', null)
+        : null;
+      return activeSession;
+    };
+    if (path === 'session' && method === 'GET') {
+      const authenticated = creator
+        ? security
+          ? !!(await secureSession())
+          : await creatorAuthenticated(request, creator.state)
+        : false;
       return json({
         configured: !!creator,
-        authenticated: creator
-          ? await creatorAuthenticated(request, creator.state)
-          : false,
+        authenticated,
+        csrfToken: authenticated ? (await secureSession())?.csrfToken || null : null,
+        mfaConfigured: !!creator?.state.security?.totpEnabledAt,
+        turnstileSiteKey: security?.turnstileSiteKey || null,
       });
+    }
     if (path === 'setup' && method === 'POST') {
       if (creator)
         return json(
@@ -136,8 +172,13 @@ export async function handleCreatorApi(
         .object({
           setupToken: z.string().min(20).max(200),
           password: z.string().min(12).max(128),
+          email: z.string().email().max(254).optional(),
+          turnstileToken: z.string().max(4096).optional(),
         })
+        .strict()
         .parse(await requestBody(request));
+      if (security && !(await security.verifyTurnstile(input.turnstileToken, request)))
+        return json({ error: 'No se pudo verificar que seas una persona.' }, 403);
       if (
         !env.CREATOR_SETUP_TOKEN ||
         !constantEqual(input.setupToken, env.CREATOR_SETUP_TOKEN)
@@ -146,14 +187,43 @@ export async function handleCreatorApi(
       const salt = randomToken(),
         recovery = randomToken();
       const state: CreatorState = {
-        password: { salt, hash: await passwordHash(input.password, salt) },
+        password: {
+          salt,
+          hash: await passwordHash(input.password, salt),
+          iterations: passwordIterations,
+        },
         recoveryHash: await digest(recovery),
         sessionEpoch: 0,
         failures: { count: 0, until: 0 },
         createdAt: new Date().toISOString(),
+        security:
+          input.email && security
+            ? {
+                emailCiphertext: await security.encrypt(input.email.toLowerCase()),
+                emailHash: await digest(input.email.toLowerCase()),
+              }
+            : undefined,
       };
       if (!(await saveCreator(env, state, null)))
         return json({ error: 'El panel ya fue configurado.' }, 409);
+      if (security) {
+        const secret = totpSecret();
+        const challenge = await security.challenge('creator', null, 'mfa_setup', {
+          secretCiphertext: await security.encrypt(secret),
+        });
+        return json(
+          {
+            recovery,
+            mfaRequired: true,
+            enrollment: {
+              secret,
+              uri: `otpauth://totp/${encodeURIComponent('QR Menu EC:Creador')}?secret=${secret}&issuer=${encodeURIComponent('QR Menu EC')}`,
+            },
+          },
+          201,
+          { 'Set-Cookie': challenge.cookie },
+        );
+      }
       return json({ recovery }, 201, {
         'Set-Cookie': cookie(
           await creatorToken(state, Date.now() + 86_400_000),
@@ -164,16 +234,49 @@ export async function handleCreatorApi(
     if (!creator)
       return json({ error: 'Configura primero el panel del creador.' }, 404);
     if (path === 'login' && method === 'POST') {
+      const rate = security
+        ? await security.rateLimitAccountAndIp(
+            request,
+            'creator-login',
+            'creator',
+            5,
+            20,
+            15 * 60_000,
+          )
+        : { allowed: true, retryAfter: 0 };
+      if (!rate.allowed)
+        return json(
+          { error: 'Demasiados intentos. Intenta nuevamente más tarde.' },
+          429,
+          { 'Retry-After': String(rate.retryAfter) },
+        );
       if (creator.state.failures.until > Date.now())
         return json({ error: 'Demasiados intentos. Espera 15 minutos.' }, 429);
       const input = z
-        .object({ password: z.string().min(1).max(128) })
+        .object({
+          password: z.string().min(1).max(128),
+          turnstileToken: z.string().max(4096).optional(),
+        })
+        .strict()
         .parse(await requestBody(request));
+      if (security && !(await security.verifyTurnstile(input.turnstileToken, request)))
+        return json({ error: 'No se pudo verificar que seas una persona.' }, 403);
       const valid = constantEqual(
-        await passwordHash(input.password, creator.state.password.salt),
+        await passwordHash(
+          input.password,
+          creator.state.password.salt,
+          creator.state.password.iterations || 100_000,
+        ),
         creator.state.password.hash,
       );
       if (!valid) {
+        await security?.audit(
+          null,
+          'creator:anonymous',
+          'auth.login.failed',
+          'failure',
+          0,
+        );
         creator.state.failures.count++;
         if (creator.state.failures.count >= 5)
           creator.state.failures.until = Date.now() + 900_000;
@@ -181,6 +284,39 @@ export async function handleCreatorApi(
         return json({ error: 'Contraseña incorrecta.' }, 401);
       }
       creator.state.failures = { count: 0, until: 0 };
+      if (security) {
+        if (
+          !creator.state.password.iterations ||
+          creator.state.password.iterations < passwordIterations
+        ) {
+          creator.state.password.salt = randomToken();
+          creator.state.password.hash = await passwordHash(
+            input.password,
+            creator.state.password.salt,
+          );
+          creator.state.password.iterations = passwordIterations;
+        }
+        const kind = creator.state.security?.totpCiphertext
+          ? 'mfa_login'
+          : 'mfa_setup';
+        let enrollment: { secret: string; uri: string } | undefined;
+        let payload: Record<string, unknown> = {};
+        if (kind === 'mfa_setup') {
+          const secret = totpSecret();
+          payload = { secretCiphertext: await security.encrypt(secret) };
+          enrollment = {
+            secret,
+            uri: `otpauth://totp/${encodeURIComponent('QR Menu EC:Creador')}?secret=${secret}&issuer=${encodeURIComponent('QR Menu EC')}`,
+          };
+        }
+        await saveCreator(env, creator.state, creator.revision);
+        const challenge = await security.challenge('creator', null, kind, payload);
+        return json(
+          { mfaRequired: true, enrollment },
+          200,
+          { 'Set-Cookie': challenge.cookie },
+        );
+      }
       await saveCreator(env, creator.state, creator.revision);
       return json({ ok: true }, 200, {
         'Set-Cookie': cookie(
@@ -189,9 +325,89 @@ export async function handleCreatorApi(
         ),
       });
     }
-    if (!(await creatorAuthenticated(request, creator.state)))
+    if (path === 'auth/mfa/verify' && method === 'POST' && security) {
+      const input = z
+        .object({ code: z.string().regex(/^\d{6}$/) })
+        .strict()
+        .parse(await requestBody(request));
+      const challenge = await security.readChallenge(request, 'creator', null);
+      if (!challenge)
+        return json({ error: 'El desafío venció. Inicia sesión otra vez.' }, 401);
+      const ciphertext =
+        challenge.kind === 'mfa_setup'
+          ? String(challenge.payload.secretCiphertext || '')
+          : creator.state.security?.totpCiphertext || '';
+      const secret = await security.decrypt(ciphertext);
+      if (!(await verifyTotp(secret, input.code))) {
+        await security.failChallenge(challenge.hash);
+        return json({ error: 'Código de autenticación incorrecto.' }, 401);
+      }
+      let recoveryCodes: string[] | undefined;
+      if (challenge.kind === 'mfa_setup') {
+        recoveryCodes = Array.from({ length: 10 }, () =>
+          `${randomToken().slice(0, 5)}-${randomToken().slice(0, 5)}`,
+        );
+        creator.state.security = {
+          ...creator.state.security,
+          totpCiphertext: ciphertext,
+          totpEnabledAt: new Date().toISOString(),
+          recoveryCodeHashes: await Promise.all(recoveryCodes.map(digest)),
+        };
+        await saveCreator(env, creator.state, creator.revision);
+      }
+      await security.consumeChallenge(challenge.hash);
+      const session = await security.createSession('creator', null);
+      return json(
+        { ok: true, csrfToken: session.csrfToken, recoveryCodes },
+        200,
+        { 'Set-Cookie': session.cookie },
+      );
+    }
+    if (path === 'auth/mfa/recover' && method === 'POST' && security) {
+      const input = z
+        .object({ code: z.string().trim().min(8).max(100) })
+        .strict()
+        .parse(await requestBody(request));
+      const challenge = await security.readChallenge(request, 'creator', null);
+      if (!challenge)
+        return json({ error: 'El desafío venció. Inicia sesión otra vez.' }, 401);
+      const hash = await digest(input.code);
+      const codes = creator.state.security?.recoveryCodeHashes || [];
+      const index = codes.findIndex((candidate) => constantEqual(candidate, hash));
+      if (index < 0) {
+        await security.failChallenge(challenge.hash);
+        return json({ error: 'Código de recuperación incorrecto.' }, 401);
+      }
+      creator.state.security = {
+        ...creator.state.security,
+        recoveryCodeHashes: codes.filter((_, candidate) => candidate !== index),
+      };
+      await saveCreator(env, creator.state, creator.revision);
+      await security.consumeChallenge(challenge.hash);
+      const session = await security.createSession('creator', null);
+      return json({ ok: true, csrfToken: session.csrfToken }, 200, {
+        'Set-Cookie': session.cookie,
+      });
+    }
+    const creatorIsAuthenticated = security
+      ? !!(await secureSession())
+      : await creatorAuthenticated(request, creator.state);
+    if (!creatorIsAuthenticated)
       return json({ error: 'Inicia sesión como creador.' }, 401);
+    if (
+      security &&
+      method !== 'GET' &&
+      method !== 'HEAD' &&
+      !(await security.requireCsrf(request, await secureSession()))
+    )
+      return json({ error: 'La sesión de seguridad cambió. Recarga la página.' }, 403);
     if (path === 'logout' && method === 'POST') {
+      if (security) {
+        await security.revokeSession(request, 'creator');
+        return json({ ok: true }, 200, {
+          'Set-Cookie': security.clearSessionCookie('creator'),
+        });
+      }
       creator.state.sessionEpoch++;
       await saveCreator(env, creator.state, creator.revision);
       return json({ ok: true }, 200, { 'Set-Cookie': clearCookie });
@@ -218,12 +434,26 @@ export async function handleCreatorApi(
       });
       return json({ restaurants });
     }
+    if (path === 'domain-settings' && method === 'GET')
+      return json(await new DomainService(env).platformConfig());
+    if (path === 'domain-settings' && method === 'PUT') {
+      const input = z
+        .object({ baseHostname: z.string().trim().toLowerCase() })
+        .strict()
+        .parse(await requestBody(request));
+      return json(
+        await new DomainService(env).configurePlatformDomain(
+          input.baseHostname,
+        ),
+      );
+    }
     if (path === 'restaurants' && method === 'POST') {
       const input = z
         .object({
           name: z.string().trim().min(1).max(80),
           ownerPassword: z.string().min(12).max(128),
-          features: z.array(Feature).max(1).default([]),
+          ownerEmail: z.string().email().max(254),
+          features: z.array(Feature).max(2).default([]),
         })
         .parse(await requestBody(request));
       const id = crypto.randomUUID(),
@@ -239,12 +469,24 @@ export async function handleCreatorApi(
         settings,
         published: null,
         license: null,
-        password: { salt, hash: await passwordHash(input.ownerPassword, salt) },
+        password: {
+          salt,
+          hash: await passwordHash(input.ownerPassword, salt),
+          iterations: passwordIterations,
+        },
         recoveryHash: await digest(recovery),
         sessionEpoch: 0,
         failures: { count: 0, until: 0 },
         createdAt: new Date().toISOString(),
         access: { active: true, features: input.features },
+        security: security
+          ? {
+              emailCiphertext: await security.encrypt(
+                input.ownerEmail.toLowerCase(),
+              ),
+              emailHash: await digest(input.ownerEmail.toLowerCase()),
+            }
+          : undefined,
       };
       const result = await env.DB.prepare(
         'INSERT OR IGNORE INTO application (id,revision,data) VALUES (?,0,?)',
@@ -280,7 +522,7 @@ export async function handleCreatorApi(
       const input = z
         .object({
           active: z.boolean(),
-          features: z.array(Feature).max(1),
+          features: z.array(Feature).max(2),
         })
         .parse(await requestBody(request));
       const row = await env.DB.prepare(
@@ -304,6 +546,40 @@ export async function handleCreatorApi(
         );
       return json({ ok: true });
     }
+    const hostnameMatch = path.match(
+      /^restaurants\/([a-f0-9-]{36})\/hostname$/,
+    );
+    if (hostnameMatch && method === 'POST') {
+      const row = await env.DB.prepare('SELECT data FROM application WHERE id = ?')
+        .bind(hostnameMatch[1])
+        .first<{ data: string }>();
+      if (!row) return json({ error: 'Restaurante no encontrado.' }, 404);
+      const state = JSON.parse(row.data) as State;
+      await new DomainService(env).provisionFree(
+        hostnameMatch[1],
+        state.draft.name,
+        url.origin,
+      );
+      return json(await new DomainService(env).get(hostnameMatch[1]));
+    }
+    const customDomainMatch = path.match(
+      /^restaurants\/([a-f0-9-]{36})\/custom-domain$/,
+    );
+    if (customDomainMatch && method === 'PUT') {
+      const input = z
+        .object({ hostname: z.string() })
+        .strict()
+        .parse(await requestBody(request));
+      return json(
+        await new DomainService(env).put(customDomainMatch[1], input.hostname),
+      );
+    }
+    if (customDomainMatch && method === 'POST')
+      return json(await new DomainService(env).verify(customDomainMatch[1]));
+    if (customDomainMatch && method === 'DELETE')
+      return json(
+        await new DomainService(env).removeCustom(customDomainMatch[1]),
+      );
     const resetMatch = path.match(/^restaurants\/([a-f0-9-]{36})\/reset$/);
     if (resetMatch && method === 'POST') {
       const input = z
@@ -318,7 +594,18 @@ export async function handleCreatorApi(
       const state = JSON.parse(row.data) as State;
       const salt = randomToken(),
         recovery = randomToken();
-      state.password = { salt, hash: await passwordHash(input.password, salt) };
+      state.password = {
+        salt,
+        hash: await passwordHash(input.password, salt),
+        iterations: passwordIterations,
+      };
+      state.security = {
+        ...state.security,
+        totpCiphertext: undefined,
+        totpEnabledAt: undefined,
+        recoveryCodeHashes: undefined,
+      };
+      if (security) await security.revokeSubject('owner', resetMatch[1]);
       state.recoveryHash = await digest(recovery);
       state.sessionEpoch++;
       state.failures = { count: 0, until: 0 };
