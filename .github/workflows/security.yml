@@ -50,7 +50,7 @@ jobs:
           upload-database: false
           output: codeql-results
       - name: Preserve CodeQL SARIF
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: codeql-results
           path: codeql-results
