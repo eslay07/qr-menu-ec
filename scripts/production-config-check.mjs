@@ -37,7 +37,9 @@ try {
     if (!response.ok) throw Error('Public JS read failed.');
     const text = await response.text();
     artifacts.push({ containsViteFlag: text.includes('VITE_FCM_ENABLED'), containsPushSettings: text.includes('Las notificaciones push aún no están habilitadas'),
-      containsPushRegistration: text.includes('push/device'), containsMessagingSDK: text.includes('fcmregistrations.googleapis.com') });
+      containsPushRegistration: text.includes('push/device'), containsMessagingSDK: [...text.matchAll(/https?:\/\/[A-Za-z0-9.-]+(?:\/[^\s"'`<>]*)?/g)].some(match => {
+        try { return new URL(match[0]).hostname === 'fcmregistrations.googleapis.com'; } catch { return false; }
+      }) });
   }
   if ((await get('/deployments')).deployments[0].id !== active.id) throw Error('Deployment changed during inspection.');
   console.log(JSON.stringify({ checkedAt: new Date().toISOString(), scope: 'active production version; no changes', checks,

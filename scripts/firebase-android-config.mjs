@@ -15,5 +15,5 @@ try {
   const decoded = JSON.parse(Buffer.from(config.configFileContents, 'base64').toString('utf8'));
   const client = decoded.client.find(item => item.client_info.android_client_info.package_name === 'ec.qrmenu.app');
   // Only public SDK identifiers, never a service account or registration token.
-  console.log(JSON.stringify({ appId: client.client_info.mobilesdk_app_id, projectId: decoded.project_info.project_id, senderId: decoded.project_info.project_number, apiKey: client.api_key[0].current_key }));
+  console.log(JSON.stringify({ appId: client.client_info.mobilesdk_app_id, projectId: decoded.project_info.project_id, senderId: decoded.project_info.project_number }));
 } catch { console.error('Android configuration could not be obtained; no credentials printed.'); process.exitCode = 1; }

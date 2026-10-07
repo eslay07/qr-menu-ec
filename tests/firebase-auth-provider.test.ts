@@ -27,7 +27,7 @@ test('Firebase OAuth and administrative lookup preserve the Workers global recei
   const transport = async function(this: unknown, input: RequestInfo | URL) {
     assert.equal(this, globalThis);
     calls.push(String(input));
-    return Response.json(String(input).includes('oauth2.googleapis.com') ? { access_token: 'test-token', expires_in: 3600 } : { users: [] });
+    return Response.json(new URL(String(input)).hostname === 'oauth2.googleapis.com' ? { access_token: 'test-token', expires_in: 3600 } : { users: [] });
   } as typeof fetch;
   assert.equal(await new FirebaseAuthProvider(env, transport).lookup('test-user'), null);
   assert.equal(calls.length, 2);

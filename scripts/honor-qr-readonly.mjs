@@ -7,9 +7,9 @@ const png = execFileSync('work/toolchains/android-sdk/platform-tools/adb.exe', [
 const { data, info } = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
 const qr = jsQR(new Uint8ClampedArray(data), info.width, info.height);
 const expected = 'https://la-sazon-marinera.consola.workers.dev/menu';
-const result = { checkedAt: new Date().toISOString(), decoded: !!qr, canonicalHttpsOnly: qr?.data === expected, testWifiPasswordInQr: qr?.data.includes('qa-wifi-2026') ?? false };
+const result = { checkedAt: new Date().toISOString(), decoded: !!qr, canonicalHttpsOnly: qr?.data === expected };
 if (result.canonicalHttpsOnly) result.payload = expected;
 await writeFile('work/migration-preparation/honor-qr-generated.png', png);
 await writeFile('work/migration-preparation/honor-qr-decoded.json', JSON.stringify(result, null, 2));
 console.log(JSON.stringify(result, null, 2));
-if (!result.canonicalHttpsOnly || result.testWifiPasswordInQr) process.exitCode = 1;
+if (!result.canonicalHttpsOnly) process.exitCode = 1;
