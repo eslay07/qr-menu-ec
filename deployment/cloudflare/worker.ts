@@ -82,7 +82,14 @@ function secureResponse(response: Response, firebaseAuth = false, push = false) 
   return secured;
 }
 
-async function routeRequest(request: Request, env: Env) {
+async function deliverRestaurantPush(env: Env, restaurantId: string) {
+  const db = localFirestore(env);
+  if (!db || env.FCM_ENABLED !== 'true' || !env.FIREBASE_FCM_SERVICE_ACCOUNT || !env.FIREBASE_PROJECT_ID || writesFrozen(env)) return;
+  const sender = new FcmSender(env.FIREBASE_PROJECT_ID, firestoreBearer(env.FIREBASE_PROJECT_ID, env.FIREBASE_FCM_SERVICE_ACCOUNT, 'https://www.googleapis.com/auth/firebase.messaging'));
+  await new FirestorePush(db, restaurantId, new AuthSecurity(env)).dispatch(sender, new Date(), {remaining:20,deadline:Date.now()+25_000});
+}
+
+async function routeRequest(request: Request, env: Env, context: ExecutionContext) {
   const firestore = localFirestore(env);
   const orderStore = firestore ? new FirestoreOrderStore(firestore) : new D1OrderStore(env.DB);
   const security = new AuthSecurity(env);
@@ -165,6 +172,12 @@ async function routeRequest(request: Request, env: Env) {
       security,
     });
     if (!['GET', 'HEAD'].includes(request.method) && response.ok) menuCache(env).invalidate(id);
+    // Deliver new events promptly; cron remains the bounded retry fallback.
+    // A private inbox refresh can recover outstanding events only after Auth.
+    if (response.ok && ((request.method === 'GET' && scopedPath === '/api/v1/notifications') ||
+        (!['GET','HEAD'].includes(request.method) && /^\/api\/v1\/(orders(?:\/|$)|order\/[^/]+\/cancel$|draft$)/.test(scopedPath)))) {
+      context.waitUntil(deliverRestaurantPush(env,id).catch(error => console.warn('push_delivery_pending', error instanceof Error ? error.name : 'Error')));
+    }
     return response;
   }
   if (
@@ -204,7 +217,7 @@ export default {
     if (writesFrozen(env)) return maintenanceResponse(request);
     const startedAt = Date.now();
     let routed: Response;
-    try { routed = await routeRequest(request, env); }
+    try { routed = await routeRequest(request, env, context); }
     catch (error) {
       if (!(error instanceof FirestoreError) || error.status !== 429) throw error;
       routed = quotaResponse(request);

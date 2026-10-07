@@ -6,6 +6,8 @@ El dueño dispone de un módulo **Notificaciones** separado de la carta. Incluye
 
 Los cinco avisos configurables conservan sus permisos por plan y preferencias. FCM envía el título y motivo registrados por el servidor, no el anterior texto genérico. La cancelación identifica pedido, total y causa. No se envían alias de clientes, artículos, credenciales WiFi ni tokens de acceso en el contenido push. Android conserva visibilidad privada en pantalla bloqueada.
 
+La entrega se dispara en segundo plano al guardar el evento de pedido, cancelación o agotado; una actualización autenticada de la bandeja también procesa avisos pendientes. Ambos usan la misma cola con lease atómico, preferencias, permisos, revocación y presupuesto acotado. El cron conserva los reintentos y avisos programados; no se marca un envío como recibido en el teléfono solamente porque FCM lo aceptó.
+
 Cada aviso tiene un PendingIntent distinto, identificado por restaurante y evento. Se elimina la agrupación destructiva mediante collapse_key por restaurante. El navegador y la APK abren `/r/UUID/?notification=EVENTO&restaurant=UUID`. El servidor requiere sesión y limita el detalle al restaurante autenticado, incluso para avisos fuera de la primera página. El enlace admite exclusivamente UUID e identificadores acotados, no URLs suministradas por el mensaje.
 
 El destino se conserva durante login, renovación del dispositivo recordado y desbloqueo nativo. Una cuenta de otro restaurante recibe un aviso explícito, sin acceder a información ajena. Los enlaces de producción del dueño, creador, carta y APK no cambian.

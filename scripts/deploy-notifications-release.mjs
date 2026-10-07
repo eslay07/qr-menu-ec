@@ -6,8 +6,8 @@ if (!process.argv.includes('--activate-notifications')) throw Error('Explicit no
 const base = '/workers/scripts/qr-menu-ec';
 const receipt = JSON.parse(await readFile('work/notifications-release/version.json','utf8'));
 const qa = JSON.parse(await readFile('outputs/notifications-qa/result.json','utf8'));
-const expected = '29930545-7db3-4c1b-85f7-525ace3ecb15';
-if (receipt.parentVersion !== expected || !qa.passed || !qa.exactDetail || !qa.readPersisted || !qa.missingEventHandled) throw Error('Acceptance evidence missing.');
+const expected = receipt.parentVersion;
+if (!['29930545-7db3-4c1b-85f7-525ace3ecb15','f3c32f59-0570-4812-97f3-c541bd8053dc'].includes(expected) || !qa.passed || !qa.exactDetail || !qa.readPersisted || !qa.missingEventHandled) throw Error('Acceptance evidence missing.');
 const hash = value => createHash('sha256').update(value).digest('hex');
 if (hash(await readFile('outputs/QR-Menu-EC.apk')) !== receipt.apkSha256 || hash(await readFile('work/notifications-release/worker.js')) !== receipt.workerSha256) throw Error('Release files changed since staging.');
 const before = (await cf(base + '/deployments')).deployments[0].versions;
@@ -19,6 +19,20 @@ for (const binding of original.resources.bindings.filter(b => b.name !== 'ASSETS
 const origin = 'https://qr-menu-ec.consola.workers.dev';
 async function traffic(id) { await cf(base + '/deployments','POST',{strategy:'percentage',versions:[{version_id:id,percentage:100}]}); }
 const checks = [];
+async function publishedApk() {
+  // The deployment API acknowledgement precedes global asset propagation.
+  // A previous signed APK is safe to serve temporarily; never accept its hash
+  // as evidence for this release. Bound the wait and revert if it persists.
+  for (let attempt=0; attempt<8; attempt++) {
+    const response = await fetch(origin+'/downloads/qr-menu-ec.apk',{cache:'no-store',signal:AbortSignal.timeout(20000)});
+    if (response.ok && hash(Buffer.from(await response.arrayBuffer())) === receipt.apkSha256) {
+      const sums=await fetch(origin+'/downloads/SHA256SUMS.txt',{cache:'no-store',signal:AbortSignal.timeout(10000)});
+      if (sums.ok && (await sums.text()).includes(receipt.apkSha256)) return;
+    }
+    if (attempt<7) { console.log('Waiting for verified release assets to propagate.'); await new Promise(resolve=>setTimeout(resolve,7000)); }
+  }
+  throw Error('Published APK/checksum mismatch after bounded propagation wait.');
+}
 try {
   await traffic(receipt.versionId);
   const active = (await cf(base + '/deployments')).deployments[0].versions;
@@ -36,9 +50,7 @@ try {
     if (response.status !== 401) throw Error('Private notification detail exposed.');
     checks.push({path,status:response.status});
   }
-  const response = await fetch(origin+'/downloads/qr-menu-ec.apk',{signal:AbortSignal.timeout(30000)});
-  if (!response.ok || hash(Buffer.from(await response.arrayBuffer())) !== receipt.apkSha256) throw Error('Published APK checksum mismatch.');
-  if (!(await (await fetch(origin+'/downloads/SHA256SUMS.txt')).text()).includes(receipt.apkSha256)) throw Error('Published checksums mismatch.');
+  await publishedApk();
   const result = {checkedAt:new Date().toISOString(),versionId:receipt.versionId,trafficPercent:100,passed:true,bindingsUnchanged:true,firebaseAuth:true,apkSha256:receipt.apkSha256,checks,physicalTapVerified:false};
   await writeFile('work/notifications-release/deployment.json',JSON.stringify(result,null,2));
   console.log(JSON.stringify(result,null,2));
