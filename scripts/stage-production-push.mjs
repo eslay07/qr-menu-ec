@@ -7,8 +7,10 @@ import { isDeepStrictEqual } from 'node:util';
 // Never reads a secret: beta version inheritance preserves each original identity.
 const notificationsRelease = process.argv.includes('--notifications-release');
 const immediateDelivery = process.argv.includes('--immediate-delivery');
+const deliveryRaceFix = process.argv.includes('--delivery-race-fix');
+if (deliveryRaceFix && !immediateDelivery) throw Error('Delivery race fix requires the immediate delivery workflow.');
 if (immediateDelivery && !notificationsRelease) throw Error('Immediate delivery requires the notification release workflow.');
-const parent = notificationsRelease ? immediateDelivery ? 'f3c32f59-0570-4812-97f3-c541bd8053dc' : '29930545-7db3-4c1b-85f7-525ace3ecb15' : '724862e7-0c75-4bdd-b01a-4067891f78fe';
+const parent = notificationsRelease ? deliveryRaceFix ? 'b96d380c-51d4-44a1-9362-3028642d0d86' : immediateDelivery ? 'f3c32f59-0570-4812-97f3-c541bd8053dc' : '29930545-7db3-4c1b-85f7-525ace3ecb15' : '724862e7-0c75-4bdd-b01a-4067891f78fe';
 const fcmParent = notificationsRelease ? parent : '29ce6c0b-c3cc-4002-be09-0c603e6e9752';
 const account = '088309af758852fcbfc714c622dff11d';
 const root = `https://api.cloudflare.com/client/v4/accounts/${account}/workers`;

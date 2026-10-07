@@ -344,6 +344,7 @@ export default function Dashboard() {
           {nav.map((item) => (
             <button
               key={item}
+              aria-label={item}
               className={tab === item ? 'active' : ''}
               onClick={() => setTab(item)}
             >
@@ -360,7 +361,8 @@ export default function Dashboard() {
               ) : (
                 <SettingsIcon />
               )}
-              {item}
+              <span className="nav-full-label" aria-hidden="true">{item}</span>
+              <span className="nav-mobile-label" aria-hidden="true">{item === 'Notificaciones' ? 'Avisos' : item === 'Promociones' ? 'Ofertas' : item === 'Compartir' ? 'QR' : item}</span>
             </button>
           ))}
         </nav>

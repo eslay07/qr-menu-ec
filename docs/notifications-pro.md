@@ -22,6 +22,9 @@ APK 0.8.2, código 13, identidad `ec.qrmenu.app` y firma original. Instalar enci
 - Pruebas nuevas: motivo exacto, eventos no colapsados, enlaces acotados, conservación tras acceso y rechazo de redirecciones externas.
 - Interfaz local con datos de prueba en 390 y 1440 px: detalle exacto, lectura, recarga y aviso inexistente; evidencia en `outputs/notifications-qa` (no publicada).
 - Android: compilación release, lint y firma verificados.
+- Navegación móvil corregida: Carta, Ofertas, Pedidos, QR, Avisos y Ajustes; nombres completos accesibles. Validación visual con seis pestañas en 320, 360, 390 y 1440 px.
+- La renovación concurrente del registro del celular conserva el trabajo pendiente en vez de descartarlo. Prueba de regresión del emulador: primer intento diferido y segundo enviado.
+- Pruebas generales: 101 aprobadas, ninguna fallida; 19 pruebas requieren emulador y se ejecutan por separado. Las cuatro pruebas del módulo de notificaciones en emulador aprobaron.
 - La prueba de toque físico en Honor no se considera aprobada si ADB no detecta el dispositivo. Comprobar con dos avisos distintos, aplicación abierta, en segundo plano y tras cierre completo; desbloquear manualmente cuando corresponda.
 
 ## Publicación y reversión

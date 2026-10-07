@@ -112,3 +112,9 @@
 .notifications-center time { display: block; font-size: 13px; color: #435747; margin: 10px 0; }
 .notifications-center li small { font-weight: 700; color: #36533d; }
 .notifications-center li .btn { margin-top: 10px; }
+.nav-mobile-label { display: none; }
+@media (max-width: 640px) {
+  .sidebar nav .nav-full-label { display: none; }
+  .sidebar nav .nav-mobile-label { display: block; font-size: 11px; line-height: 1.2; }
+  .sidebar nav button { min-width: 0; overflow: hidden; }
+}

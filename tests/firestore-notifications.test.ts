@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { FirestoreRest } from '../lib/firestore-rest';
+import { FirestoreRest, type FirestoreData } from '../lib/firestore-rest';
 import { FirestoreBusinessRepository } from '../lib/firestore-business';
 import { RestaurantPreferences } from '../lib/restaurant-preferences';
 import { firestoreMaintenance } from '../lib/firestore-maintenance';
@@ -9,6 +9,28 @@ import { FirestorePush, pushJob } from '../lib/firestore-push';
 import { FcmSender } from '../lib/push-delivery';
 
 const skip = !process.env.FIRESTORE_EMULATOR_HOST;
+test('a concurrent device renewal retains the push job instead of silently dropping it', {skip}, async () => {
+  class RefreshingStore extends FirestoreRest {
+    refreshPath='';
+    override async get<T=FirestoreData>(path:string) {
+      if(path===this.refreshPath){this.refreshPath=''; await this.commit([{path,data:{expiresAt:new Date(Date.now()+86_400_000)},mask:['expiresAt']}]);}
+      return super.get<T>(path);
+    }
+  }
+  const db=new RefreshingStore('demo-qr-menu-ec',process.env.FIRESTORE_EMULATOR_HOST!);
+  const rid=crypto.randomUUID(),root=`restaurants/${rid}`;
+  await db.commit([{path:root,data:{access:{active:true}}},{path:`${root}/private/auth`,data:{sessionEpoch:0}}]);
+  const push=new FirestorePush(db,rid,{encrypt:async value=>value,decrypt:async value=>value});
+  const device=await push.register({token:`test_${crypto.randomUUID()}`,platform:'android'},0,'test-session');
+  const now=new Date(); await db.commit([pushJob(rid,'renewal-race','newOrder',now)]);
+  db.refreshPath=`${root}/pushDevices/${device.id}`;
+  let sends=0;
+  const sender=new FcmSender('demo-qr-menu-ec',async ()=>'test',async ()=>{sends++;return Response.json({name:'sent'});});
+  await push.dispatch(sender,now);
+  assert.equal(sends,0); assert.ok(await db.get(`${root}/pushJobs/renewal-race`));
+  await push.dispatch(sender,new Date(now.getTime()+61_000));
+  assert.equal(sends,1); assert.equal(await db.get(`${root}/pushJobs/renewal-race`),null);
+});
 test('push queue isolates restaurants, retries, revokes logout and suppresses disabled preferences', { skip }, async () => {
   const db = new FirestoreRest('demo-qr-menu-ec', process.env.FIRESTORE_EMULATOR_HOST!);
   const rid = crypto.randomUUID(), other = crypto.randomUUID();

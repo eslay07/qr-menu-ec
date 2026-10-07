@@ -7,7 +7,7 @@ const base = '/workers/scripts/qr-menu-ec';
 const receipt = JSON.parse(await readFile('work/notifications-release/version.json','utf8'));
 const qa = JSON.parse(await readFile('outputs/notifications-qa/result.json','utf8'));
 const expected = receipt.parentVersion;
-if (!['29930545-7db3-4c1b-85f7-525ace3ecb15','f3c32f59-0570-4812-97f3-c541bd8053dc'].includes(expected) || !qa.passed || !qa.exactDetail || !qa.readPersisted || !qa.missingEventHandled) throw Error('Acceptance evidence missing.');
+if (!['29930545-7db3-4c1b-85f7-525ace3ecb15','f3c32f59-0570-4812-97f3-c541bd8053dc','b96d380c-51d4-44a1-9362-3028642d0d86'].includes(expected) || !qa.passed || !qa.exactDetail || !qa.readPersisted || !qa.missingEventHandled) throw Error('Acceptance evidence missing.');
 const hash = value => createHash('sha256').update(value).digest('hex');
 if (hash(await readFile('outputs/QR-Menu-EC.apk')) !== receipt.apkSha256 || hash(await readFile('work/notifications-release/worker.js')) !== receipt.workerSha256) throw Error('Release files changed since staging.');
 const before = (await cf(base + '/deployments')).deployments[0].versions;

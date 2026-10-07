@@ -77,9 +77,13 @@ export class FirestorePush {
         const owner = await this.db.get<{ restaurantId: string }>(`platformConfig/pushTokens/entries/${id}`);
         if (owner?.data.restaurantId !== this.restaurantId) continue;
         const currentDevice = await this.db.get(device.path);
-        if (!currentDevice || currentDevice.updateTime !== device.updateTime) continue;
+        if (!currentDevice) continue;
+        // A concurrent token refresh is not a delivery and must not erase the
+        // event. Retry against the fresh snapshot; logout still revokes it.
+        if (currentDevice.updateTime !== device.updateTime) { deferred = true; continue; }
         budget.remaining--;
         const result = await sender.send({ token: await this.security.decrypt(device.data.tokenCiphertext), eventId: job.data.eventId, restaurantId: this.restaurantId, title: notification?.data.title.slice(0,120) || eventLabels[job.data.preference], body: notification?.data.message.slice(0,600) || `${eventLabels[job.data.preference]}. Abre este aviso para consultar el detalle.` });
+        console.info('push_delivery_result', { eventId:job.data.eventId, result });
         if (result === 'retry') retry = true;
         else delivered.add(id);
         if (result === 'invalid-token') await this.db.commit([{ path: device.path, delete: true, updateTime: device.updateTime }]);
