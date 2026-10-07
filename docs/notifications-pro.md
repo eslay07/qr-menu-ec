@@ -27,6 +27,12 @@ APK 0.8.2, código 13, identidad `ec.qrmenu.app` y firma original. Instalar enci
 - Pruebas generales: 101 aprobadas, ninguna fallida; 19 pruebas requieren emulador y se ejecutan por separado. Las cuatro pruebas del módulo de notificaciones en emulador aprobaron.
 - La prueba de toque físico en Honor no se considera aprobada si ADB no detecta el dispositivo. Comprobar con dos avisos distintos, aplicación abierta, en segundo plano y tras cierre completo; desbloquear manualmente cuando corresponda.
 
+### Aceptación física del 7 de octubre de 2026
+
+Honor LNA-LX3, APK oficial 0.8.2: se recibieron dos avisos independientes en la barra, cada uno con su título y explicación. El toque de «Prueba 2» abrió el detalle 2; después de enviar la app al fondo y cerrar su proceso con `am kill`, el toque de «Prueba 1» abrió el detalle 1, sin login ni editor. Ambos registros quedaron leídos y sin trabajos pendientes. No se crearon pedidos de prueba ni se modificaron ventas.
+
+Producción: `b582cbc6-9d31-4d51-b42b-790fea80ce9a`, tráfico 100%; bindings de autenticación, cifrado y datos conservados. APK SHA-256: `9832f7880bbea5cc5f06979ca1dc922da697d5273e9f747faf393b6906768b26`.
+
 ## Publicación y reversión
 
 `stage-production-push.mjs --stage-only --with-firebase-recovery --with-d1-documents --notifications-release` prepara una versión sin tráfico, heredando exclusivamente la producción D1 vigente. `deploy-notifications-release.mjs --activate-notifications` comprueba aceptación local, checksums, versión anterior y todos los bindings antes de activar. Si falla la comprobación posterior, vuelve a la versión anterior. No se migra, congela ni elimina ningún dato; no se cambian Auth, TOTP, cifrado ni fotos.
