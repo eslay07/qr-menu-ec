@@ -1,15 +1,17 @@
 /// <reference lib="webworker" />
 import { initializeApp } from 'firebase/app';
 import { getMessaging, onBackgroundMessage } from 'firebase/messaging/sw';
+import { notificationTarget } from '../../lib/notification-link';
 
 declare const self: ServiceWorkerGlobalScope;
 const preferenceUrl = new URL('/__qrmenu_push_preference__', self.location.origin).href;
 async function display(data?: Record<string, string>) {
-  if (!data?.eventId || !data.restaurantId) return;
+  if (!data || !notificationTarget(data.eventId, data.restaurantId)) return;
   const saved = await (await caches.open('qrmenu-push-preference')).match(preferenceUrl);
   if (!saved || await saved.text() !== data.restaurantId) return;
-  await self.registration.showNotification('QR Menu EC', {
-    body: 'Tienes una novedad en tu restaurante. Abre el panel para revisarla.',
+  await self.registration.showNotification(data.title?.slice(0,120) || 'QR Menu EC', {
+    body: data.body?.slice(0,600) || 'Abre el aviso para consultar su detalle.',
+    data: { eventId: data.eventId, restaurantId: data.restaurantId },
     tag: `qrmenu-${data.restaurantId}-${data.eventId}`,
   });
 }
@@ -26,7 +28,8 @@ self.addEventListener('message', event => {
 // supplied by a push payload; opening the panel still requires server Auth.
 self.addEventListener('notificationclick', event => {
   event.notification.close();
-  event.waitUntil(self.clients.openWindow(new URL('/owner', self.location.origin).href));
+  const target = notificationTarget(event.notification.data?.eventId, event.notification.data?.restaurantId);
+  event.waitUntil(self.clients.openWindow(new URL(target || '/owner', self.location.origin).href));
 });
 const app = initializeApp({
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,

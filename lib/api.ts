@@ -851,6 +851,11 @@ export async function handleApi(
       const page = await opts.business.notifications(pageToken);
       return json({ notifications: page.documents.map(row => row.data), nextCursor: page.nextPageToken || null });
     }
+    const notificationDetail = path.match(/^notifications\/([a-zA-Z0-9_-]{1,100})$/);
+    if (notificationDetail && method === 'GET' && opts.business) {
+      const notification = await opts.business.notification(notificationDetail[1]);
+      return notification ? json({ notification }) : json({ error: 'El aviso no existe en este restaurante.' }, 404);
+    }
     const notificationMatch = path.match(/^notifications\/([^/]+)\/read$/);
     if (notificationMatch && method === 'POST' && opts.business) return json({ ok: await opts.business.markRead(z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/).parse(notificationMatch[1])) });
     if (path === 'domain' && method === 'GET') {

@@ -20,6 +20,9 @@ export class FirestoreBusinessRepository {
     const page = documents.slice(0, 30), last = page.at(-1);
     return { documents: page, nextPageToken: documents.length > 30 && last ? btoa(JSON.stringify({ at: last.data.createdAt, id: last.data.id })) : undefined };
   }
+  async notification(id: string) {
+    return (await this.db.get<OwnerNotification>(`${this.path}/notifications/${firestoreId(id)}`))?.data ?? null;
+  }
   async markRead(id: string) {
     const path = `${this.path}/notifications/${firestoreId(id)}`;
     const current = await this.db.get(path);

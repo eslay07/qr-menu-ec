@@ -32,3 +32,15 @@ test('FCM distinguishes unregistered tokens, payload errors and retryable errors
   assert.equal(pushRetryAt(1, 0).getTime(), 60_000);
   assert.equal(pushRetryAt(20, 0).getTime(), 3_600_000);
 });
+test('FCM delivers the actual reason without collapsing distinct restaurant events', async () => {
+  const sender = new FcmSender('demo-qr-menu-ec', async () => 'test', async (_url, init) => {
+    const payload = JSON.parse(String(init?.body)).message;
+    assert.equal(payload.data.title, 'Pedido cancelado');
+    assert.equal(payload.data.body, 'Pedido 42 cancelado · USD 8.00');
+    assert.equal(payload.android.collapse_key, undefined);
+    assert.equal(payload.data.eventId, 'cancel-42');
+    return Response.json({ name:'test' });
+  });
+  assert.equal(await sender.send({...message,eventId:'cancel-42',title:'Pedido cancelado',body:'Pedido 42 cancelado · USD 8.00'}),'sent');
+  await assert.rejects(sender.send({...message,eventId:'../other'}));
+});

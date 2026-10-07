@@ -78,7 +78,7 @@ export class FirestoreOrderStore implements OrderStore {
     if (actor !== 'customer') preferences.customerCancelled = false;
     try {
       await this.db.commit([{ path, data: { status, cancelledAt: new Date() }, mask: ['status', 'cancelledAt'], updateTime: header.updateTime },
-        ...(preferences.customerCancelled ? [{ path: `restaurants/${restaurantId}/notifications/${notificationId}`, data: { id: notificationId, kind: 'order', title: 'Pedido cancelado', message: header.data.number, read: false, createdAt: new Date() }, exists: false }] : []),
+        ...(preferences.customerCancelled ? [{ path: `restaurants/${restaurantId}/notifications/${notificationId}`, data: { id: notificationId, kind: 'order', title: 'Pedido cancelado por el comensal', message: `El comensal canceló ${header.data.number} · USD ${(header.data.totalCents / 100).toFixed(2)}. El pedido se conserva en el historial.`, read: false, createdAt: new Date() }, exists: false }] : []),
         ...(preferences.customerCancelled && !header.data.demo ? [pushJob(restaurantId, notificationId, 'customerCancelled')] : []),
       ]);
       return true;

@@ -5,16 +5,18 @@ import { join, relative, extname, resolve } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 
 // Never reads a secret: beta version inheritance preserves each original identity.
-const parent = '724862e7-0c75-4bdd-b01a-4067891f78fe';
-const fcmParent = '29ce6c0b-c3cc-4002-be09-0c603e6e9752';
+const notificationsRelease = process.argv.includes('--notifications-release');
+const parent = notificationsRelease ? '29930545-7db3-4c1b-85f7-525ace3ecb15' : '724862e7-0c75-4bdd-b01a-4067891f78fe';
+const fcmParent = notificationsRelease ? parent : '29ce6c0b-c3cc-4002-be09-0c603e6e9752';
 const account = '088309af758852fcbfc714c622dff11d';
 const root = `https://api.cloudflare.com/client/v4/accounts/${account}/workers`;
 const withRecovery = process.argv.includes('--with-firebase-recovery');
 const withD1 = process.argv.includes('--with-d1-documents');
 if (withD1 && !withRecovery) throw Error('D1 requires the current Firebase recovery build.');
+if (notificationsRelease && (!withD1 || !withRecovery)) throw Error('Notifications release must preserve the current D1 and Firebase build.');
 const destination = withD1 ? JSON.parse(await readFile('work/d1-transition/destination.json','utf8')) : null;
 if (withD1 && destination.databaseId !== '0c8dab0c-5e79-4272-a28c-90b00a93e676') throw Error('Unexpected D1 destination.');
-const output = withD1 ? 'work/d1-production-candidate' : withRecovery ? 'work/push-mail-production-candidate' : 'work/push-production-candidate';
+const output = notificationsRelease ? 'work/notifications-release' : withD1 ? 'work/d1-production-candidate' : withRecovery ? 'work/push-mail-production-candidate' : 'work/push-production-candidate';
 const sha = value => createHash('sha256').update(value).digest('hex');
 if (!process.argv.includes('--stage-only')) throw Error('Use --stage-only; this script cannot deploy.');
 let token;
@@ -39,11 +41,13 @@ if (deployed.length !== 1 || deployed[0].version_id !== parent || deployed[0].pe
 const original = await api(`${base}/versions/${parent}`);
 const fcm = await api(`${base}/versions/${fcmParent}`);
 if (!fcm.resources.bindings.some(b => b.name === 'FIREBASE_FCM_SERVICE_ACCOUNT' && b.type === 'secret_text')) throw Error('FCM identity missing.');
-let worker = await readFile('work/print-candidate-v2/worker.js', 'utf8');
+let worker = notificationsRelease ? '' : await readFile('work/print-candidate-v2/worker.js', 'utf8');
+if (!notificationsRelease) {
 if (sha(worker) !== '44f0b30e17a44dcac14365c844c564eff7e06cd2d451782f2c8020bd451a6e5a') throw Error('Accepted Worker hash mismatch.');
 const old = 'this.transport(`https://fcm.googleapis.com/v1/projects/${this.project}/messages:send`, {';
 if (worker.split(old).length !== 2) throw Error('FCM transport patch is not unique.');
 worker = worker.replace(old, 'this.transport.call(globalThis, `https://fcm.googleapis.com/v1/projects/${this.project}/messages:send`, {');
+}
 if (withRecovery) {
   // Wrangler resolves relative outdirs against its config directory. Use an
   // absolute path and rebuild here so staging can never read a stale bundle.
@@ -82,13 +86,13 @@ for (const bucket of session.buckets) {
 }
 if (!jwt || !isDeepStrictEqual(before, await api(base + '/deployments'))) throw Error('Concurrent deployment detected.');
 const bindings = original.resources.bindings.map(({ name }) => name === 'FCM_ENABLED' ? { name, type: 'plain_text', text: 'true' } : name === 'DATA_PROVIDER' && withD1 ? { name, type:'plain_text', text:'d1-documents' } : { name, type: 'inherit', version_id: parent });
-if (withD1) bindings.push({name:'DOCUMENT_DB',type:'d1',id:destination.databaseId});
-bindings.push({ name: 'FIREBASE_FCM_SERVICE_ACCOUNT', type: 'inherit', version_id: fcmParent });
+if (withD1 && !notificationsRelease) bindings.push({name:'DOCUMENT_DB',type:'d1',id:destination.databaseId});
+if (!notificationsRelease) bindings.push({ name: 'FIREBASE_FCM_SERVICE_ACCOUNT', type: 'inherit', version_id: fcmParent });
 const runtime = original.resources.script_runtime;
 const metadata = { main_module: 'worker.js', modules: [{ name: 'worker.js', content_type: 'application/javascript+module', content_base64: Buffer.from(worker).toString('base64') }], bindings,
   compatibility_date: runtime.compatibility_date, compatibility_flags: runtime.compatibility_flags,
   assets: { jwt, config: { run_worker_first: true, html_handling: runtime.assets?.html_handling, not_found_handling: runtime.assets?.not_found_handling } },
-  annotations: { 'workers/tag': 'push-production-candidate', 'workers/message': 'FCM receiver fix, push-enabled UI and signed APK 0.8.1; zero traffic pending physical acceptance' } };
+  annotations: { 'workers/tag': 'push-production-candidate', 'workers/message': notificationsRelease ? 'Dedicated notification center, exact event deep links and signed APK 0.8.2; zero traffic' : 'FCM receiver fix, push-enabled UI and signed APK 0.8.1; zero traffic pending physical acceptance' } };
 const version = await api('/workers/qr-menu-ec/versions?deploy=false', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(metadata) });
 const checked = await api(`${base}/versions/${version.id}`);
 for (const binding of original.resources.bindings.filter(b => !['FCM_ENABLED', 'ASSETS', ...(withD1 ? ['DATA_PROVIDER'] : [])].includes(b.name))) {

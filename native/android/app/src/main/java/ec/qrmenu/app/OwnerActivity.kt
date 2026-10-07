@@ -39,6 +39,21 @@ class OwnerActivity : Activity() {
     private var lastBackground = 0L
     private var awaitingUnlock = false
     private var firstLoad = true
+    private var pendingNotification: String? = null
+    private fun notificationUrl(intent: Intent?): String? {
+        val uri = intent?.data ?: return null
+        if (!uri.isHierarchical) return null
+        val event = uri.getQueryParameter("notification") ?: return null
+        val restaurant = uri.getQueryParameter("restaurant") ?: return null
+        if (uri.scheme != "https" || uri.host != platformHost || !Regex("[a-zA-Z0-9_-]{1,100}").matches(event) || !Regex("[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}").matches(restaurant)) return null
+        return "https://$platformHost/r/$restaurant/?notification=$event&restaurant=$restaurant"
+    }
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        pendingNotification = notificationUrl(intent)
+        if (!awaitingUnlock && lockScreen.visibility == View.GONE) showWeb()
+    }
     private var prompting = false
     private var biometricCancellation: CancellationSignal? = null
     private var requestUnlockOnResume = false
@@ -46,13 +61,14 @@ class OwnerActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        pendingNotification = notificationUrl(intent)
         val progress = ProgressBar(this).apply { visibility = View.GONE }
         webView = WebView(this).apply {
             settings.javaScriptEnabled = true
             pushBridge = OwnerPushBridge(this@OwnerActivity, this, platformHost).also { it.attach() }
             printBridge = OwnerPrintBridge(this@OwnerActivity, this, platformHost).also { it.attach() }
             val hasScreenLock = (getSystemService(KEYGUARD_SERVICE) as KeyguardManager).isDeviceSecure
-            settings.userAgentString = settings.userAgentString + " QRMenuEC-Android/0.8.0" + (if (hasScreenLock) "" else " QRMenuEC-NoLock/")
+            settings.userAgentString = settings.userAgentString + " QRMenuEC-Android/${BuildConfig.VERSION_NAME}" + (if (hasScreenLock) "" else " QRMenuEC-NoLock/")
             settings.domStorageEnabled = true
             settings.cacheMode = WebSettings.LOAD_DEFAULT
             settings.allowFileAccess = false
@@ -135,7 +151,8 @@ class OwnerActivity : Activity() {
         awaitingUnlock = false
         prompting = false
         lockScreen.visibility = View.GONE
-        if (firstLoad) { firstLoad = false; webView.loadUrl(ownerUrl) }
+        if (pendingNotification != null) { firstLoad = false; webView.loadUrl(pendingNotification!!); pendingNotification = null }
+        else if (firstLoad) { firstLoad = false; webView.loadUrl(ownerUrl) }
     }
 
     private fun unlock() {
@@ -213,7 +230,7 @@ class OwnerActivity : Activity() {
         if (lastBackground > 0L && !awaitingUnlock) {
             val elapsed = System.currentTimeMillis() - lastBackground
             lastBackground = 0L
-            if (elapsed >= 60_000L) unlock() else lockScreen.visibility = View.GONE
+            if (elapsed >= 60_000L) unlock() else showWeb()
         }
     }
 

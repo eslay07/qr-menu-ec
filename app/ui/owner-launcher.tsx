@@ -2,6 +2,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { ArrowRight, Store } from 'lucide-react';
 import Turnstile from './turnstile';
+import { preserveNotification } from '../../lib/notification-link';
 import { revealIssue } from './reveal-issue';
 
 export default function OwnerLauncher() {
@@ -33,7 +34,7 @@ export default function OwnerLauncher() {
         });
         if (!response.ok) return;
         const result = await response.json() as { ownerUrl: string };
-        location.replace(`${result.ownerUrl}?remembered=1`);
+        location.replace(preserveNotification(result.ownerUrl, true));
       } catch { /* La contraseña sigue disponible si no hay conexión o el permiso venció. */ }
       finally { setRestoring(false); }
     })();
@@ -51,7 +52,7 @@ export default function OwnerLauncher() {
       const result = await response.json() as any;
       if (!response.ok) throw Error(result.error);
       if (recovering) { setMessage(result.message); return; }
-      location.assign(`${result.ownerUrl}${canRemember && values.get('rememberDevice') === 'on' ? '?remembered=1' : ''}`);
+      location.assign(preserveNotification(result.ownerUrl, canRemember && values.get('rememberDevice') === 'on'));
     } catch (failure) { setError((failure as Error).message); revealIssue('.owner-login [role="alert"]'); }
     finally { setBusy(false); setToken(''); setAttempt(value => value + 1); }
   }

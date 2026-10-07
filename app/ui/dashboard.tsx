@@ -5,6 +5,7 @@ import {
   ArrowDown,
   ArrowUp,
   BarChart3,
+  Bell,
   Check,
   Download,
   Globe,
@@ -71,6 +72,9 @@ export default function Dashboard() {
   const [editorError, setEditorError] = useState('');
   const [sampleConfirm, setSampleConfirm] = useState(false);
   const [visibleDishes, setVisibleDishes] = useState(30);
+  useEffect(() => {
+    if (new URLSearchParams(location.search).has('notification')) setTab('Notificaciones');
+  }, []);
   const [tab, setTab] = useState('Carta'),
     [session, setSession] = useState<any>(null),
     [state, setState] = useState<PanelState | null>(null);
@@ -314,6 +318,7 @@ export default function Dashboard() {
     ...(state.features.includes('promotions') ? ['Promociones'] : []),
     ...(state.features.includes('orders') ? ['Pedidos'] : []),
     'Compartir',
+    'Notificaciones',
     'Ajustes',
   ];
 
@@ -350,6 +355,8 @@ export default function Dashboard() {
                 <BarChart3 />
               ) : item === 'Compartir' ? (
                 <Globe />
+              ) : item === 'Notificaciones' ? (
+                <Bell />
               ) : (
                 <SettingsIcon />
               )}
@@ -382,13 +389,13 @@ export default function Dashboard() {
                 ? `Publicación ${state.published.version}`
                 : 'Sin publicar'}
             </span>
-            <button
+            {tab !== 'Notificaciones' && <button
               className="btn primary"
               disabled={busy || settingsDirty}
               onClick={() => run(publish)}
             >
               Publicar menú
-            </button>
+            </button>}
           </div>
         </header>
         <div className="page-heading">
@@ -549,7 +556,7 @@ export default function Dashboard() {
           />
         )}
 
-        {tab === 'Ajustes' && state?.businessReady && <><OwnerNotifications pushEnabled={state.entitlements?.push!==false} />{state.entitlements?.notificationPreferences!==false&&<RestaurantPreferencesPanel mode="notifications" />}</>}
+        {tab === 'Notificaciones' && state?.businessReady && <><OwnerNotifications restaurantId={state.restaurantId} pushEnabled={state.entitlements?.push!==false} />{state.entitlements?.notificationPreferences!==false&&<RestaurantPreferencesPanel mode="notifications" />}</>}
         {tab === 'Compartir' && state?.businessReady && state.entitlements?.wifi!==false && <RestaurantPreferencesPanel mode="wifi" />}
         {tab === 'Compartir' && (
           <section className="card qr-print-region">

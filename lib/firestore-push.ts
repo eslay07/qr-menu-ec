@@ -7,6 +7,7 @@ import { NotificationSettings } from './restaurant-preferences';
 import { FcmSender, pushRetryAt } from './push-delivery';
 
 type Preference = 'newOrder' | 'customerCancelled' | 'soldOut' | 'dailySummary' | 'inactivity';
+const eventLabels: Record<Preference, string> = { newOrder:'Nuevo pedido recibido', customerCancelled:'Pedido cancelado por el comensal', soldOut:'Producto agotado', dailySummary:'Resumen diario de pedidos', inactivity:'Alerta de inactividad' };
 type Device = { tokenCiphertext: string; sessionEpoch: number; sessionBinding: string; registeredAt: string; expiresAt: string };
 type Job = { eventId: string; preference: Preference; createdAt: string; expiresAt: string; nextAttemptAt: string; attempt: number; delivered: string[] };
 export const PushRegistration = z.object({ token: z.string().min(20).max(4096).regex(/^[A-Za-z0-9_:.-]+$/), platform: z.enum(['web', 'android']) }).strict();
@@ -67,6 +68,7 @@ export class FirestorePush {
       catch (error) { if (error instanceof FirestoreError && error.conflict) continue; throw error; }
       const leased = await this.db.get<Job>(job.path);
       if (!leased) continue;
+      const notification = await this.db.get<{ title: string; message: string }>(`${this.root}/notifications/${job.data.eventId}`);
       const delivered = new Set(job.data.delivered); let retry = false, deferred = false;
       for (const device of devices) {
         const id = device.path.split('/').at(-1)!;
@@ -77,7 +79,7 @@ export class FirestorePush {
         const currentDevice = await this.db.get(device.path);
         if (!currentDevice || currentDevice.updateTime !== device.updateTime) continue;
         budget.remaining--;
-        const result = await sender.send({ token: await this.security.decrypt(device.data.tokenCiphertext), eventId: job.data.eventId, restaurantId: this.restaurantId });
+        const result = await sender.send({ token: await this.security.decrypt(device.data.tokenCiphertext), eventId: job.data.eventId, restaurantId: this.restaurantId, title: notification?.data.title.slice(0,120) || eventLabels[job.data.preference], body: notification?.data.message.slice(0,600) || `${eventLabels[job.data.preference]}. Abre este aviso para consultar el detalle.` });
         if (result === 'retry') retry = true;
         else delivered.add(id);
         if (result === 'invalid-token') await this.db.commit([{ path: device.path, delete: true, updateTime: device.updateTime }]);

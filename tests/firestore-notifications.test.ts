@@ -27,11 +27,15 @@ test('push queue isolates restaurants, retries, revokes logout and suppresses di
   await another.revoke(token);
   assert.ok(await db.get(`${root}/pushDevices/${device.id}`));
   const now = new Date();
-  await db.commit([pushJob(rid, 'first', 'newOrder', now)]);
+  await db.commit([pushJob(rid, 'first', 'newOrder', now), { path:`${root}/notifications/first`,data:{id:'first',kind:'order',title:'Nuevo pedido recibido',message:'Pedido 42 · USD 8.00',read:false,createdAt:now} }]);
   const due = await db.query('pushJobs', [{ field: 'nextAttemptAt', op: 'LESS_THAN_OR_EQUAL', value: now }], 1000, { allDescendants: true });
   assert.ok(due.some(row => row.path === `${root}/pushJobs/first`));
   let calls = 0;
-  const sender = new FcmSender('demo-qr-menu-ec', async () => 'test', async () => { calls++; return calls === 1 ? Response.json({}, { status: 503 }) : Response.json({ name: 'sent' }); });
+  const sender = new FcmSender('demo-qr-menu-ec', async () => 'test', async (_url, init) => {
+    const payload = JSON.parse(String(init?.body)).message.data;
+    assert.equal(payload.title,'Nuevo pedido recibido'); assert.equal(payload.body,'Pedido 42 · USD 8.00'); assert.equal(payload.eventId,'first');
+    calls++; return calls === 1 ? Response.json({}, { status: 503 }) : Response.json({ name: 'sent' });
+  });
   await push.dispatch(sender, now);
   assert.equal((await db.get(`${root}/pushJobs/first`))?.data.attempt, 1);
   await push.dispatch(sender, new Date(now.getTime() + 61_000));
@@ -59,6 +63,9 @@ test('notification inbox pagination, scoped reads and revision conflicts', { ski
   assert.equal(second.documents.length, 2);
   assert.equal(new Set([...first.documents, ...second.documents].map(row => row.path)).size, 32);
   assert.equal(await new FirestoreBusinessRepository(db, other).markRead('notice-31'), false);
+  assert.equal(await new FirestoreBusinessRepository(db, other).notification('notice-31'), null);
+  assert.equal((await business.notification('notice-00'))?.id, 'notice-00');
+  assert.equal(await business.notification('missing'), null);
   assert.equal(await business.markRead('notice-31'), true);
   assert.equal((await db.get(`restaurants/${rid}/notifications/notice-31`))?.data.read, true);
   const preferences = new RestaurantPreferences(db, rid, {} as AuthSecurity);
