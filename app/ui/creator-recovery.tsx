@@ -13,7 +13,7 @@ export default function CreatorRecovery({ siteKey, enabled, onBack, token }: {
   return <main className="creator-auth"><section className="creator-login card">
     <button className="close-button" onClick={onBack}><ArrowLeft size={18} /> Volver al acceso</button>
     <Mail size={34} /><h1>{token ? 'Recupera tu cuenta' : '¿Olvidaste tu acceso?'}</h1>
-    <p>{token ? 'Elige una contraseña nueva. Después configurarás otra vez tu autenticador.' : 'Enviaremos un enlace privado al correo de recuperación registrado para el creador.'}</p>
+    <p>{token ? 'Elige una contraseña nueva. Al volver al acceso seguiremos verificando tu autenticador.' : 'Enviaremos un enlace privado al correo de recuperación registrado para el creador.'}</p>
     {!enabled && !token && <p className="notice" role="status">El envío de correo aún necesita configuración. El acceso habitual sigue disponible.</p>}
     {error && <p className="notice error" role="alert">{error}</p>}
     {message ? <p className="notice" role="status">{message}</p> : <form onSubmit={async event => {
@@ -28,7 +28,7 @@ export default function CreatorRecovery({ siteKey, enabled, onBack, token }: {
         });
         const result = await response.json() as any;
         if (!response.ok) throw Error(result.error);
-        setMessage(token ? 'Contraseña actualizada. Vuelve al acceso para configurar tu autenticador.' : result.message);
+        setMessage(token ? 'Contraseña actualizada. Vuelve al acceso para completar la verificación de seguridad.' : result.message);
       } catch (failure) { setError((failure as Error).message); }
       finally { setBusy(false); setBotToken(''); setAttempt(n => n + 1); }
     }}>

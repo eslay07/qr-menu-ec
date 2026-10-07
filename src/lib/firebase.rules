@@ -1,0 +1,112 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // Memberships and account status are provisioned by trusted server code.
+    // Never trust an ownerId, restaurantId or role supplied in a client write.
+    function owner(restaurantId) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/restaurants/$(restaurantId)/members/$(request.auth.uid))
+        && get(/databases/$(database)/documents/restaurants/$(restaurantId)/members/$(request.auth.uid)).data.role == 'owner'
+        && get(/databases/$(database)/documents/restaurants/$(restaurantId)/members/$(request.auth.uid)).data.active == true
+        && get(/databases/$(database)/documents/restaurants/$(restaurantId)).data.access.active == true;
+    }
+
+    match /users/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow update: if signedIn() && request.auth.uid == uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'locale'])
+        && request.resource.data.displayName is string
+        && request.resource.data.displayName.size() <= 120
+        && request.resource.data.locale in ['es', 'es-EC'];
+      allow create, delete: if false;
+      // Device credentials and role assignments require server authorization.
+      match /{document=**} {
+        allow read, write: if false;
+      }
+    }
+
+    match /restaurants/{restaurantId} {
+      allow read: if owner(restaurantId);
+      allow update: if owner(restaurantId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'tagline'])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 80
+        && request.resource.data.tagline is string
+        && request.resource.data.tagline.size() <= 180;
+      allow create, delete: if false;
+
+      match /members/{uid} {
+        allow read: if owner(restaurantId) && request.auth.uid == uid;
+        allow write: if false;
+      }
+      match /settings/{settingId} {
+        allow read: if owner(restaurantId);
+        allow update: if owner(restaurantId) && settingId == 'general'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ordersEnabled'])
+          && request.resource.data.ordersEnabled is bool
+          && (request.resource.data.ordersEnabled == false
+            || 'orders' in get(/databases/$(database)/documents/restaurants/$(restaurantId)).data.access.features);
+        allow create, delete: if false;
+      }
+      match /catalogs/{catalogId} {
+        allow read: if owner(restaurantId);
+        allow write: if false;
+        match /{collection}/{id} {
+          allow read: if owner(restaurantId) && collection in ['categories', 'dishes', 'promotions'];
+          allow write: if false;
+        }
+      }
+      match /orders/{orderId} {
+        allow read: if owner(restaurantId);
+        allow write: if false;
+        match /lines/{lineId} {
+          allow read: if owner(restaurantId);
+          allow write: if false;
+        }
+      }
+      match /media/{mediaId} {
+        allow read: if owner(restaurantId);
+        allow write: if false;
+      }
+      match /notifications/{notificationId} {
+        allow read: if owner(restaurantId);
+        allow update: if owner(restaurantId)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read'])
+          && request.resource.data.read is bool;
+        allow create, delete: if false;
+      }
+      match /backups/{backupId} {
+        // Only non-sensitive manifests; snapshot content and restore require
+        // authenticated server handlers, not direct browser writes.
+        allow read: if owner(restaurantId);
+        allow write: if false;
+      }
+      // Limits, prices, publication, backups and notification delivery are
+      // server operations. Do not open a recursive owner write rule here.
+    }
+
+    match /publicMenus/{document=**} {
+      allow read: if true;
+      allow write: if false;
+    }
+    match /rateLimits/{document=**} {
+      allow read, write: if false;
+    }
+    match /auditEvents/{document=**} {
+      allow read, write: if false;
+    }
+    match /hostnames/{document=**} {
+      allow read, write: if false;
+    }
+    // Admin SDK uses IAM, not these client rules. Its handlers must authorize
+    // every operation. New paths remain closed until explicitly designed.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

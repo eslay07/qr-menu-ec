@@ -1,8 +1,17 @@
 import { env } from 'cloudflare:workers';
 import type { Store, State } from './store';
-export type Bindings = {
+import { localFirestore, type DataEnv } from './application-repository';
+import { FirestoreRestaurantStore } from './firestore-store';
+import { FirebaseStorageMedia } from './firebase-storage-media';
+import { firestoreBearer } from './firestore-credentials';
+export type Bindings = DataEnv & {
   DB: D1Database;
   MEDIA?: R2Bucket;
+  MEDIA_PROVIDER?: 'legacy' | 'firebase-storage';
+  FIREBASE_STORAGE_ENABLED?: string;
+  FIREBASE_STORAGE_BUCKET?: string;
+  FIREBASE_STORAGE_PROJECT_ID?: string;
+  FIREBASE_STORAGE_SERVICE_ACCOUNT?: string;
   LICENSE_PUBLIC_KEY?: string;
   SETUP_TOKEN?: string;
   PLATFORM_MENU_DOMAIN?: string;
@@ -24,7 +33,7 @@ export function bindings() {
 }
 export function cloudStore(id = 'restaurant', source?: Bindings): Store {
   const e = source || bindings();
-  return {
+  const legacy: Store = {
     async read() {
       const row = await e.DB.prepare(
         'SELECT revision,data FROM application WHERE id = ?',
@@ -90,4 +99,15 @@ export function cloudStore(id = 'restaurant', source?: Bindings): Store {
         .run();
     },
   };
+  const firestore = localFirestore(e);
+  let media: Pick<Store, 'mediaGet' | 'mediaPut'> = legacy;
+  if (e.MEDIA_PROVIDER === 'firebase-storage') {
+    if (e.FIREBASE_STORAGE_ENABLED !== 'true' || !e.FIREBASE_STORAGE_BUCKET || !e.FIREBASE_STORAGE_PROJECT_ID || !e.FIREBASE_STORAGE_SERVICE_ACCOUNT) throw Error('Storage remoto permanece desactivado.');
+    // Demo routes have no persistent uploaded images.
+    if (id !== '__demo__') {
+      const storage = new FirebaseStorageMedia(e.FIREBASE_STORAGE_BUCKET, id, firestoreBearer(e.FIREBASE_STORAGE_PROJECT_ID, e.FIREBASE_STORAGE_SERVICE_ACCOUNT, 'https://www.googleapis.com/auth/devstorage.read_write'));
+      media = { async mediaGet(mediaId) { return await storage.mediaGet(mediaId) || await legacy.mediaGet(mediaId); }, mediaPut: storage.mediaPut.bind(storage) };
+    }
+  }
+  return firestore ? new FirestoreRestaurantStore(firestore, id, media) : { ...legacy, ...media };
 }

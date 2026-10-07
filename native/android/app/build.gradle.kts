@@ -1,7 +1,26 @@
 plugins { id("com.android.application"); id("org.jetbrains.kotlin.android") }
 android { namespace="ec.qrmenu.app"; compileSdk=35
- defaultConfig { applicationId="ec.qrmenu.app"; minSdk=29; targetSdk=35; versionCode=11; versionName="0.8.0" }
+ defaultConfig { applicationId="ec.qrmenu.app"; minSdk=29; targetSdk=35; versionCode=12; versionName="0.8.1"
+  buildConfigField("String", "PLATFORM_HOST", "\"qr-menu-ec.consola.workers.dev\"")
+  manifestPlaceholders["appLabel"] = "QR Menu EC"
+ }
+ buildFeatures { buildConfig = true }
  compileOptions { sourceCompatibility=JavaVersion.VERSION_17; targetCompatibility=JavaVersion.VERSION_17 }
  kotlinOptions { jvmTarget="17" }
- buildTypes { release { isMinifyEnabled=false } }
+ buildTypes {
+  release { isMinifyEnabled=false }
+  create("candidate") {
+   initWith(getByName("release"))
+   applicationIdSuffix = ".candidate"
+   versionNameSuffix = "-candidate-59cf7bb8"
+   buildConfigField("String", "PLATFORM_HOST", "\"59cf7bb8-qr-menu-ec.consola.workers.dev\"")
+   manifestPlaceholders["appLabel"] = "QR Menu EC · PRUEBA"
+   signingConfig = signingConfigs.getByName("debug")
+   matchingFallbacks += listOf("release")
+  }
+ }
+}
+dependencies {
+ implementation("com.google.firebase:firebase-messaging:25.1.3")
+ implementation("androidx.webkit:webkit:1.12.1")
 }

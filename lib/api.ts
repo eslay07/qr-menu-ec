@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import {commercialPlan,entitlements} from './entitlements';
 import QRCode from 'qrcode';
 import {
   Catalog,
@@ -33,6 +34,10 @@ import { orderPdf } from './order-pdf';
 import { professionalSample } from './sample-menu';
 import type { DomainService } from './domains';
 import type { ActiveSession, AuthSecurity } from './auth-security';
+import type { RestaurantPreferences } from './restaurant-preferences';
+import type { FirestoreBusinessRepository } from './firestore-business';
+import type { FirestoreBackupRepository } from './firestore-backups';
+import type { FirestorePush } from './firestore-push';
 
 export type ApiOptions = {
   publicKey: string;
@@ -47,6 +52,10 @@ export type ApiOptions = {
   publicMenuUrl?: string;
   domains?: DomainService;
   security?: AuthSecurity;
+  preferences?: RestaurantPreferences;
+  business?: FirestoreBusinessRepository;
+  backups?: FirestoreBackupRepository;
+  push?: FirestorePush;
 };
 const jsonHeaders = {
   'Content-Type': 'application/json; charset=utf-8',
@@ -147,6 +156,8 @@ function publicState(
     features,
     maxDishes: s.access?.maxDishes ?? 150,
     sampleMenuEnabled: s.access?.sampleMenuEnabled === true,
+    plan: commercialPlan(s.access),
+    entitlements: role==='creator'?entitlements({active:true,plan:'premium'}):entitlements(s.access),
     createdAt: s.createdAt,
   };
 }
@@ -164,6 +175,12 @@ function orderPublicUrl(req: Request, token: string, basePath = '') {
 }
 function orderPdfUrl(req: Request, token: string, basePath = '') {
   return `${new URL(req.url).origin}${basePath}/api/v1/order/${encodeURIComponent(token)}/pdf`;
+}
+function reportRange(url: URL) {
+  const from = z.string().datetime().optional().parse(url.searchParams.get('from') || undefined);
+  const to = z.string().datetime().optional().parse(url.searchParams.get('to') || undefined);
+  if (from && to && from > to) throw Error('La fecha inicial debe ser anterior a la final.');
+  return { from, to };
 }
 function ordersCsv(orders: Awaited<ReturnType<OrderStore['list']>>) {
   const quote = (value: unknown) =>
@@ -257,6 +274,21 @@ export async function handleApi(
         201,
       );
     }
+    const cancelPublic = path.match(/^order\/([a-zA-Z0-9]{20,128})\/cancel$/);
+    if (cancelPublic && method === 'POST' && opts.orderStore) {
+      if (req.headers.get('origin') !== url.origin) return json({ error: 'Origen no permitido.' }, 403);
+      z.object({ confirm: z.literal(true) }).strict().parse(await body(req, 200));
+      const hash = await digest(cancelPublic[1]);
+      if (opts.security) {
+        const rate = await opts.security.rateLimitAccountAndIp(req, 'customer-cancel', hash, 5, 20, 15 * 60000);
+        if (!rate.allowed) return json({ error: 'Demasiados intentos. Intenta más tarde.' }, 429);
+      }
+      const order = await opts.orderStore.publicByTokenHash(hash);
+      if (!order || Date.parse(order.publicExpiresAt) <= Date.now()) return json({ error: 'Este enlace ya venció.' }, 410);
+      if (order.status === 'cancelled') return json({ ok: true });
+      const ok = await opts.orderStore.setStatus(order.restaurantId, order.id, 'cancelled', 'customer');
+      return json(ok ? { ok: true } : { error: 'El pedido cambió. Recarga el detalle.' }, ok ? 200 : 409);
+    }
     const publicMatch = path.match(/^order\/([^/]+)(\/pdf)?$/);
     if (publicMatch && method === 'GET') {
       if (!opts.orderStore)
@@ -280,7 +312,8 @@ export async function handleApi(
       return json({ order });
     }
 
-    const stored = await store.read(),
+    const stored = await (path === 'session' && method === 'GET' && store.readSession ? store.readSession()
+      : path === 'menu' && method === 'GET' && store.readMenu ? store.readMenu() : store.read()),
       s = stored?.state ? normalizeState(stored.state) : null;
     if (path === 'setup' && method === 'POST') {
       if (s)
@@ -357,6 +390,8 @@ export async function handleApi(
         return json({
           configured: !!s,
           authenticated,
+          authProvider: opts.security?.usesFirebase ? 'firebase' : 'legacy',
+          firebaseUid: authenticated ? opts.security?.firebaseUid(securityScope, securityRestaurantId) : null,
           suspended:
             !!s && opts.ownerAccess === false && opts.forcedRole !== 'creator',
           platformSetup: !!opts.platformUser || opts.forcedRole === 'creator',
@@ -420,14 +455,14 @@ export async function handleApi(
           .parse(input);
         valid =
           constantEqual(login.code, s.restaurantId) &&
-          constantEqual(
+          (opts.security ? await opts.security.authenticatePassword(s, 'owner', s.restaurantId, login.password) : constantEqual(
             await passwordHash(
               login.password,
               s.password.salt,
               s.password.iterations || 100_000,
             ),
             s.password.hash,
-          );
+          ));
       } else
         valid = constantEqual(
           await digest(z.string().max(128).parse(input.recovery)),
@@ -448,7 +483,7 @@ export async function handleApi(
       }
       s.failures = { count: 0, until: 0 };
       if (path === 'login' && opts.security?.encryptionReady) {
-        if (!s.password.iterations || s.password.iterations < passwordIterations) {
+        if (!opts.security.usesFirebase && (!s.password.iterations || s.password.iterations < passwordIterations)) {
           const password = z.object({ password: z.string() }).parse(input).password;
           s.password.salt = randomToken();
           s.password.hash = await passwordHash(password, s.password.salt);
@@ -458,9 +493,12 @@ export async function handleApi(
       let recovery: string | undefined;
       if (path === 'recover') {
         const password = z.string().min(12).max(128).parse(input.password);
-        s.password.salt = randomToken();
-        s.password.hash = await passwordHash(password, s.password.salt);
-        s.password.iterations = passwordIterations;
+        if (opts.security?.usesFirebase) await opts.security.setFirebasePassword(s, 'owner', s.restaurantId, password);
+        else {
+          s.password.salt = randomToken();
+          s.password.hash = await passwordHash(password, s.password.salt);
+          s.password.iterations = passwordIterations;
+        }
         s.sessionEpoch++;
         recovery = randomToken();
         s.recoveryHash = await digest(recovery);
@@ -673,7 +711,27 @@ export async function handleApi(
       !(await opts.security.requireCsrf(req, await secureSession()))
     )
       return json({ error: 'La sesión de seguridad cambió. Recarga la página.' }, 403);
+    if (path === 'firebase/client-token' && method === 'POST' && opts.security?.usesFirebase)
+      return json({ customToken: await opts.security.firebaseClientToken(req, securityScope, securityRestaurantId) });
+    const permissions=entitlements(s.access);
+    if(role!=='creator'&&((path==='push/device'&&method==='POST'&&!permissions.push)||(path==='settings/notifications'&&method==='PUT'&&!permissions.notificationPreferences)||(path==='settings/wifi'&&!permissions.wifi)||((path.startsWith('reports/')||path==='orders'&&method==='GET')&&!permissions.reports)||(path==='backups/policy'&&method==='PUT'&&!permissions.scheduledBackups)))
+      return json({error:'Esta función requiere un plan superior. Contacta al administrador.',code:'PLAN_REQUIRED'},403);
+    if (path === 'push/device' && opts.push) {
+      if (opts.security && !(await opts.security.rateLimit(req, 'push-device', s.restaurantId, 20, 3_600_000))) return json({ error: 'Demasiados cambios de dispositivo. Inténtalo más tarde.' }, 429);
+      if (method === 'POST') {
+        const currentSession = await secureSession();
+        if (!currentSession) return json({ error: 'Inicia sesión de nuevo.' }, 401);
+        return json(await opts.push.register(await body(req, 5000), s.sessionEpoch, currentSession.csrfToken));
+      }
+      if (method === 'DELETE') {
+        const input = z.object({ token: z.string().min(20).max(4096) }).strict().parse(await body(req, 5000));
+        await opts.push.revoke(input.token);
+        return json({ ok: true });
+      }
+    }
     if (path === 'logout' && method === 'POST') {
+      const closingSession = opts.push ? await secureSession() : null;
+      if (closingSession && opts.push) await opts.push.revokeSession(closingSession.csrfToken);
       if (opts.security) {
         await opts.security.revokeSession(req, securityScope);
         if (securityScope === 'owner') await opts.security.revokeDevice(req);
@@ -701,6 +759,7 @@ export async function handleApi(
         .strict()
         .parse(await body(req));
       const normalized = input.email.toLowerCase();
+      await opts.security.updateFirebaseEmail(s, normalized);
       s.security = {
         ...s.security,
         emailCiphertext: await opts.security.encrypt(normalized),
@@ -733,22 +792,67 @@ export async function handleApi(
       });
     if (path === 'devices' && method === 'GET' && opts.security)
       return json({ devices: await opts.security.listDevices(s.restaurantId) });
-    const deviceMatch = path.match(/^devices\/([a-f0-9]{64})$/);
+    const deviceMatch = path.match(/^devices\/([^/]+)$/);
     if (deviceMatch && method === 'DELETE' && opts.security) {
-      await opts.security.revokeDeviceById(s.restaurantId, deviceMatch[1]);
+      const deviceId = z.string().regex(/^(?:[a-f0-9]{64}|[A-Za-z0-9+/]{43}=)$/).parse(decodeURIComponent(deviceMatch[1]));
+      await opts.security.revokeDeviceById(s.restaurantId, deviceId);
       return json({ ok: true });
     }
-    const sessionMatch = path.match(/^sessions\/([a-f0-9]{64})$/);
+    const sessionMatch = path.match(/^sessions\/([^/]+)$/);
     if (sessionMatch && method === 'DELETE' && opts.security) {
       await opts.security.revokeSessionById(
         'owner',
         s.restaurantId,
-        sessionMatch[1],
+        z.string().regex(/^(?:[a-f0-9]{64}|[A-Za-z0-9+/]{43}=)$/).parse(decodeURIComponent(sessionMatch[1])),
       );
       return json({ ok: true });
     }
     if (path === 'state' && method === 'GET')
-      return json(publicState(s, stored.revision, role, features));
+      return json({ ...publicState(s, stored.revision, role, features), businessReady: !!opts.preferences });
+    if (path === 'settings/notifications' && opts.preferences) {
+      if (method === 'GET') return json(await opts.preferences.notifications());
+      if (method === 'PUT') {
+        const input = z.object({ revision: z.string().nullable(), settings: z.unknown() }).strict().parse(await body(req));
+        await opts.preferences.saveNotifications(input.settings, input.revision);
+        return json(await opts.preferences.notifications());
+      }
+    }
+    if (path === 'settings/wifi' && opts.preferences) {
+      if (method === 'GET') return json(await opts.preferences.wifi());
+      if (method === 'PUT') {
+        const input = z.object({ revision: z.string().nullable(), settings: z.unknown() }).strict().parse(await body(req));
+        await opts.preferences.saveWifi(input.settings, input.revision);
+        return json(await opts.preferences.wifi());
+      }
+    }
+    if (path === 'qr/print-wifi' && method === 'GET' && opts.preferences) return json({ wifi: permissions.wifi||role==='creator'?await opts.preferences.printWifi():null });
+    if (path === 'backups/policy' && method === 'PUT' && opts.business) {
+      if (role !== 'creator') return json({ error: 'Solo el creador habilita respaldos programados.' }, 403);
+      const input = z.object({ automatic: z.boolean() }).strict().parse(await body(req));
+      await opts.business.db.commit([{ path: `${opts.business.path}/private/backupPolicy`, data: input }]);
+      return json({ ok: true });
+    }
+    if (path === 'backups' && opts.backups && opts.business) {
+      if (method === 'GET') {
+        const cursor = z.string().max(2048).optional().parse(url.searchParams.get('cursor') || undefined);
+        const page = await opts.business.backups(cursor);
+        return json({ backups: page.documents.map(row => ({ id: row.path.split('/').pop(), ...row.data })), nextCursor: page.nextPageToken || null });
+      }
+      if (method === 'POST') return json({ id: await opts.backups.create() }, 201);
+    }
+    const restoreMatch = path.match(/^backups\/([a-f0-9-]{36})\/restore$/);
+    if (restoreMatch && method === 'POST' && opts.backups) {
+      const input = z.object({ revision: z.number().int().nonnegative(), confirm: z.literal(true) }).strict().parse(await body(req));
+      const ok = await opts.backups.restoreComplete(z.string().uuid().parse(restoreMatch[1]), input.revision);
+      return json(ok ? { ok: true } : { error: 'La carta cambió. Recarga antes de restaurar.' }, ok ? 200 : 409);
+    }
+    if (path === 'notifications' && method === 'GET' && opts.business) {
+      const pageToken = z.string().max(2048).optional().parse(url.searchParams.get('cursor') || undefined);
+      const page = await opts.business.notifications(pageToken);
+      return json({ notifications: page.documents.map(row => row.data), nextCursor: page.nextPageToken || null });
+    }
+    const notificationMatch = path.match(/^notifications\/([^/]+)\/read$/);
+    if (notificationMatch && method === 'POST' && opts.business) return json({ ok: await opts.business.markRead(z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/).parse(notificationMatch[1])) });
     if (path === 'domain' && method === 'GET') {
       if (!opts.domains)
         return json({ free: null, custom: null, cnameTarget: null });
@@ -785,7 +889,7 @@ export async function handleApi(
       return json(await opts.domains.verify(s.restaurantId));
     }
     if (path === 'draft' && method === 'PUT') {
-      const value = await body(req);
+      const value = z.object({revision:z.number().int().nonnegative(),catalog:z.unknown()}).strict().parse(await body(req));
       if (value.revision !== stored.revision)
         return json(
           { error: 'Hay cambios de otro dispositivo. Recarga el editor.' },
@@ -974,9 +1078,7 @@ export async function handleApi(
         : null;
       const payload = domains?.primary
         ? `https://${domains.primary.hostname}/menu`
-        : opts.publicMenuUrl ||
-          s.settings.webUrl ||
-          `${url.origin}${opts.basePath || ''}/menu`;
+        : opts.publicMenuUrl || `${url.origin}${opts.basePath || ''}/menu`;
       const svg = await QRCode.toString(payload, {
         type: 'svg',
         errorCorrectionLevel: 'M',
@@ -1034,11 +1136,9 @@ export async function handleApi(
     if (path === 'reports/orders.csv' && method === 'GET') {
       if (!opts.orderStore || !features.includes('orders'))
         return json({ error: 'Reportes no disponibles.' }, 403);
-      const orders = await opts.orderStore.list(s.restaurantId, {
-        from: url.searchParams.get('from') || undefined,
-        to: url.searchParams.get('to') || undefined,
-        limit: 5_000,
-      });
+      const range = reportRange(url);
+      const orders = await opts.orderStore.list(s.restaurantId, { ...range, limit: 5_001 });
+      if (orders.length > 5_000) return json({ error: 'Hay más de 5.000 pedidos. Reduce el rango de fechas para exportar sin omisiones.' }, 400);
       return new Response(ordersCsv(orders), {
         headers: {
           'Content-Type': 'text/csv; charset=utf-8',
@@ -1050,11 +1150,19 @@ export async function handleApi(
     if (path === 'reports/orders' && method === 'GET') {
       if (!opts.orderStore || !features.includes('orders'))
         return json({ error: 'Reportes no disponibles.' }, 403);
-      const orders = await opts.orderStore.list(s.restaurantId, {
-        from: url.searchParams.get('from') || undefined,
-        to: url.searchParams.get('to') || undefined,
-        limit: 500,
-      });
+      const range = reportRange(url);
+      const orders = await opts.orderStore.list(s.restaurantId, { ...range, limit: 5_001 });
+      if (orders.length > 5_000) return json({ error: 'Hay más de 5.000 pedidos. Reduce el rango de fechas para calcular el reporte completo.' }, 400);
+      orders.sort((a, b) => b.createdAt.localeCompare(a.createdAt) || a.id.localeCompare(b.id));
+      const rawCursor = url.searchParams.get('cursor');
+      const cursor = rawCursor ? z.object({ restaurantId: z.string().uuid(), at: z.string().datetime(), id: z.string().uuid(), from: z.string(), to: z.string() }).strict().parse(JSON.parse(atob(z.string().max(2048).parse(rawCursor)))) : null;
+      if (cursor && (cursor.restaurantId !== s.restaurantId || cursor.from !== (range.from || '') || cursor.to !== (range.to || ''))) return json({ error: 'El cursor no corresponde al restaurante o al filtro.' }, 400);
+      const remaining = cursor ? orders.filter(order => order.createdAt < cursor.at || (order.createdAt === cursor.at && order.id.localeCompare(cursor.id) > 0)) : orders;
+      const page = remaining.slice(0, 50), last = page.at(-1);
+      const nextCursor = remaining.length > 50 && last ? btoa(JSON.stringify({ restaurantId: s.restaurantId, at: last.createdAt, id: last.id, from: range.from || '', to: range.to || '' })) : null;
+      const query = new URLSearchParams(Object.entries(range).filter((entry): entry is [string, string] => !!entry[1]));
+      const exportQuery = query.toString();
+      if (nextCursor) query.set('cursor', nextCursor);
       const report = reportFor(orders);
       const sold = new Map(report.dishes.map((dish) => [dish.id, dish]));
       report.dishes = s.draft.dishes
@@ -1068,7 +1176,7 @@ export async function handleApi(
             },
         )
         .sort((a, b) => b.quantity - a.quantity || b.totalCents - a.totalCents);
-      return json({ report, orders });
+      return json({ report, orders: page, totalOrders: orders.length, nextCursor, nextPageQuery: nextCursor ? `?${query}` : null, exportQuery });
     }
     return json({ error: 'Ruta no encontrada.' }, 404);
   } catch (error) {

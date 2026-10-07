@@ -5,6 +5,6 @@
  "compatibility_flags":["nodejs_compat"],
  "vars":{"CLOUDFLARE_ACCOUNT_ID":"088309af758852fcbfc714c622dff11d","CLOUDFLARE_WORKERS_SUBDOMAIN":"consola","CORE_WORKER_SERVICE":"qr-menu-ec","EMAIL_VERIFICATION_ENABLED":"false"},
  "assets":{"directory":"../../dist-worker","binding":"ASSETS","run_worker_first":true},
- "triggers":{"crons":["0 * * * *"]},
+ "triggers":{"crons":["* * * * *"]},
  "d1_databases":[{"binding":"DB","database_name":"qr-menu-ec","database_id":"e81ee150-55f7-434f-84de-299b2d001f1c"}]
 }

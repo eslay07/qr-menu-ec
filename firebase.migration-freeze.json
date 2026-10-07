@@ -1,0 +1,3 @@
+{
+  "firestore": { "rules": "src/lib/firebase.migration.rules" }
+}

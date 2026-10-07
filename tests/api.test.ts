@@ -14,7 +14,20 @@ const publicKey = Buffer.from(
   pair.publicKey.export({ type: 'spki', format: 'der' }).subarray(-32),
 ).toString('base64');
 
+test('owner plan gates are enforced on the server without blocking public basic ordering',async()=>{
+ const {h}=await configured();h.setPlan('basic');
+ assert.equal((await h.call('reports/orders')).status,403);
+ assert.equal((await h.call('orders')).status,403);
+ assert.equal((await h.call('settings/wifi')).status,403);
+ assert.equal((await h.call('menu')).status,200);
+ const state=(await h.call('state')).body;
+ assert.equal(state.plan,'basic');assert.equal(state.entitlements.push,false);
+ assert.equal((await h.call('draft','PUT',{revision:state.revision,catalog:demoCatalog,access:{plan:'premium'}})).status,400);
+ h.setPlan('medium');assert.equal((await h.call('reports/orders')).status,200);assert.equal((await h.call('settings/wifi')).status,403);
+});
+
 function harness(features: Array<'orders' | 'promotions'> = ['orders']) {
+  let canonicalUrl: string | undefined = 'https://mesa.menus.test/menu';
   let data: Stored | null = null,
     ownerAccess = true;
   const media = new Map<string, { bytes: Uint8Array; type: string }>(),
@@ -74,6 +87,9 @@ function harness(features: Array<'orders' | 'promotions'> = ['orders']) {
   };
   let cookie = '';
   return {
+    setCanonicalUrl(value: string | undefined) { canonicalUrl = value; },
+    setPlan(plan:'basic'|'medium'|'premium') { if(!data)throw Error('Create first');data.state.access={...data.state.access,active:true,plan}; },
+    seedOrder(order: OrderRecord) { orders.set(order.id, { order: structuredClone(order), hash: `fixture-${order.id}` }); },
     async call(path: string, method = 'GET', value?: unknown, origin?: string) {
       const response = await handleApi(
         new Request(`https://menu.test/api/v1/${path}`, {
@@ -95,7 +111,7 @@ function harness(features: Array<'orders' | 'promotions'> = ['orders']) {
           ownerAccess,
           grantedFeatures: features,
           orderStore,
-          publicMenuUrl: 'https://mesa.menus.test/menu',
+          publicMenuUrl: canonicalUrl,
         },
       );
       if (response.headers.has('set-cookie'))
@@ -245,6 +261,12 @@ test('configured order pricing is rebuilt on the server', async () => {
   assert.ok((pdf.body as ArrayBuffer).byteLength > 1000);
 });
 
+test('QR fallback never uses a stale legacy webUrl',async()=>{
+ const {h}=await configured();h.setCanonicalUrl(undefined);
+ const qr=await h.call('qr');assert.equal(qr.status,200);
+ assert.equal(await decode(qr.body.codes[0].payload),'https://menu.test/menu');
+});
+
 test('invalid modifier choices and disabled ordering are rejected', async () => {
   const { h } = await configured();
   const missing = await h.call('orders', 'POST', {
@@ -270,6 +292,47 @@ test('invalid modifier choices and disabled ordering are rejected', async () => 
     ).status,
     403,
   );
+});
+
+test('customer cancellation requires confirmation and same origin, preserves history and is idempotent', async () => {
+  const { h } = await configured();
+  const created = await h.call('orders', 'POST', {
+    alias: 'Ana', expectedTotalCents: 750,
+    lines: [{ dishId: 'seco', quantity: 1, note: '', selections: [] }],
+  });
+  assert.equal(created.status, 201);
+  const token = created.body.publicUrl.split('/').pop();
+  const path = `order/${token}/cancel`;
+  assert.equal((await h.call(path, 'POST', { confirm: true }, 'https://attacker.test')).status, 403);
+  assert.equal((await h.call(path, 'POST', { confirm: false }, 'https://menu.test')).status, 400);
+  assert.equal((await h.call(path, 'POST', { confirm: true }, 'https://menu.test')).status, 200);
+  assert.equal((await h.call(path, 'POST', { confirm: true }, 'https://menu.test')).status, 200);
+  const order = (await h.call(`order/${token}`)).body.order;
+  assert.equal(order.status, 'cancelled');
+  assert.equal(order.lines.length, 1);
+  const report = (await h.call('reports/orders')).body.report;
+  assert.equal(report.cancelledOrders, 1);
+  assert.equal(report.confirmedOrders, 0);
+});
+
+test('reports paginate without losing totals, reject mismatched cursors and never truncate exports silently', async () => {
+  const { h } = await configured();
+  const created = await h.call('orders', 'POST', { alias: 'Prueba', expectedTotalCents: 750, lines: [{ dishId: 'seco', quantity: 1, note: '', selections: [] }] });
+  for (let i = 0; i < 60; i++) h.seedOrder({ ...created.body.order, id: crypto.randomUUID() });
+  const first = await h.call('reports/orders');
+  assert.equal(first.body.orders.length, 50);
+  assert.equal(first.body.report.confirmedOrders, 61);
+  assert.equal(first.body.report.totalCents, 61 * 750);
+  const second = await h.call(`reports/orders${first.body.nextPageQuery}`);
+  assert.equal(second.body.orders.length, 11);
+  assert.equal(second.body.nextCursor, null);
+  assert.equal(new Set([...first.body.orders, ...second.body.orders].map(order => order.id)).size, 61);
+  const forged = { ...JSON.parse(atob(first.body.nextCursor)), restaurantId: crypto.randomUUID() };
+  assert.equal((await h.call(`reports/orders?cursor=${encodeURIComponent(btoa(JSON.stringify(forged)))}`)).status, 400);
+  assert.equal((await h.call('reports/orders?from=not-a-date')).status, 400);
+  for (let i = 61; i < 5001; i++) h.seedOrder({ ...created.body.order, id: crypto.randomUUID() });
+  assert.equal((await h.call('reports/orders')).status, 400);
+  assert.equal((await h.call('reports/orders.csv')).status, 400);
 });
 
 test('reports exclude cancelled orders', async () => {

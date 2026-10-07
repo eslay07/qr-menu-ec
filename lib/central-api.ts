@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import {commercialPlan} from './entitlements';
 import {
   Feature,
   blankCatalog,
@@ -18,8 +19,10 @@ import {
 import type { State } from './store';
 import { DomainService, type DomainEnv } from './domains';
 import { AuthSecurity, type ActiveSession } from './auth-security';
+import type { FirebaseAuthEnv } from './firebase-auth-provider';
+import { ApplicationRepository, type DataEnv } from './application-repository';
 
-export type CentralEnv = DomainEnv & {
+export type CentralEnv = DomainEnv & FirebaseAuthEnv & DataEnv & {
   DB: D1Database;
   CREATOR_SETUP_TOKEN: string;
   LICENSE_PUBLIC_KEY?: string;
@@ -72,11 +75,7 @@ async function requestBody(request: Request) {
   return JSON.parse(new TextDecoder().decode(bytes));
 }
 async function readCreator(env: CentralEnv) {
-  const row = await env.DB.prepare(
-    'SELECT revision,data FROM application WHERE id = ?',
-  )
-    .bind(creatorId)
-    .first<{ revision: number; data: string }>();
+  const row = await new ApplicationRepository(env).read(creatorId);
   return row
     ? { revision: row.revision, state: JSON.parse(row.data) as CreatorState }
     : null;
@@ -86,19 +85,7 @@ async function saveCreator(
   state: CreatorState,
   revision: number | null,
 ) {
-  const result =
-    revision === null
-      ? await env.DB.prepare(
-          'INSERT OR IGNORE INTO application (id,revision,data) VALUES (?,0,?)',
-        )
-          .bind(creatorId, JSON.stringify(state))
-          .run()
-      : await env.DB.prepare(
-          'UPDATE application SET revision = revision + 1, data = ? WHERE id = ? AND revision = ?',
-        )
-          .bind(JSON.stringify(state), creatorId, revision)
-          .run();
-  return result.meta.changes === 1;
+  return new ApplicationRepository(env).commit(creatorId, state, revision);
 }
 async function creatorToken(state: CreatorState, expires: number) {
   return `${expires}.${await digest(`${state.password.hash}:${state.sessionEpoch}:${expires}`)}`;
@@ -160,10 +147,12 @@ export async function handleCreatorApi(
       return json({
         configured: !!creator,
         authenticated,
+        authProvider: security?.usesFirebase ? 'firebase' : 'legacy',
+        firebaseUid: authenticated ? security?.firebaseUid('creator', null) : null,
         csrfToken: authenticated ? (await secureSession())?.csrfToken || null : null,
         mfaConfigured: !!creator?.state.security?.totpEnabledAt,
         turnstileSiteKey: security?.turnstileSiteKey || null,
-        recoveryEmailReady: !!env.CREATOR_RECOVERY_EMAIL && !!security?.emailDeliveryReady,
+        recoveryEmailReady: !!security && (security.usesFirebase && !!creator?.state.security?.firebaseUid || !!env.CREATOR_RECOVERY_EMAIL && security.emailDeliveryReady),
       });
     }
     if (path === 'setup' && method === 'POST') {
@@ -208,11 +197,13 @@ export async function handleCreatorApi(
               }
             : undefined,
       };
+      if (security?.usesFirebase) await security.setFirebasePassword(state, 'creator', null, input.password);
       if (!(await saveCreator(env, state, null)))
         return json({ error: 'El panel ya fue configurado.' }, 409);
       if (security) {
         const secret = totpSecret();
         const challenge = await security.challenge('creator', null, 'mfa_setup', {
+          ...await security.passwordChallengePayload('creator', null),
           secretCiphertext: await security.encrypt(secret),
         });
         return json(
@@ -243,14 +234,24 @@ export async function handleCreatorApi(
       if (!rate.allowed) return json({ error: 'Espera antes de solicitar otro enlace.' }, 429);
       if (!await security.verifyTurnstile(input.turnstileToken, request))
         return json({ error: 'Completa nuevamente la verificación de seguridad.' }, 403);
+      if (security.usesFirebase && creator.state.security?.firebaseUid) {
+        try {
+          await security.requestFirebasePasswordReset(creator.state, 'creator', null);
+          await security.audit(null, 'creator:recovery', 'auth.firebase-recovery.request', 'success', Date.now());
+          return json({ ok: true, message: 'Revisa tu correo y spam. Firebase enviará el enlace; tu autenticador seguirá siendo obligatorio.' });
+        } catch {
+          await security.audit(null, 'creator:recovery', 'auth.firebase-recovery.request', 'failure', Date.now());
+          return json({ error: 'No se pudo enviar el correo. Intenta más tarde o utiliza tu código de recuperación.' }, 503);
+        }
+      }
       if (!env.CREATOR_RECOVERY_EMAIL || !security.emailDeliveryReady)
         return json({ error: 'El envío de recuperación todavía no está configurado.' }, 503);
       const recipient = z.string().email().parse(env.CREATOR_RECOVERY_EMAIL);
-      const actionToken = await security.issueActionToken('creator', null, 'password_reset', { passwordHash: creator.state.password.hash });
+      const actionToken = await security.issueActionToken('creator', null, 'password_reset', { passwordHash: creator.state.password.hash, sessionEpoch: creator.state.sessionEpoch });
       const recoveryUrl = new URL('/creator', env.PUBLIC_APP_ORIGIN || 'https://qr-menu-ec.consola.workers.dev');
       recoveryUrl.hash = `recover=${encodeURIComponent(actionToken)}`;
       await security.deliverEmail(recipient, 'Recupera tu cuenta de QR Menu EC',
-        `<p>Solicitaste recuperar tu cuenta de creador.</p><p><a href="${recoveryUrl.href}">Crear una nueva contraseña</a></p><p>Este enlace caduca en 30 minutos y solo puede usarse una vez. Al recuperar la cuenta configurarás nuevamente tu autenticador. Si no lo solicitaste, ignora este mensaje.</p>`);
+        `<p>Solicitaste recuperar tu cuenta de creador.</p><p><a href="${recoveryUrl.href}">Crear una nueva contraseña</a></p><p>Este enlace caduca en 30 minutos y solo puede usarse una vez. Al volver al acceso seguiremos verificando tu autenticador. Si no lo solicitaste, ignora este mensaje.</p>`);
       await security.audit(null, 'creator:recovery', 'auth.recovery.request', 'success', Date.now());
       return json({ ok: true, message: 'Enlace enviado a tu correo de recuperación. Revisa también spam.' });
     }
@@ -260,16 +261,19 @@ export async function handleCreatorApi(
       if (!rate.allowed) return json({ error: 'Demasiados intentos. Intenta más tarde.' }, 429);
       if (!await security.verifyTurnstile(input.turnstileToken, request)) return json({ error: 'Completa nuevamente la verificación de seguridad.' }, 403);
       const token = await security.takeActionToken(input.token, 'creator', null, 'password_reset');
-      if (!token || JSON.parse(token.payload).passwordHash !== creator.state.password.hash)
+      if (!token || JSON.parse(token.payload).passwordHash !== creator.state.password.hash || (security.usesFirebase && JSON.parse(token.payload).sessionEpoch !== creator.state.sessionEpoch))
         return json({ error: 'El enlace venció o ya fue utilizado. Solicita otro.' }, 400);
       const salt = randomToken();
-      creator.state.password = { salt, hash: await passwordHash(input.password, salt), iterations: passwordIterations };
-      creator.state.security = { ...creator.state.security, totpCiphertext: undefined, totpEnabledAt: undefined, recoveryCodeHashes: undefined };
+      if (security.usesFirebase) await security.setFirebasePassword(creator.state, 'creator', null, input.password);
+      else {
+        creator.state.password = { salt, hash: await passwordHash(input.password, salt), iterations: passwordIterations };
+        creator.state.security = { ...creator.state.security, totpCiphertext: undefined, totpEnabledAt: undefined, recoveryCodeHashes: undefined };
+      }
       creator.state.failures = { count: 0, until: 0 };
       creator.state.sessionEpoch++;
       if (!await saveCreator(env, creator.state, creator.revision)) return json({ error: 'La cuenta cambió. Solicita un enlace nuevo.' }, 409);
       await security.revokeSubject('creator', null);
-      await env.DB.prepare("DELETE FROM auth_challenges WHERE scope = 'creator'").run();
+      await security.clearCreatorChallenges();
       await security.audit(null, 'creator:recovery', 'auth.recovery.completed', 'success', Date.now());
       return json({ ok: true }, 200, { 'Set-Cookie': security.clearSessionCookie('creator') });
     }
@@ -301,7 +305,7 @@ export async function handleCreatorApi(
         .parse(await requestBody(request));
       if (security && !(await security.verifyTurnstile(input.turnstileToken, request)))
         return json({ error: 'No se pudo verificar que seas una persona.' }, 403);
-      const valid = constantEqual(
+      const valid = security ? await security.authenticatePassword(creator.state, 'creator', null, input.password) : constantEqual(
         await passwordHash(
           input.password,
           creator.state.password.salt,
@@ -326,8 +330,8 @@ export async function handleCreatorApi(
       creator.state.failures = { count: 0, until: 0 };
       if (security) {
         if (
-          !creator.state.password.iterations ||
-          creator.state.password.iterations < passwordIterations
+          !security.usesFirebase && (!creator.state.password.iterations ||
+          creator.state.password.iterations < passwordIterations)
         ) {
           creator.state.password.salt = randomToken();
           creator.state.password.hash = await passwordHash(
@@ -340,16 +344,17 @@ export async function handleCreatorApi(
           ? 'mfa_login'
           : 'mfa_setup';
         let enrollment: { secret: string; uri: string } | undefined;
-        let payload: Record<string, unknown> = {};
+        let payload: Record<string, unknown> = await security.passwordChallengePayload('creator', null);
         if (kind === 'mfa_setup') {
           const secret = totpSecret();
-          payload = { secretCiphertext: await security.encrypt(secret) };
+          payload = { ...payload, secretCiphertext: await security.encrypt(secret) };
           enrollment = {
             secret,
             uri: `otpauth://totp/${encodeURIComponent('QR Menu EC:Creador')}?secret=${secret}&issuer=${encodeURIComponent('QR Menu EC')}`,
           };
         }
-        await saveCreator(env, creator.state, creator.revision);
+        if (!await saveCreator(env, creator.state, creator.revision))
+          return json({ error: 'La cuenta cambió. Inicia sesión nuevamente.' }, 409);
         const challenge = await security.challenge('creator', null, kind, payload);
         return json(
           { mfaRequired: true, enrollment },
@@ -396,6 +401,7 @@ export async function handleCreatorApi(
         await saveCreator(env, creator.state, creator.revision);
       }
       await security.consumeChallenge(challenge.hash);
+      await security.resumePasswordChallenge(challenge.payload, 'creator', null);
       const session = await security.createSession('creator', null);
       return json(
         { ok: true, csrfToken: session.csrfToken, recoveryCodes },
@@ -424,6 +430,7 @@ export async function handleCreatorApi(
       };
       await saveCreator(env, creator.state, creator.revision);
       await security.consumeChallenge(challenge.hash);
+      await security.resumePasswordChallenge(challenge.payload, 'creator', null);
       const session = await security.createSession('creator', null);
       return json({ ok: true, csrfToken: session.csrfToken }, 200, {
         'Set-Cookie': session.cookie,
@@ -441,6 +448,8 @@ export async function handleCreatorApi(
       !(await security.requireCsrf(request, await secureSession()))
     )
       return json({ error: 'La sesión de seguridad cambió. Recarga la página.' }, 403);
+    if (path === 'firebase/client-token' && method === 'POST' && security?.usesFirebase)
+      return json({ customToken: await security.firebaseClientToken(request, 'creator', null) });
     if (path === 'logout' && method === 'POST') {
       if (security) {
         await security.revokeSession(request, 'creator');
@@ -452,13 +461,17 @@ export async function handleCreatorApi(
       await saveCreator(env, creator.state, creator.revision);
       return json({ ok: true }, 200, { 'Set-Cookie': clearCookie });
     }
+    if (path === 'mail-failures' && method === 'GET' && security) return json({ failures: await new MailFailures(env, security).list() });
+    const mailRetry = path.match(/^mail-failures\/([a-f0-9-]{36})\/retry$/);
+    if (mailRetry && method === 'POST' && security) {
+      const rate = await security.rateLimit(request, 'mail-manual-retry', mailRetry[1], 3, 60 * 60_000);
+      if (!rate.allowed) return json({ error: 'Espera antes de volver a reenviar este correo.' }, 429, { 'Retry-After': String(rate.retryAfter) });
+      await new MailFailures(env, security).retry(mailRetry[1]);
+      return json({ ok: true });
+    }
     if (path === 'restaurants' && method === 'GET') {
-      const rows = await env.DB.prepare(
-        'SELECT id,revision,data FROM application WHERE id <> ? ORDER BY id',
-      )
-        .bind(creatorId)
-        .all<{ id: string; revision: number; data: string }>();
-      const restaurants = rows.results.map((row) => {
+      const rows = await new ApplicationRepository(env).list();
+      const restaurants = rows.map((row) => {
         const state = JSON.parse(row.data) as State;
         state.draft = normalizeCatalog(state.draft);
         state.settings = normalizeSettings(state.settings);
@@ -470,6 +483,7 @@ export async function handleCreatorApi(
           features: normalizeFeatures(state.access?.features),
           maxDishes: state.access?.maxDishes ?? 150,
           sampleMenuEnabled: state.access?.sampleMenuEnabled === true,
+          plan:commercialPlan(state.access),
           publishedVersion: state.published?.version || 0,
           createdAt: state.createdAt,
         };
@@ -503,8 +517,8 @@ export async function handleCreatorApi(
         recovery = randomToken();
       const settings = structuredClone(defaultSettings);
       const ownerEmailHash = await digest(input.ownerEmail.trim().toLowerCase());
-      const duplicateEmail = await env.DB.prepare("SELECT id FROM application WHERE id <> '__creator__' AND json_extract(data, '$.security.emailHash') = ? LIMIT 1").bind(ownerEmailHash).first();
-      if (duplicateEmail) return json({ error: 'Ese correo ya tiene un restaurante asignado.' }, 409);
+      const duplicateEmail = await new ApplicationRepository(env).findByEmail(ownerEmailHash);
+      if (duplicateEmail.length) return json({ error: 'Ese correo ya tiene un restaurante asignado.' }, 409);
       settings.webUrl = `${url.origin}/r/${id}/menu`;
       const state: State = {
         schemaVersion: 1,
@@ -523,7 +537,7 @@ export async function handleCreatorApi(
         sessionEpoch: 0,
         failures: { count: 0, until: 0 },
         createdAt: new Date().toISOString(),
-        access: { active: true, features: input.features, maxDishes: 150, sampleMenuEnabled: false },
+        access: { active: true, features: input.features, maxDishes: 40, sampleMenuEnabled: false,plan:'basic' },
         security: security
           ? {
               emailCiphertext: await security.encrypt(
@@ -533,12 +547,9 @@ export async function handleCreatorApi(
             }
           : undefined,
       };
-      const result = await env.DB.prepare(
-        'INSERT OR IGNORE INTO application (id,revision,data) VALUES (?,0,?)',
-      )
-        .bind(id, JSON.stringify(state))
-        .run();
-      if (result.meta.changes !== 1)
+      if (security?.usesFirebase) await security.setFirebasePassword(state, 'owner', id, input.ownerPassword);
+      const result = await new ApplicationRepository(env).commit(id, state, null);
+      if (!result)
         throw Error('No se pudo crear el restaurante.');
       settings.webUrl = await new DomainService(env).provisionFree(
         id,
@@ -546,11 +557,8 @@ export async function handleCreatorApi(
         url.origin,
       );
       state.settings = settings;
-      await env.DB.prepare(
-        'UPDATE application SET revision = revision + 1, data = ? WHERE id = ?',
-      )
-        .bind(JSON.stringify(state), id)
-        .run();
+      if (!await new ApplicationRepository(env).commit(id, state, 0))
+        throw Error('La configuración cambió mientras se creaba la dirección. Recarga.');
       return json(
         {
           id,
@@ -570,11 +578,7 @@ export async function handleCreatorApi(
           features: z.array(Feature).max(2),
         })
         .parse(await requestBody(request));
-      const row = await env.DB.prepare(
-        'SELECT revision,data FROM application WHERE id = ?',
-      )
-        .bind(accessMatch[1])
-        .first<{ revision: number; data: string }>();
+      const row = await new ApplicationRepository(env).read(accessMatch[1]);
       if (!row) return json({ error: 'Restaurante no encontrado.' }, 404);
       const state = JSON.parse(row.data) as State;
       if (state.access?.active !== false && !input.active) {
@@ -583,12 +587,8 @@ export async function handleCreatorApi(
         await security?.revokeDevicesForRestaurant(accessMatch[1]);
       }
       state.access = { ...state.access, active: input.active, features: input.features };
-      const result = await env.DB.prepare(
-        'UPDATE application SET revision = revision + 1, data = ? WHERE id = ? AND revision = ?',
-      )
-        .bind(JSON.stringify(state), accessMatch[1], row.revision)
-        .run();
-      if (result.meta.changes !== 1)
+      const result = await new ApplicationRepository(env).commit(accessMatch[1], state, row.revision);
+      if (!result)
         return json(
           { error: 'Otro cambio ocurrió al mismo tiempo. Recarga.' },
           409,
@@ -597,26 +597,23 @@ export async function handleCreatorApi(
     }
     const sampleConfigMatch = path.match(/^restaurants\/([a-f0-9-]{36})\/sample-config$/);
     if (sampleConfigMatch && method === 'PUT') {
-      const input = z.object({ maxDishes: z.number().int().min(1).max(150), sampleMenuEnabled: z.boolean(), revision: z.number().int().min(0) }).strict().parse(await requestBody(request));
-      const row = await env.DB.prepare('SELECT revision,data FROM application WHERE id = ?').bind(sampleConfigMatch[1]).first<{ revision: number; data: string }>();
+      const input = z.object({ maxDishes: z.number().int().min(1).max(150), sampleMenuEnabled: z.boolean(), plan:z.enum(['basic','medium','premium']).optional(), revision: z.number().int().min(0) }).strict().parse(await requestBody(request));
+      const row = await new ApplicationRepository(env).read(sampleConfigMatch[1]);
       if (!row) return json({ error: 'Restaurante no encontrado.' }, 404);
       if (input.revision !== row.revision) return json({ error: 'La configuración cambió. Recarga.' }, 409);
       const state = JSON.parse(row.data) as State;
       if (state.draft.dishes.length > input.maxDishes || (state.published?.catalog.dishes.length || 0) > input.maxDishes)
         return json({ error: 'El nuevo límite es menor que la carta actual o publicada.' }, 400);
-      state.access = { ...state.access, active: state.access?.active !== false, maxDishes: input.maxDishes, sampleMenuEnabled: input.sampleMenuEnabled };
-      const updated = await env.DB.prepare('UPDATE application SET revision = revision + 1,data = ? WHERE id = ? AND revision = ?')
-        .bind(JSON.stringify(state), sampleConfigMatch[1], row.revision).run();
-      if (updated.meta.changes !== 1) return json({ error: 'La configuración cambió. Recarga.' }, 409);
+      state.access = { ...state.access, active: state.access?.active !== false, maxDishes: input.maxDishes, sampleMenuEnabled: input.sampleMenuEnabled, ...(input.plan?{plan:input.plan}:{}) };
+      const updated = await new ApplicationRepository(env).commit(sampleConfigMatch[1], state, row.revision);
+      if (!updated) return json({ error: 'La configuración cambió. Recarga.' }, 409);
       return json({ maxDishes: input.maxDishes, sampleMenuEnabled: input.sampleMenuEnabled });
     }
     const hostnameMatch = path.match(
       /^restaurants\/([a-f0-9-]{36})\/hostname$/,
     );
     if (hostnameMatch && method === 'POST') {
-      const row = await env.DB.prepare('SELECT data FROM application WHERE id = ?')
-        .bind(hostnameMatch[1])
-        .first<{ data: string }>();
+      const row = await new ApplicationRepository(env).read(hostnameMatch[1]);
       if (!row) return json({ error: 'Restaurante no encontrado.' }, 404);
       const state = JSON.parse(row.data) as State;
       await new DomainService(env).provisionFree(
@@ -648,14 +645,15 @@ export async function handleCreatorApi(
     if (emailMatch && method === 'PUT' && security) {
       const input = z.object({ email: z.string().trim().toLowerCase().email().max(254) }).strict().parse(await requestBody(request));
       const emailHash = await digest(input.email);
-      const duplicate = await env.DB.prepare("SELECT id FROM application WHERE id <> ? AND id <> '__creator__' AND json_extract(data, '$.security.emailHash') = ? LIMIT 1").bind(emailMatch[1], emailHash).first();
-      if (duplicate) return json({ error: 'Ese correo pertenece a otro restaurante.' }, 409);
-      const row = await env.DB.prepare('SELECT revision,data FROM application WHERE id = ?').bind(emailMatch[1]).first<{ revision: number; data: string }>();
+      const duplicate = await new ApplicationRepository(env).findByEmail(emailHash, emailMatch[1]);
+      if (duplicate.length) return json({ error: 'Ese correo pertenece a otro restaurante.' }, 409);
+      const row = await new ApplicationRepository(env).read(emailMatch[1]);
       if (!row) return json({ error: 'Restaurante no encontrado.' }, 404);
       const state = JSON.parse(row.data) as State;
+      await security.updateFirebaseEmail(state, input.email);
       state.security = { ...state.security, emailHash, emailCiphertext: await security.encrypt(input.email), emailVerifiedAt: undefined };
-      const result = await env.DB.prepare('UPDATE application SET data = ?, revision = revision + 1 WHERE id = ? AND revision = ?').bind(JSON.stringify(state), emailMatch[1], row.revision).run();
-      if (result.meta.changes !== 1) return json({ error: 'La cuenta cambió. Recarga e intenta otra vez.' }, 409);
+      const result = await new ApplicationRepository(env).commit(emailMatch[1], state, row.revision);
+      if (!result) return json({ error: 'La cuenta cambió. Recarga e intenta otra vez.' }, 409);
       await security.revokeSubject('owner', emailMatch[1]);
       await security.revokeDevicesForRestaurant(emailMatch[1]);
       return json({ ok: true });
@@ -665,16 +663,16 @@ export async function handleCreatorApi(
       const input = z
         .object({ password: z.string().min(12).max(128) })
         .parse(await requestBody(request));
-      const row = await env.DB.prepare(
-        'SELECT revision,data FROM application WHERE id = ?',
-      )
-        .bind(resetMatch[1])
-        .first<{ revision: number; data: string }>();
+      const row = await new ApplicationRepository(env).read(resetMatch[1]);
       if (!row) return json({ error: 'Restaurante no encontrado.' }, 404);
+      // Record the operator action before changing credentials: no passwords,
+      // recovery codes or email addresses belong in the audit trail.
+      await security?.audit(resetMatch[1], 'creator', 'owner.manual-recovery.requested', 'success', Date.now());
       const state = JSON.parse(row.data) as State;
       const salt = randomToken(),
         recovery = randomToken();
-      state.password = {
+      if (security?.usesFirebase) await security.setFirebasePassword(state, 'owner', resetMatch[1], input.password);
+      else state.password = {
         salt,
         hash: await passwordHash(input.password, salt),
         iterations: passwordIterations,
@@ -692,16 +690,13 @@ export async function handleCreatorApi(
       state.recoveryHash = await digest(recovery);
       state.sessionEpoch++;
       state.failures = { count: 0, until: 0 };
-      const result = await env.DB.prepare(
-        'UPDATE application SET revision = revision + 1, data = ? WHERE id = ? AND revision = ?',
-      )
-        .bind(JSON.stringify(state), resetMatch[1], row.revision)
-        .run();
-      if (result.meta.changes !== 1)
+      const result = await new ApplicationRepository(env).commit(resetMatch[1], state, row.revision);
+      if (!result)
         return json(
           { error: 'Otro cambio ocurrió al mismo tiempo. Recarga.' },
           409,
         );
+      await security?.audit(resetMatch[1], 'creator', 'owner.manual-recovery.completed', 'success', Date.now());
       return json({ recovery });
     }
     return json({ error: 'Ruta no encontrada.' }, 404);
@@ -719,3 +714,4 @@ export async function handleCreatorApi(
     );
   }
 }
+import { MailFailures } from './mail-failures';

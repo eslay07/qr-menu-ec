@@ -2,12 +2,15 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { readFileSync } from 'node:fs';
-import { handleOwnerAuth } from '../lib/owner-auth';
+import { handleOwnerAuth, handleOwnerDevice } from '../lib/owner-auth';
 import { handleCreatorApi, type CentralEnv } from '../lib/central-api';
 import { AuthSecurity } from '../lib/auth-security';
 import { digest, passwordHash } from '../lib/security';
 import { blankCatalog, defaultSettings } from '../lib/contracts';
 import type { State, Store } from '../lib/store';
+import { FirebaseAuthProvider } from '../lib/firebase-auth-provider';
+import { createHmac } from 'node:crypto';
+import { MailFailures } from '../lib/mail-failures';
 
 function database() {
   const sql = new DatabaseSync(':memory:');
@@ -35,6 +38,113 @@ function database() {
   } } as unknown as D1Database;
   return { sql, db };
 }
+
+test('failed mail retries idempotently, stores encrypted retry data and supports audited manual resend', async t => {
+  const { sql, db } = database();
+  const env = { DB: db, RESEND_API_KEY: 'test-only', EMAIL_FROM: 'test@example.test', DATA_ENCRYPTION_KEY: Buffer.alloc(32, 9).toString('base64') } as CentralEnv;
+  const security = new AuthSecurity(env);
+  let succeed = false;
+  const keys: string[] = [];
+  t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => { keys.push(new Headers(init.headers).get('Idempotency-Key')!); return new Response('{}', { status: succeed ? 200 : 500 }); });
+  try {
+    await assert.rejects(security.deliverEmail('owner@example.test', 'Recuperación', '<p>private-link</p>'));
+    assert.equal(keys.length, 3);
+    assert.equal(new Set(keys).size, 1);
+    const failures = new MailFailures(env, security);
+    const items = await failures.list();
+    assert.equal(items.length, 1);
+    assert.equal(JSON.stringify(items).includes('private-link'), false);
+    assert.equal(String(sql.prepare("SELECT data FROM application WHERE id GLOB '__mail_failure:*'").get()!.data).includes('private-link'), false);
+    succeed = true;
+    await failures.retry(items[0].id);
+    assert.equal(new Set(keys).size, 1);
+    assert.equal((await failures.list())[0].status, 'sent');
+    await assert.rejects(failures.retry(items[0].id));
+    assert.equal(sql.prepare("SELECT count(*) AS n FROM audit_events WHERE action='email.manual-retry'").get()!.n, 1);
+    sql.prepare('INSERT INTO application (id, revision, data) VALUES (?, 0, ?)').run('restaurant-preserved', '{}');
+    await failures.cleanup(new Date(Date.now() + 31 * 60000));
+    assert.equal((await failures.list()).length, 0);
+    assert.ok(sql.prepare('SELECT id FROM application WHERE id=?').get('restaurant-preserved'));
+  } finally { sql.close(); }
+});
+
+test('device refresh accepts the generated CSRF token and rejects a forged token', async () => {
+  const { sql, db } = database();
+  const env = { DB: db } as CentralEnv;
+  const security = new AuthSecurity(env);
+  const issued = await security.createDevice('restaurant-test');
+  const loadStore = () => ({ async read() { return { revision: 0, state: { access: { active: true } } }; } }) as unknown as Store;
+  const request = (csrf: string) => new Request('https://menu.test/api/owner/device-session/refresh', {
+    method: 'POST', headers: { Origin: 'https://menu.test', 'Content-Type': 'application/json', Cookie: issued.cookie.split(';')[0], 'X-CSRF-Token': csrf }, body: '{}',
+  });
+  try {
+    assert.notEqual(issued.csrfToken.length, 64);
+    assert.equal((await handleOwnerDevice(request('x'.repeat(43)), env, loadStore)).status, 401);
+    const refreshed = await handleOwnerDevice(request(issued.csrfToken), env, loadStore);
+    assert.equal(refreshed.status, 200);
+    assert.match(refreshed.headers.get('set-cookie')!, /__Host-qrmenu_device=/);
+    assert.equal((await refreshed.json() as { ownerUrl: string }).ownerUrl, '/r/restaurant-test/');
+    assert.equal((await handleOwnerDevice(request(issued.csrfToken), env, loadStore)).status, 401);
+  } finally { sql.close(); }
+});
+
+test('creator Firebase login cannot issue a session before TOTP and cannot replay a challenge', async (t) => {
+  const { sql, db } = database();
+  const env: CentralEnv = {
+    DB: db, CREATOR_SETUP_TOKEN: '', AUTH_PROVIDER: 'firebase',
+    FIREBASE_PROJECT_ID: 'demo-auth', FIREBASE_API_KEY: 'test-only',
+    FIREBASE_SERVICE_ACCOUNT: JSON.stringify({ project_id: 'demo-auth', client_email: 'test@demo-auth.iam.gserviceaccount.com', private_key: 'test-only' }),
+    DATA_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString('base64'), TURNSTILE_SECRET_KEY: 'test',
+  };
+  const security = new AuthSecurity(env);
+  const secret = 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ';
+  const state = {
+    password: { salt: 'salt', hash: await passwordHash('Correcta-123456', 'salt', 100_000), iterations: 100_000 },
+    sessionEpoch: 0, failures: { count: 0, until: 0 },
+    security: { emailCiphertext: await security.encrypt('creator@example.test'), totpCiphertext: await security.encrypt(secret), totpEnabledAt: new Date().toISOString() },
+  };
+  sql.prepare('INSERT INTO application VALUES (?,0,?)').run('__creator__', JSON.stringify(state));
+  t.mock.method(FirebaseAuthProvider.prototype, 'lookup', async () => null);
+  t.mock.method(FirebaseAuthProvider.prototype, 'createUser', async () => {});
+  t.mock.method(FirebaseAuthProvider.prototype, 'signIn', async () => 'firebase-password-token');
+  const issue = t.mock.method(FirebaseAuthProvider.prototype, 'createSession', async () => 'firebase-session');
+  t.mock.method(FirebaseAuthProvider.prototype, 'verifySession', async () => true);
+  t.mock.method(globalThis, 'fetch', async () => Response.json({ success: true }));
+  const request = (path: string, body: object, cookie = '') => new Request(`https://menu.test/api/creator/${path}`, {
+    method: 'POST', headers: { 'content-type': 'application/json', origin: 'https://menu.test', cookie }, body: JSON.stringify(body),
+  });
+  const codeAt = (offset: number) => {
+    const counter = Buffer.alloc(8);
+    counter.writeBigUInt64BE(BigInt(Math.floor(Date.now() / 30_000) + offset));
+    const hash = createHmac('sha1', '12345678901234567890').update(counter).digest();
+    const index = hash[hash.length - 1] & 15;
+    const value = ((hash[index] & 127) << 24) | (hash[index + 1] << 16) | (hash[index + 2] << 8) | hash[index + 3];
+    return String(value % 1_000_000).padStart(6, '0');
+  };
+  try {
+    const login = await handleCreatorApi(request('login', { password: 'Correcta-123456', turnstileToken: 'valid' }), env);
+    assert.equal(login.status, 200);
+    assert.equal((await login.json() as any).mfaRequired, true);
+    assert.equal(issue.mock.callCount(), 0);
+    const cookie = login.headers.get('set-cookie')!.split(';')[0];
+    assert.match(cookie, /^__Host-qrmenu_challenge=/);
+    assert.equal(sql.prepare('SELECT COUNT(*) AS n FROM auth_sessions').get()!.n, 0);
+    const payload = String(sql.prepare('SELECT payload FROM auth_challenges').get()!.payload);
+    assert.equal(payload.includes('firebase-password-token'), false);
+    const wrongCode = ['000000', '000001', '000002', '000003'].find(code => ![-1, 0, 1].map(codeAt).includes(code))!;
+    assert.equal((await handleCreatorApi(request('auth/mfa/verify', { code: wrongCode }, cookie), env)).status, 401);
+    assert.equal(issue.mock.callCount(), 0);
+    const verified = await handleCreatorApi(request('auth/mfa/verify', { code: codeAt(0) }, cookie), env);
+    assert.equal(verified.status, 200);
+    assert.match(verified.headers.get('set-cookie')!, /__Host-qrmenu_creator=firebase-session/);
+    assert.equal(issue.mock.callCount(), 1);
+    assert.equal((await handleCreatorApi(request('auth/mfa/verify', { code: codeAt(0) }, cookie), env)).status, 401);
+    assert.equal(issue.mock.callCount(), 1);
+    const current = JSON.parse(String(sql.prepare("SELECT data FROM application WHERE id = '__creator__'").get()!.data));
+    assert.equal(current.security.totpCiphertext, state.security.totpCiphertext);
+    assert.equal(current.password.hash, '');
+  } finally { sql.close(); }
+});
 
 test('remembered device rotates, expires by inactivity and can be revoked without exposing its token', async () => {
   const { sql, db } = database();

@@ -1,0 +1,10 @@
+{
+ "name":"@qrmenu/braces",
+ "version":"3.0.4-qrmenu.1",
+ "description":"Local bounded-depth security fork of micromatch/braces 3.0.3",
+ "main":"index.js",
+ "type":"commonjs",
+ "license":"MIT",
+ "dependencies":{"fill-range":"^7.1.1"},
+ "qrmenuUpstream":{"name":"braces","version":"3.0.3","url":"https://github.com/micromatch/braces"}
+}

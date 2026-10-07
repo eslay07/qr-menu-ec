@@ -1,0 +1,20 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
+import { FirestoreRest, encodeFirestoreFields } from '../lib/firestore-rest';
+import { applyReconciliation } from '../lib/firestore-reconciliation';
+import type { MigrationManifest } from '../lib/firestore-remote-migration';
+test('Interrupted reconciliation resumes safely and retains Firebase Auth and real orders',{skip:!process.env.FIRESTORE_EMULATOR_HOST},async()=>{
+ const db=new FirestoreRest('demo-qr-menu-reconciliation',process.env.FIRESTORE_EMULATOR_HOST!);
+ const id=randomUUID(),restaurant=`restaurants/${id}`,auth=restaurant+'/private/auth',order=restaurant+'/orders/real';
+ const doc=(path:string,data:Record<string,unknown>)=>({path,fields:encodeFirestoreFields(data)});
+ const baseline:MigrationManifest={version:1,project:'qr-menu-6981a',database:'(default)',runId:randomUUID(),sourceChecksum:'a'.repeat(64),documents:[doc(restaurant,{name:'old'}),doc(auth,{legacy:true})]};
+ const current={...baseline,documents:[doc(restaurant,{name:'updated'}),doc(auth,{legacy:true}),doc(`auditEvents/${id}`,{event:'new'})]};
+ await db.commitWire([doc(restaurant,{name:'old'}),doc(auth,{firebaseUid:'keep',legacy:false}),doc(order,{totalCents:1000})].map(d=>({...d,exists:false})));
+ await assert.rejects(applyReconciliation(db,baseline,current,{authorizeWrites:async()=>{},afterWrite:async()=>{throw Error('simulated interruption')}}),/simulated interruption/);
+ const resumed=await applyReconciliation(db,baseline,current,{authorizeWrites:async()=>{}});
+ assert.equal(resumed.verified,true);assert.equal(resumed.updatedDocuments,1);
+ assert.equal((await db.get(auth))?.data.firebaseUid,'keep');assert.equal((await db.get(order))?.data.totalCents,1000);
+ assert.equal((await db.get(restaurant))?.data.name,'updated');assert.ok(await db.get(`auditEvents/${id}`));
+ const again=await applyReconciliation(db,baseline,current,{authorizeWrites:async()=>{}});assert.equal(again.updatedDocuments,0);
+});

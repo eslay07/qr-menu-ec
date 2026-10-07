@@ -7,3 +7,22 @@ useDefault = true
 description = "Documented placeholder values"
 paths = ['''\.env\.example$''', '''README\.md$''']
 regexes = ['''replace-me''', '''example''']
+
+[[allowlists]]
+description = "Google key algorithm identifier, not key material"
+regexTarget = "secret"
+regexes = ['''^KEY_ALG_RSA_2048$''']
+
+[[allowlists]]
+description = "Historical manifest SHA-256 verification constant, not a credential"
+condition = "AND"
+paths = ['''^scripts/final-reconciliation\.ts$''']
+regexTarget = "secret"
+regexes = ['''^8u8z9K3hWDZ4zpLN0mluLa42EwukenNyzM1NyPn\+e4w=$''']
+
+[[allowlists]]
+description = "RFC TOTP vector and isolated mocked password fixture"
+condition = "AND"
+paths = ['''^tests/owner-auth\.test\.ts$''']
+regexTarget = "secret"
+regexes = ['''^GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ$''', '''^Correcta-123456$''']

@@ -27,17 +27,21 @@ import android.widget.LinearLayout
 import android.widget.TextView
 
 class OwnerActivity : Activity() {
+    private var pushBridge: OwnerPushBridge? = null
+    private var printBridge: OwnerPrintBridge? = null
     private lateinit var webView: WebView
     private var fileCallback: ValueCallback<Array<Uri>>? = null
     private val fileRequest = 701
     private val unlockRequest = 702
-    private val platformHost = "qr-menu-ec.consola.workers.dev"
+    private val platformHost = BuildConfig.PLATFORM_HOST
     private val ownerUrl get() = "https://$platformHost/owner"
     private lateinit var lockScreen: LinearLayout
     private var lastBackground = 0L
     private var awaitingUnlock = false
     private var firstLoad = true
     private var prompting = false
+    private var biometricCancellation: CancellationSignal? = null
+    private var requestUnlockOnResume = false
     private val preferences by lazy { getSharedPreferences("owner_access", MODE_PRIVATE) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -45,6 +49,8 @@ class OwnerActivity : Activity() {
         val progress = ProgressBar(this).apply { visibility = View.GONE }
         webView = WebView(this).apply {
             settings.javaScriptEnabled = true
+            pushBridge = OwnerPushBridge(this@OwnerActivity, this, platformHost).also { it.attach() }
+            printBridge = OwnerPrintBridge(this@OwnerActivity, this, platformHost).also { it.attach() }
             val hasScreenLock = (getSystemService(KEYGUARD_SERVICE) as KeyguardManager).isDeviceSecure
             settings.userAgentString = settings.userAgentString + " QRMenuEC-Android/0.8.0" + (if (hasScreenLock) "" else " QRMenuEC-NoLock/")
             settings.domStorageEnabled = true
@@ -62,12 +68,17 @@ class OwnerActivity : Activity() {
                 override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                     val uri = request.url
                     if (uri.scheme == "https" && uri.host == platformHost) return false
+                    if (BuildConfig.BUILD_TYPE == "candidate") {
+                        Toast.makeText(this@OwnerActivity, "Prueba aislada: enlace externo bloqueado", Toast.LENGTH_LONG).show()
+                        return true
+                    }
                     startActivity(Intent(Intent.ACTION_VIEW, uri))
                     return true
                 }
                 override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) { progress.visibility = View.VISIBLE }
                 override fun onPageFinished(view: WebView, url: String) {
                     progress.visibility = View.GONE
+                    printBridge?.onPageFinished(url)
                     if (Uri.parse(url).host == platformHost && Uri.parse(url).getQueryParameter("remembered") == "1")
                         preferences.edit().putBoolean("entered", true).apply()
                     CookieManager.getInstance().flush()
@@ -112,7 +123,12 @@ class OwnerActivity : Activity() {
             addView(progress, FrameLayout.LayoutParams(-2, -2, android.view.Gravity.CENTER))
             addView(lockScreen, FrameLayout.LayoutParams(-1, -1))
         })
-        if (preferences.getBoolean("entered", false)) unlock() else showWeb()
+        // A cold start must not launch authentication before the Activity is
+        // resumed. Keep the opaque lock screen visible while Android starts.
+        if (preferences.getBoolean("entered", false)) {
+            awaitingUnlock = true
+            requestUnlockOnResume = true
+        } else showWeb()
     }
 
     private fun showWeb() {
@@ -128,29 +144,54 @@ class OwnerActivity : Activity() {
         if (!keyguard.isDeviceSecure) {
             Toast.makeText(this, "Activa un bloqueo de pantalla para recordar este celular. Ingresa con tu contraseña.", Toast.LENGTH_LONG).show()
             preferences.edit().putBoolean("entered", false).apply()
-            CookieManager.getInstance().removeAllCookies(null)
-            CookieManager.getInstance().flush()
-            webView.loadUrl(ownerUrl)
-            firstLoad = false
-            showWeb()
+            CookieManager.getInstance().removeAllCookies {
+                if (!isFinishing && !isDestroyed) {
+                    CookieManager.getInstance().flush()
+                    firstLoad = true
+                    webView.clearHistory()
+                    showWeb()
+                }
+            }
             return
         }
         awaitingUnlock = true
         lockScreen.visibility = View.VISIBLE
         prompting = true
+        try {
         if (Build.VERSION.SDK_INT >= 30) {
+            biometricCancellation = CancellationSignal()
             BiometricPrompt.Builder(this)
                 .setTitle("Desbloquear QR Menu EC")
                 .setSubtitle("Usa tu huella, rostro o PIN")
                 .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.DEVICE_CREDENTIAL)
-                .build().authenticate(CancellationSignal(), mainExecutor, object : BiometricPrompt.AuthenticationCallback() {
-                    override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) { showWeb() }
-                    override fun onAuthenticationError(errorCode: Int, errString: CharSequence) { prompting = false }
+                .build().authenticate(biometricCancellation!!, mainExecutor, object : BiometricPrompt.AuthenticationCallback() {
+                    override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                        if (!isFinishing && !isDestroyed) showWeb()
+                    }
+                    override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                        prompting = false
+                        if (!isFinishing && !isDestroyed) Toast.makeText(this@OwnerActivity, "No se desbloqueó. Pulsa Desbloquear para intentarlo de nuevo.", Toast.LENGTH_LONG).show()
+                    }
                 })
         } else {
+            unlockWithCredential(keyguard)
+        }
+        } catch (_: RuntimeException) {
+            // Missing/unavailable biometric services must never crash startup
+            // or reveal the protected WebView. PIN/password is the fallback.
+            unlockWithCredential(keyguard)
+        }
+    }
+
+    private fun unlockWithCredential(keyguard: KeyguardManager) {
+        try {
             val intent = keyguard.createConfirmDeviceCredentialIntent("Desbloquear QR Menu EC", "Usa el desbloqueo de tu celular")
             if (intent != null) startActivityForResult(intent, unlockRequest)
-            else prompting = false
+            else throw IllegalStateException("Device credential unavailable")
+        } catch (_: RuntimeException) {
+            prompting = false
+            lockScreen.visibility = View.VISIBLE
+            Toast.makeText(this, "No se pudo abrir el desbloqueo del sistema. Revisa el bloqueo de pantalla y vuelve a intentarlo.", Toast.LENGTH_LONG).show()
         }
     }
 
@@ -164,6 +205,11 @@ class OwnerActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
+        if (requestUnlockOnResume && !prompting) {
+            requestUnlockOnResume = false
+            unlock()
+            return
+        }
         if (lastBackground > 0L && !awaitingUnlock) {
             val elapsed = System.currentTimeMillis() - lastBackground
             lastBackground = 0L
@@ -172,6 +218,11 @@ class OwnerActivity : Activity() {
     }
 
     @Deprecated("Deprecated in Android")
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == 703) pushBridge?.permissionResult()
+    }
+
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == fileRequest) {
@@ -186,5 +237,11 @@ class OwnerActivity : Activity() {
     @Deprecated("Deprecated in Android")
     override fun onBackPressed() { if (awaitingUnlock) finish() else if (webView.canGoBack()) webView.goBack() else super.onBackPressed() }
 
-    override fun onDestroy() { webView.destroy(); super.onDestroy() }
+    override fun onDestroy() {
+        biometricCancellation?.cancel()
+        fileCallback?.onReceiveValue(null)
+        fileCallback = null
+        if (::webView.isInitialized) webView.destroy()
+        super.onDestroy()
+    }
 }

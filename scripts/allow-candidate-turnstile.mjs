@@ -1,0 +1,45 @@
+import { execFileSync } from 'node:child_process';
+import { writeFile } from 'node:fs/promises';
+import { isDeepStrictEqual } from 'node:util';
+const candidate=process.argv[2]||'fcea08f9-90ed-498c-b79f-6538ff8d6444';
+const expectedProduction=process.argv[3]||'62bff004-11c0-4fa7-9047-b5a26a9cc0f1';
+if(!/^[a-f0-9-]{36}$/.test(expectedProduction))throw Error('Invalid expected production UUID');
+if(!/^[a-f0-9-]{36}$/.test(candidate))throw Error('Invalid candidate UUID');
+const host=`${candidate.slice(0,8)}-qr-menu-ec.consola.workers.dev`;
+const auth=JSON.parse(execFileSync(process.execPath,['node_modules/wrangler/bin/wrangler.js','auth','token','--json'],{encoding:'utf8',stdio:['ignore','pipe','pipe'],env:{...process.env,WRANGLER_WRITE_LOGS:'false',WRANGLER_SEND_METRICS:'false'}}));
+const base='https://api.cloudflare.com/client/v4/accounts/088309af758852fcbfc714c622dff11d';
+async function api(path,method='GET',body) {
+ const r=await fetch(base+path,{method,headers:{Authorization:`Bearer ${auth.token}`,'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(20000)});
+ const j=await r.json();if(!r.ok||!j.success)throw Error(`Cloudflare HTTP ${r.status}, codes ${(j.errors||[]).map(e=>e.code).join(',')}`);return j.result;
+}
+const route='/workers/scripts/qr-menu-ec';
+const before=await api(route+'/deployments');
+const active=before.deployments[0].versions;
+if(active.length!==1||active[0].version_id!==expectedProduction||active[0].percentage!==100)throw Error('Unexpected active deployment');
+// Login configuration is public and must not require migrated restaurant data.
+const loginResponse=await fetch(`https://${host}/api/owner/login`);
+if(!loginResponse.ok)throw Error(`Public login configuration HTTP ${loginResponse.status}`);
+const session=await loginResponse.json();
+if(!session.turnstileSiteKey)throw Error('Missing public sitekey');
+const path='/challenges/widgets/'+session.turnstileSiteKey;
+const old=await api(path);
+const keys=['name','mode','bot_fight_mode','clearance_level','ephemeral_id','offlabel','region'];
+const settings=Object.fromEntries(keys.filter(k=>Object.hasOwn(old,k)).map(k=>[k,old[k]]));
+const replacement=process.argv[4];
+if(replacement&&(!/^[a-f0-9]{8}-qr-menu-ec\.consola\.workers\.dev$/.test(replacement)||replacement===`${expectedProduction.slice(0,8)}-qr-menu-ec.consola.workers.dev`||replacement===host))throw Error('Only an inactive preview hostname may be replaced');
+if(replacement&&!old.domains.includes(replacement))throw Error('Replacement preview is not registered');
+const retained=old.domains.filter(domain=>domain!==replacement);
+const domains=[...new Set([...retained,host])];
+if(domains.length>10)throw Error('Turnstile hostname capacity reached; explicitly replace an inactive preview, never a production domain');
+if(!old.domains.includes(host))await api(path,'PUT',{...settings,domains});
+const checked=await api(path);
+if(!isDeepStrictEqual([...checked.domains].sort(),[...domains].sort())||keys.some(k=>Object.hasOwn(old,k)&&!isDeepStrictEqual(old[k],checked[k])))throw Error('Widget configuration verification failed');
+if(old.secret!==checked.secret||old.sitekey!==checked.sitekey)throw Error('Widget identity changed');
+const version=await api(route+'/versions/'+candidate);
+const required=['FIREBASE_PROJECT_ID','FIREBASE_API_KEY','FIREBASE_SERVICE_ACCOUNT'];
+const authConfiguration=required.map(name=>({name,present:version.resources.bindings.some(b=>b.name===name)}));
+const unchanged=isDeepStrictEqual(before,await api(route+'/deployments'));
+const result={checkedAt:new Date().toISOString(),hostnameAllowed:true,productionDomainsPreserved:retained.every(d=>checked.domains.includes(d)),retiredPreview:replacement||null,otherWidgetSettingsPreserved:true,widgetIdentityPreserved:true,productionDeploymentUnchanged:unchanged,authConfiguration,newVersionCreated:false};
+await writeFile('work/migration-preparation/turnstile-candidate-fix.json',JSON.stringify(result,null,2));
+console.log(JSON.stringify(result,null,2));
+if(!unchanged)process.exitCode=1;

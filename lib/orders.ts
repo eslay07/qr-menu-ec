@@ -80,6 +80,7 @@ export interface OrderStore {
     restaurantId: string,
     id: string,
     status: 'cancelled',
+    actor?: 'owner' | 'customer',
   ): Promise<boolean>;
 }
 

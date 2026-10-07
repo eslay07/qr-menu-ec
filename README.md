@@ -22,15 +22,18 @@ Plataforma principal: `https://qr-menu-ec.consola.workers.dev`.
 
 ## Cloudflare
 
+Estado productivo 07-10-2026: proveedor operativo `d1-documents`, Firebase Authentication y TOTP del creador conservados, FCM habilitado. El corte verificado trasladó 1.729 documentos de dos restaurantes, conservando siete pedidos y 17 líneas. Las 16 imágenes permanecen en la D1 histórica; no se activaron R2, Storage ni Blaze. Consultar `docs/launch-readiness-2026-10-06.md` para evidencia vigente; los informes fechados anteriores son históricos.
+
 El Worker usa D1 privada y Cloudflare for SaaS; el navegador nunca recibe una clave de base de datos. Aplica en orden las migraciones `0000` a `0003` de `drizzle/`. Configura como secretos `DATA_ENCRYPTION_KEY`, `TURNSTILE_SECRET_KEY`, `TURNSTILE_SITE_KEY`, `CLOUDFLARE_API_TOKEN` y, cuando se active correo, `RESEND_API_KEY`. El token de Cloudflare debe tener permisos mínimos para Workers y Custom Hostnames.
 
 - El subdominio gratuito se crea junto con el restaurante y permanece como alias.
 - El dominio propio es opcional y solo se activa cuando hostname y certificado estén activos.
 - Todas las direcciones públicas usan HTTPS.
 - Los reportes privados conservan el historial. El enlace público y el PDF del pedido expiran a las 24 horas.
-- Las sesiones son opacas y revocables, viven en cookies `__Host-` seguras, expiran tras 30 minutos de inactividad y tienen un máximo absoluto de 12 horas.
-- Creador y dueños deben enrolar TOTP; los códigos de recuperación solo se muestran una vez.
+- El acceso usa Firebase Authentication mediante cookies seguras HttpOnly y autorización del servidor. Los dispositivos recordados son permisos opacos revocables; nunca se guarda la contraseña.
+- Solo el creador mantiene TOTP obligatorio. El dueño entra con correo y contraseña y puede recordar su celular con desbloqueo nativo.
 - El correo permanece detrás de `EMAIL_VERIFICATION_ENABLED=false` hasta verificar el dominio de envío.
+- La recuperación de contraseña vigente usa Firebase Authentication y su remitente predeterminado, sin dominio comprado; no confundirla con el envío de correo comercial mediante Resend.
 - GitHub Actions ejecuta TypeScript, pruebas, `npm audit`, Gitleaks y CodeQL; Dependabot revisa npm, Gradle y Actions semanalmente.
 
 Consulta [deployment/cloudflare/README.md](deployment/cloudflare/README.md) para el despliegue.

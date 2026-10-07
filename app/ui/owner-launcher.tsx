@@ -13,6 +13,8 @@ export default function OwnerLauncher() {
   const [busy, setBusy] = useState(false);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState('');
+  const [recovering, setRecovering] = useState(false);
+  const [message, setMessage] = useState('');
   const [restoring, setRestoring] = useState(inAndroidApp);
   useEffect(() => {
     fetch('/api/owner/login').then(r => { if (!r.ok) throw Error('Acceso no disponible'); return r.json(); }).then((data: any) => {
@@ -41,13 +43,14 @@ export default function OwnerLauncher() {
     const values = new FormData(event.currentTarget);
     setBusy(true); setError('');
     try {
-      const response = await fetch('/api/owner/login', {
+      const response = await fetch(recovering ? '/api/owner/recovery' : '/api/owner/login', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: values.get('email'), password: values.get('password'), turnstileToken: token,
+        body: JSON.stringify(recovering ? { email: values.get('email'), turnstileToken: token } : { email: values.get('email'), password: values.get('password'), turnstileToken: token,
           rememberDevice: canRemember && values.get('rememberDevice') === 'on' }),
       });
       const result = await response.json() as any;
       if (!response.ok) throw Error(result.error);
+      if (recovering) { setMessage(result.message); return; }
       location.assign(`${result.ownerUrl}${canRemember && values.get('rememberDevice') === 'on' ? '?remembered=1' : ''}`);
     } catch (failure) { setError((failure as Error).message); revealIssue('.owner-login [role="alert"]'); }
     finally { setBusy(false); setToken(''); setAttempt(value => value + 1); }
@@ -55,16 +58,18 @@ export default function OwnerLauncher() {
   if (restoring) return <main className="creator-auth" aria-busy="true"><section className="creator-login card" role="status">Revisando el acceso guardado en este celular…</section></main>;
   return <main className="creator-auth"><section className="creator-login card owner-login">
     <Store size={38} /><p className="eyebrow">TU RESTAURANTE, AL DÍA</p>
-    <h1>Bienvenido a tu carta</h1><p>Entra para editar tus platos, destacar promociones y revisar pedidos.</p>
+    <h1>{recovering ? 'Recupera tu acceso' : 'Bienvenido a tu carta'}</h1><p>{recovering ? 'Recibe un enlace para elegir una contraseña nueva.' : 'Entra para editar tus platos, destacar promociones y revisar pedidos.'}</p>
     {error && <p className="notice error" role="alert">{error}</p>}
+    {message && <p className="notice" role="status">{message}</p>}
     <form onSubmit={login}>
       <label>Correo electrónico<input name="email" type="email" autoComplete="username" placeholder="tu@restaurante.com" required maxLength={254} /></label>
-      <label>Contraseña<input name="password" type="password" autoComplete="current-password" required maxLength={128} /></label>
-      {canRemember && <label className="check-label"><input type="checkbox" name="rememberDevice" defaultChecked /> Recordar este celular. Al volver, desbloquéalo con huella, rostro o PIN.</label>}
+      {!recovering && <label>Contraseña<input name="password" type="password" autoComplete="current-password" required maxLength={128} /></label>}
+      {!recovering && canRemember && <label className="check-label"><input type="checkbox" name="rememberDevice" defaultChecked /> Recordar este celular. Al volver, desbloquéalo con huella, rostro o PIN.</label>}
       {inAndroidApp && !canRemember && <p className="notice">Para recordar este celular, activa primero huella, rostro o PIN en los ajustes de Android. Puedes entrar ahora con tu contraseña.</p>}
       <Turnstile siteKey={siteKey} onToken={setToken} resetKey={attempt} />
-      <button className="btn primary" disabled={busy || !ready || (!!siteKey && !token)}>{busy ? 'Entrando…' : 'Entrar a mi restaurante'}<ArrowRight size={18} /></button>
+      <button className="btn primary" disabled={busy || !ready || (!!siteKey && !token)}>{busy ? 'Un momento…' : recovering ? 'Enviar enlace de recuperación' : 'Entrar a mi restaurante'}<ArrowRight size={18} /></button>
     </form>
-    <p className="login-footnote">¿Necesitas recuperar el acceso? Pide al administrador que actualice tu correo o restablezca tu contraseña.</p>
+    <button type="button" className="btn" onClick={() => { setRecovering(!recovering); setMessage(''); setError(''); setToken(''); setAttempt(value => value + 1); }}>{recovering ? 'Volver al acceso' : 'Olvidé mi contraseña'}</button>
+    <p className="login-footnote">Si no tienes acceso al correo, pide al administrador que verifique tu identidad y restablezca tu cuenta.</p>
   </section></main>;
 }

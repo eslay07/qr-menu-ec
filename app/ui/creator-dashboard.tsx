@@ -23,6 +23,7 @@ type Restaurant = {
   features: Feature[];
   maxDishes: number;
   sampleMenuEnabled: boolean;
+  plan:'basic'|'medium'|'premium';
   publishedVersion: number;
   createdAt: string;
 };
@@ -89,6 +90,10 @@ export default function CreatorDashboard() {
   const load = useCallback(async () => {
     try {
       const session = await creatorApi('session');
+      if (session.authProvider === 'firebase') {
+        const { synchronizeFirebaseClient } = await import('@/src/lib/firebase-auth-client');
+        await synchronizeFirebaseClient(session, () => creatorApi('firebase/client-token', 'POST', {}));
+      }
       setConfigured(session.configured);
       setEmailRecoveryReady(session.recoveryEmailReady === true);
       setAuthenticated(session.authenticated);
@@ -228,6 +233,7 @@ export default function CreatorDashboard() {
   }
   async function logout() {
     await creatorApi('logout', 'POST', {});
+    await load();
     setAuthenticated(false);
     setRestaurants([]);
   }
@@ -360,6 +366,7 @@ export default function CreatorDashboard() {
         </button>
       </header>
       <main className="creator-main">
+        <MailFailurePanel />
         {error && (
           <div className="notice error feedback-toast" role="alert">
             {error}
@@ -586,6 +593,24 @@ export default function CreatorDashboard() {
   );
 }
 
+function MailFailurePanel() {
+  const [rows, setRows] = useState<Array<{ id: string; createdAt: string; status: string; expired: boolean }>>([]);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('');
+  async function refresh() { const result = await creatorApi('mail-failures'); setRows(result.failures); }
+  async function run(id?: string) {
+    setBusy(true); setMessage('');
+    try { if (id) await creatorApi(`mail-failures/${id}/retry`, 'POST', {}); await refresh(); if (id) setMessage('Reenvío aceptado por el proveedor; no garantiza recepción.'); }
+    catch (error) { setMessage((error as Error).message); }
+    finally { setBusy(false); }
+  }
+  return <details className="card"><summary>Correos fallidos</summary><p>Revisa fallos recientes sin exponer contraseñas ni enlaces de recuperación. Los correos vencidos requieren generar una recuperación nueva.</p>
+    <button className="btn" disabled={busy} onClick={() => run()}>Actualizar registro</button>
+    {message && <p role="status">{message}</p>}
+    <ul>{rows.map(row => <li key={row.id}>{new Date(row.createdAt).toLocaleString('es-EC')} · {row.status} {row.expired ? '· Vencido' : ''} <button className="btn" disabled={busy || row.expired || row.status !== 'failed'} onClick={() => run(row.id)}>Reenviar</button></li>)}</ul>
+  </details>;
+}
+
 function OwnerEmailEditor({ restaurant }: { restaurant: Restaurant }) {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
@@ -608,20 +633,22 @@ function OwnerEmailEditor({ restaurant }: { restaurant: Restaurant }) {
 function SampleMenuSettings({ restaurant, onSaved }: { restaurant: Restaurant; onSaved: () => Promise<void> }) {
   const [limit, setLimit] = useState(restaurant.maxDishes);
   const [enabled, setEnabled] = useState(restaurant.sampleMenuEnabled);
+  const [plan,setPlan]=useState(restaurant.plan||'premium');
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
-  useEffect(() => { setLimit(restaurant.maxDishes); setEnabled(restaurant.sampleMenuEnabled); }, [restaurant.maxDishes, restaurant.sampleMenuEnabled]);
+  useEffect(() => { setLimit(restaurant.maxDishes); setEnabled(restaurant.sampleMenuEnabled);setPlan(restaurant.plan||'premium'); }, [restaurant.maxDishes, restaurant.sampleMenuEnabled,restaurant.plan]);
   return <details className="owner-email-editor"><summary>Capacidad y carta de ejemplo</summary>
     <p>El límite se aplica al guardar, publicar, restaurar y cargar ejemplos. No puede ser menor que una carta existente.</p>
     <form onSubmit={async event => {
       event.preventDefault(); setBusy(true); setNotice('');
       try {
-        await creatorApi(`restaurants/${restaurant.id}/sample-config`, 'PUT', { revision: restaurant.revision, maxDishes: limit, sampleMenuEnabled: enabled });
+        await creatorApi(`restaurants/${restaurant.id}/sample-config`, 'PUT', { revision: restaurant.revision, maxDishes: limit, sampleMenuEnabled: enabled,plan });
         await onSaved(); setNotice('Capacidad y ejemplo guardados correctamente.');
       } catch (error) { setNotice((error as Error).message); }
       finally { setBusy(false); }
     }}>
       <label>Máximo de platos (1 a 150)<input type="number" min={1} max={150} required value={limit} onChange={event => setLimit(Number(event.target.value))} /></label>
+      <label>Plan comercial<select value={plan} onChange={event=>setPlan(event.target.value as typeof plan)}><option value="basic">Básico · avisos dentro del panel</option><option value="medium">Medio · push y reportes</option><option value="premium">Premium · WiFi y respaldos programados</option></select></label>
       <label className="check-label"><input type="checkbox" checked={enabled} onChange={event => setEnabled(event.target.checked)} /> Habilitar “Cargar ejemplo profesional”</label>
       <button className="btn primary" disabled={busy}>{busy ? 'Guardando…' : 'Guardar capacidad'}</button>
       {notice && <p role="status">{notice}</p>}

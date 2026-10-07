@@ -1,6 +1,8 @@
 import { z } from 'zod';
+import { ApplicationRepository, localFirestore, type DataEnv } from './application-repository';
+import { FirestoreDomainRepository } from './firestore-domains';
 
-export type DomainEnv = {
+export type DomainEnv = DataEnv & {
   DB: D1Database;
   PLATFORM_MENU_DOMAIN?: string;
   CLOUDFLARE_ZONE_ID?: string;
@@ -47,13 +49,17 @@ export function slugFor(value: string) {
 }
 
 export class DomainService {
-  constructor(private env: DomainEnv) {}
+  private firestore?: FirestoreDomainRepository;
+  constructor(private env: DomainEnv) { const db = localFirestore(env); if (db) this.firestore = new FirestoreDomainRepository(db); }
+  private record(restaurantId: string, hostname: string, kind: DomainRecord['kind'], values: Partial<DomainRecord> = {}): DomainRecord {
+    return { restaurantId, hostname, kind, status: 'pending_validation', cloudflareId: null, validation: null, provider: 'platform_zone', serviceName: null, priority: kind === 'custom' ? 30 : kind === 'workers_dev' ? 10 : 20, lastError: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), ...values };
+  }
   async provisionFree(
     restaurantId: string,
     name: string,
     fallbackOrigin: string,
   ) {
-    const existing = await this.env.DB.prepare(
+    const existing = this.firestore ? (await this.firestore.list(restaurantId)).find(row => ['workers_dev', 'free', 'platform'].includes(row.kind)) : await this.env.DB.prepare(
       "SELECT hostname FROM restaurant_hosts WHERE restaurant_id = ? AND kind IN ('workers_dev','free') ORDER BY priority DESC LIMIT 1",
     )
       .bind(restaurantId)
@@ -74,7 +80,7 @@ export class DomainService {
       const candidate = length
         ? `${base}-${restaurantId.replace(/-/g, '').slice(0, length)}.${domain}`
         : `${base}.${domain}`;
-      const collision = await this.env.DB.prepare(
+      const collision = this.firestore ? await this.firestore.lookup(candidate) : await this.env.DB.prepare(
         'SELECT 1 AS found FROM restaurant_hosts WHERE hostname = ?',
       )
         .bind(candidate)
@@ -85,6 +91,10 @@ export class DomainService {
       }
     }
     if (!hostname) throw Error('No se pudo reservar la dirección gratuita.');
+    if (this.firestore) {
+      await this.firestore.save(this.record(restaurantId, hostname, 'platform', { status: 'active' }));
+      return `https://${hostname}/menu`;
+    }
     await this.env.DB.prepare(
       "INSERT INTO restaurant_hosts (hostname,restaurant_id,kind,status,provider,priority,created_at,updated_at) VALUES (?,?,?,'active','platform_zone',20,?,?)",
     )
@@ -102,7 +112,8 @@ export class DomainService {
       candidates.push(`${base}-${suffix}-${index}`.slice(0, 63));
     for (const serviceName of candidates) {
       const hostname = `${serviceName}.${subdomain}.workers.dev`;
-      const collision = await this.env.DB.prepare(
+      const firestoreCollision = this.firestore ? await this.firestore.lookup(hostname) : null;
+      const collision = this.firestore ? (firestoreCollision ? { restaurant_id: firestoreCollision.restaurantId } : null) : await this.env.DB.prepare(
         'SELECT restaurant_id FROM restaurant_hosts WHERE hostname = ?',
       )
         .bind(hostname)
@@ -159,6 +170,10 @@ export class DomainService {
           );
         }
         const now = new Date().toISOString();
+        if (this.firestore) {
+          await this.firestore.save(this.record(restaurantId, hostname, 'workers_dev', { status: 'active', provider: 'cloudflare_workers', serviceName }));
+          return `https://${hostname}/menu`;
+        }
         await this.env.DB.prepare(
           "INSERT OR REPLACE INTO restaurant_hosts (hostname,restaurant_id,kind,status,provider,service_name,priority,last_error,created_at,updated_at) VALUES (?,?,'workers_dev','active','cloudflare_workers',?,10,NULL,?,?)",
         )
@@ -167,6 +182,10 @@ export class DomainService {
         return `https://${hostname}/menu`;
       } catch (error) {
         const now = new Date().toISOString();
+        if (this.firestore) {
+          await this.firestore.save(this.record(restaurantId, hostname, 'workers_dev', { status: 'error', provider: 'cloudflare_workers', serviceName, lastError: error instanceof Error ? error.message.slice(0, 500) : 'Error desconocido' }));
+          throw error;
+        }
         await this.env.DB.prepare(
           "INSERT OR REPLACE INTO restaurant_hosts (hostname,restaurant_id,kind,status,provider,service_name,priority,last_error,created_at,updated_at) VALUES (?,?,'workers_dev','error','cloudflare_workers',?,10,?,?,?)",
         )
@@ -203,6 +222,11 @@ export class DomainService {
     };
   }
   async get(restaurantId: string) {
+    if (this.firestore) {
+      const records = await this.firestore.list(restaurantId);
+      const active = records.filter(item => item.status === 'active');
+      return { primary: active[0] || null, primaryUrl: active[0] ? `https://${active[0].hostname}/menu` : null, aliases: records, free: records.find(item => ['platform', 'workers_dev', 'free'].includes(item.kind)) || null, custom: records.find(item => item.kind === 'custom') || null, cnameTarget: this.env.CLOUDFLARE_CNAME_TARGET || null, capacity: { used: await this.firestore.capacity(), warningAt: 90, limit: 100 } };
+    }
     const rows = await this.env.DB.prepare(
       'SELECT * FROM restaurant_hosts WHERE restaurant_id = ? ORDER BY priority DESC, created_at DESC',
     )
@@ -263,14 +287,16 @@ export class DomainService {
       hostname.endsWith(`.${this.env.PLATFORM_MENU_DOMAIN.toLowerCase()}`)
     )
       throw Error('Ese nombre pertenece al dominio gratuito de la plataforma.');
-    const duplicate = await this.env.DB.prepare(
+    const existingHost = this.firestore ? await this.firestore.lookup(hostname) : null;
+    const duplicate = this.firestore ? (existingHost ? { restaurant_id: existingHost.restaurantId } : null) : await this.env.DB.prepare(
       'SELECT restaurant_id FROM restaurant_hosts WHERE hostname = ?',
     )
       .bind(hostname)
       .first<{ restaurant_id: string }>();
     if (duplicate && duplicate.restaurant_id !== restaurantId)
       throw Error('Ese dominio ya pertenece a otro restaurante.');
-    const current = await this.env.DB.prepare(
+    const existingCustom = this.firestore ? (await this.firestore.list(restaurantId)).find(row => row.kind === 'custom') : null;
+    const current = this.firestore ? (existingCustom ? { hostname: existingCustom.hostname, cloudflare_id: existingCustom.cloudflareId } : null) : await this.env.DB.prepare(
       "SELECT hostname,cloudflare_id FROM restaurant_hosts WHERE restaurant_id = ? AND kind = 'custom'",
     )
       .bind(restaurantId)
@@ -287,6 +313,12 @@ export class DomainService {
         },
       }),
     });
+    if (this.firestore) {
+      const ssl = result.ssl as { status?: string } | undefined;
+      await this.firestore.save(this.record(restaurantId, hostname, 'custom', { status: result.status === 'active' && ssl?.status === 'active' ? 'active' : 'pending_validation', cloudflareId: String(result.id || ''), validation: result, provider: 'cloudflare_for_saas' }));
+      if (current?.cloudflare_id) await this.cloudflare(`/custom_hostnames/${current.cloudflare_id}`, { method: 'DELETE' });
+      return this.get(restaurantId);
+    }
     if (current?.cloudflare_id)
       await this.cloudflare(`/custom_hostnames/${current.cloudflare_id}`, {
         method: 'DELETE',
@@ -312,6 +344,14 @@ export class DomainService {
     return this.get(restaurantId);
   }
   async verify(restaurantId: string) {
+    if (this.firestore) {
+      const current = (await this.firestore.list(restaurantId)).find(row => row.kind === 'custom');
+      if (!current?.cloudflareId) throw Error('Primero registra el dominio personalizado.');
+      const result = await this.cloudflare(`/custom_hostnames/${current.cloudflareId}`);
+      const ssl = result.ssl as { status?: string } | undefined;
+      await this.firestore.save({ ...current, status: result.status === 'active' && ssl?.status === 'active' ? 'active' : 'pending_validation', validation: result, updatedAt: new Date().toISOString() });
+      return this.get(restaurantId);
+    }
     const current = await this.env.DB.prepare(
       "SELECT * FROM restaurant_hosts WHERE restaurant_id = ? AND kind = 'custom'",
     )
@@ -338,6 +378,12 @@ export class DomainService {
   }
 
   async removeCustom(restaurantId: string) {
+    if (this.firestore) {
+      const current = (await this.firestore.list(restaurantId)).find(row => row.kind === 'custom');
+      if (current?.cloudflareId) await this.cloudflare(`/custom_hostnames/${current.cloudflareId}`, { method: 'DELETE' });
+      await this.firestore.removeCustom(restaurantId);
+      return this.get(restaurantId);
+    }
     const current = await this.env.DB.prepare(
       "SELECT cloudflare_id FROM restaurant_hosts WHERE restaurant_id = ? AND kind = 'custom'",
     )
@@ -356,6 +402,7 @@ export class DomainService {
   }
 
   async platformConfig() {
+    if (this.firestore) return await this.firestore.platformConfig() || { baseHostname: this.env.PLATFORM_MENU_DOMAIN || null, zoneId: this.env.CLOUDFLARE_ZONE_ID || null, status: this.env.PLATFORM_MENU_DOMAIN ? 'configured' : 'not_configured', validation: null, updatedAt: null };
     const row = await this.env.DB.prepare(
       "SELECT * FROM platform_domain_config WHERE id = 'primary'",
     ).first<Record<string, unknown>>();
@@ -382,6 +429,17 @@ export class DomainService {
     const baseHostname = hostnameSchema.parse(value);
     if (!this.env.CLOUDFLARE_ZONE_ID)
       throw Error('Configura CLOUDFLARE_ZONE_ID antes de activar el dominio global.');
+    if (this.firestore) {
+      await this.firestore.setPlatformConfig({ baseHostname, zoneId: this.env.CLOUDFLARE_ZONE_ID, status: 'ready_for_route', validation: { route: `*.${baseHostname}/*`, worker: this.env.CORE_WORKER_SERVICE || 'qr-menu-ec' }, updatedAt: new Date() });
+      for (const row of await new ApplicationRepository(this.env).list()) {
+        const state = JSON.parse(row.data) as { draft: { name: string } };
+        const slug = slugFor(state.draft.name);
+        const collision = await this.firestore.lookup(`${slug}.${baseHostname}`);
+        const hostname = collision && collision.restaurantId !== row.id ? `${slug}-${row.id.replace(/-/g, '').slice(0, 6)}.${baseHostname}` : `${slug}.${baseHostname}`;
+        await this.firestore.save(this.record(row.id, hostname, 'platform', { status: 'pending_route' }));
+      }
+      return this.platformConfig();
+    }
     const now = new Date().toISOString();
     await this.env.DB.prepare(
       "INSERT OR REPLACE INTO platform_domain_config (id,base_hostname,zone_id,status,validation_data,updated_at) VALUES ('primary',?,?, 'ready_for_route', ?, ?)",

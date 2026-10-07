@@ -1,6 +1,26 @@
+import { nativePush } from './native-push';
 export function restaurantBase(){if(typeof location==='undefined')return '';const match=location.pathname.match(/^\/r\/([a-f0-9-]{36})(?:\/|$)/);return match?`/r/${match[1]}`:'';}
 let csrfToken='';
-export async function api(path:string,method='GET',data?:unknown){const headers:Record<string,string>=data===undefined?{}:{'Content-Type':'application/json'};if(!['GET','HEAD'].includes(method)&&csrfToken)headers['X-CSRF-Token']=csrfToken;const r=await fetch(`${restaurantBase()}/api/v1/${path}`,{method,headers,body:data===undefined?undefined:JSON.stringify(data)});const b:any=await r.json();if(b?.csrfToken)csrfToken=b.csrfToken;if(!r.ok){const error=Error(b.error||'No se pudo completar la operación.') as Error&{status?:number;details?:unknown};error.status=r.status;error.details=b;throw error;}return b;}
+export async function api(path: string, method = 'GET', data?: unknown) {
+  const headers: Record<string, string> = data === undefined ? {} : { 'Content-Type': 'application/json' };
+  if (!['GET', 'HEAD'].includes(method) && csrfToken) headers['X-CSRF-Token'] = csrfToken;
+  const response = await fetch(`${restaurantBase()}/api/v1/${path}`, { method, headers, body: data === undefined ? undefined : JSON.stringify(data) });
+  const result: any = await response.json();
+  if (result?.csrfToken) csrfToken = result.csrfToken;
+  if (!response.ok) {
+    const error = Error(result.error || 'No se pudo completar la operación.') as Error & { status?: number; details?: unknown };
+    error.status = response.status; error.details = result; throw error;
+  }
+  if (path === 'logout' && method === 'POST') {
+    csrfToken = '';
+    try { localStorage.removeItem('qrmenu-push-enabled'); } catch { /* Optional preference storage. */ }
+    try {
+      if ('serviceWorker' in navigator) (await navigator.serviceWorker.getRegistration('/'))?.active?.postMessage({ type: 'push-preference', restaurantId: null });
+      if (window.qrmenuPush) void nativePush('disable').catch(() => undefined);
+    } catch { /* Server has revoked subscriptions; local cleanup never blocks logout. */ }
+  }
+  return result;
+}
 export function download(name:string,data:string,type='application/json'){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([data],{type}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);}
 export async function uploadPhoto(file: File) {
   if (!/^image\/(jpeg|png|webp)$/.test(file.type) || file.size > 15_000_000)

@@ -38,8 +38,12 @@ import PhotoPicker from './photo-picker';
 import OwnerLauncher from './owner-launcher';
 import { useDialogBehavior } from './dialog-behavior';
 import { revealIssue } from './reveal-issue';
+import RestaurantPreferencesPanel from './restaurant-preferences';
+import OwnerNotifications from './owner-notifications';
 
 type PanelState = {
+  entitlements?: {push:boolean;notificationPreferences:boolean;reports:boolean;wifi:boolean;scheduledBackups:boolean};
+  businessReady?: boolean;
   restaurantId: string;
   revision: number;
   draft: Catalog;
@@ -79,6 +83,12 @@ export default function Dashboard() {
   const [codes, setCodes] = useState<any>(null),
     [domain, setDomain] = useState<DomainState | null>(null),
     [reportData, setReportData] = useState<any>(null);
+  const [printWifi, setPrintWifi] = useState<{ name: string; text: string } | null>(null);
+  useEffect(() => {
+    const clear = () => setPrintWifi(null);
+    window.addEventListener('afterprint', clear);
+    return () => window.removeEventListener('afterprint', clear);
+  }, []);
   const [recovery, setRecovery] = useState(''),
     [recoverMode, setRecoverMode] = useState(false),
     [mfa, setMfa] = useState<any>(null);
@@ -97,6 +107,10 @@ export default function Dashboard() {
 
   async function loadState(force = false, preserve?: 'draft' | 'settings') {
     const current = await api('session');
+    if (current.authProvider === 'firebase') {
+      const { synchronizeFirebaseClient } = await import('@/src/lib/firebase-auth-client');
+      await synchronizeFirebaseClient(current, () => api('firebase/client-token', 'POST', {}));
+    }
     setSession(current);
     if (!current.authenticated) {
       setState(null);
@@ -112,12 +126,17 @@ export default function Dashboard() {
   useEffect(() => {
     loadState(true).catch((e) => setError(e.message));
     const timer = window.setInterval(async () => {
+      if (document.visibilityState !== 'visible') return;
       try {
         const current = await api('session');
+        if (current.authProvider === 'firebase') {
+          const { synchronizeFirebaseClient } = await import('@/src/lib/firebase-auth-client');
+          await synchronizeFirebaseClient(current, () => api('firebase/client-token', 'POST', {}));
+        }
         setSession(current);
         if (!current.authenticated) setState(null);
       } catch {}
-    }, 5000);
+    }, 300_000);
     return () => clearInterval(timer);
   }, []);
   async function run(fn: () => Promise<void>) {
@@ -156,7 +175,9 @@ export default function Dashboard() {
     setDomain(await api('domain'));
   }
   async function loadReports(query = '') {
-    setReportData(await api(`reports/orders${query}`));
+    const value = await api(`reports/orders${query}`);
+    const append = new URLSearchParams(query).has('cursor');
+    setReportData((current: any) => append && current ? { ...value, orders: [...current.orders, ...value.orders.filter((order: any) => !current.orders.some((previous: any) => previous.id === order.id))] } : value);
   }
   useEffect(() => {
     if (state && tab === 'Compartir')
@@ -164,7 +185,7 @@ export default function Dashboard() {
     if (
       state &&
       tab === 'Pedidos' &&
-      state.features.includes('orders')
+      state.features.includes('orders') && state.entitlements?.reports!==false
     )
       loadReports().catch((e) => setError(e.message));
   }, [tab, !!state]);
@@ -205,7 +226,7 @@ export default function Dashboard() {
     };
   }, [tab, domain?.custom?.hostname, domain?.custom?.status]);
 
-  if (!session)
+  if (!session || (session.authenticated && !state && !error))
     return (
       <main className="skeleton-shell" aria-busy="true">
         <span className="sr-only" role="status">
@@ -220,6 +241,8 @@ export default function Dashboard() {
         </div>
       </main>
     );
+  if (session.authenticated && !state)
+    return <main className="skeleton-shell"><section className="card" role="alert"><h1>No se pudo cargar tu restaurante</h1><p>{error}</p><button className="btn primary" disabled={busy} onClick={() => run(() => loadState(true))}>Reintentar</button></section></main>;
   if (!state)
     if (mfa)
       return (
@@ -526,8 +549,10 @@ export default function Dashboard() {
           />
         )}
 
+        {tab === 'Ajustes' && state?.businessReady && <><OwnerNotifications pushEnabled={state.entitlements?.push!==false} />{state.entitlements?.notificationPreferences!==false&&<RestaurantPreferencesPanel mode="notifications" />}</>}
+        {tab === 'Compartir' && state?.businessReady && state.entitlements?.wifi!==false && <RestaurantPreferencesPanel mode="wifi" />}
         {tab === 'Compartir' && (
-          <section className="card">
+          <section className="card qr-print-region">
             <h2>QR permanente del menú</h2>
             <p className="muted">
               Un único QR HTTPS, sin datos de red ni credenciales.
@@ -542,7 +567,10 @@ export default function Dashboard() {
                 Generar QR
               </button>
               {codes && (
-                <button className="btn" onClick={() => window.print()}>
+                <button className="btn" disabled={busy} onClick={() => run(async () => {
+                  setPrintWifi(state?.businessReady ? (await api('qr/print-wifi')).wifi : null);
+                  requestAnimationFrame(() => requestAnimationFrame(() => window.print()));
+                })}>
                   <Download size={16} />
                   Imprimir
                 </button>
@@ -559,6 +587,7 @@ export default function Dashboard() {
                 />
                 <strong>Escanea para ver el menú</strong>
                 <small>{code.payload}</small>
+                {printWifi && <div className="wifi-print-only"><strong>{printWifi.name}</strong><p>{printWifi.text}</p></div>}
                 <button
                   className="btn no-print"
                   onClick={() =>
@@ -587,7 +616,7 @@ export default function Dashboard() {
               <code className="id-block">
                 {domain?.primaryUrl || domain?.free
                   ? domain?.primaryUrl || `https://${domain?.free?.hostname}/menu`
-                  : settings.webUrl || `${location.origin}${base}/menu`}
+                  : `${location.origin}${base}/menu`}
               </code>
               {domain?.capacity && (
                 <p className="muted">
@@ -672,7 +701,7 @@ export default function Dashboard() {
         )}
 
         {tab === 'Pedidos' &&
-          (state.features.includes('orders') ? (
+          (state.features.includes('orders') && state.entitlements?.reports!==false ? (
             <Reports
               data={reportData}
               refresh={(query) => run(() => loadReports(query))}
@@ -687,7 +716,7 @@ export default function Dashboard() {
               <BarChart3 />
               <h3>Función no habilitada</h3>
               <p>
-                El creador debe activar Pedidos por QR para este restaurante.
+                El creador debe activar Pedidos por QR y un plan con reportes para este restaurante.
               </p>
             </section>
           ))}
@@ -1456,7 +1485,7 @@ function SecuritySettings({
               disabled={busy}
               onClick={() =>
                 run(async () => {
-                  await api(`sessions/${session.id}`, 'DELETE', {});
+                  await api(`sessions/${encodeURIComponent(session.id)}`, 'DELETE', {});
                   await load();
                 })
               }
@@ -1472,7 +1501,7 @@ function SecuritySettings({
         {devices.length === 0 && <p>No hay celulares recordados.</p>}
         {devices.map(device => <div className="status-line" key={device.id}>
           <span>Último uso: {new Date(device.lastSeenAt).toLocaleString('es-EC')} · vence: {new Date(device.expiresAt).toLocaleDateString('es-EC')}</span>
-          <button className="btn danger" disabled={busy} onClick={() => run(async () => { await api(`devices/${device.id}`, 'DELETE', {}); await load(); })}>Olvidar celular</button>
+          <button className="btn danger" disabled={busy} onClick={() => run(async () => { await api(`devices/${encodeURIComponent(device.id)}`, 'DELETE', {}); await load(); })}>Olvidar celular</button>
         </div>)}
       </details>}
     </section>
@@ -1867,18 +1896,9 @@ function Reports({
             >
               Aplicar rango
             </button>
-            <button
-              className="btn"
-              onClick={() =>
-                download(
-                  `pedidos-${new Date().toISOString().slice(0, 10)}.csv`,
-                  ordersCsv(data.orders),
-                  'text/csv',
-                )
-              }
-            >
+            <a className="btn" href={`${restaurantBase()}/api/v1/reports/orders.csv${data.exportQuery ? `?${data.exportQuery}` : ''}`} download>
               Exportar CSV
-            </button>
+            </a>
           </div>
           <section className="onboard-grid">
             <article className="card">
@@ -1960,6 +1980,8 @@ function Reports({
           </section>
           <section className="card settings-section">
             <h2>Historial</h2>
+            <p role="status">Mostrando {data.orders.length} de {data.totalOrders ?? data.orders.length} pedidos. El resumen corresponde al rango completo.</p>
+            {data.nextPageQuery && <button className="btn" onClick={() => refresh(data.nextPageQuery)}>Ver más pedidos</button>}
             {data.orders.map((order: any) => (
               <article className="order-admin" key={order.id}>
                 <div>

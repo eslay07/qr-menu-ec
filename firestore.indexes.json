@@ -1,0 +1,18 @@
+{
+  "indexes": [
+    { "collectionGroup": "orders", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "demo", "order": "ASCENDING" }, { "fieldPath": "createdAt", "order": "DESCENDING" }, { "fieldPath": "__name__", "order": "ASCENDING" }] },
+    { "collectionGroup": "orders", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "demo", "order": "ASCENDING" }, { "fieldPath": "status", "order": "ASCENDING" }, { "fieldPath": "createdAt", "order": "DESCENDING" }, { "fieldPath": "__name__", "order": "ASCENDING" }] },
+    { "collectionGroup": "hostnames", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "restaurantId", "order": "ASCENDING" }, { "fieldPath": "priority", "order": "DESCENDING" }, { "fieldPath": "createdAt", "order": "DESCENDING" }] },
+    { "collectionGroup": "hostnames", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "restaurantId", "order": "ASCENDING" }, { "fieldPath": "kind", "order": "ASCENDING" }] },
+    { "collectionGroup": "auditEvents", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "restaurantId", "order": "ASCENDING" }, { "fieldPath": "createdAt", "order": "DESCENDING" }] },
+    { "collectionGroup": "notifications", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "read", "order": "ASCENDING" }, { "fieldPath": "createdAt", "order": "DESCENDING" }] }
+  ],
+  "fieldOverrides": [
+    { "collectionGroup": "pushJobs", "fieldPath": "nextAttemptAt", "indexes": [{ "order": "ASCENDING", "queryScope": "COLLECTION" }, { "order": "ASCENDING", "queryScope": "COLLECTION_GROUP" }] },
+    { "collectionGroup": "pushDevices", "fieldPath": "tokenCiphertext", "indexes": [] },
+    { "collectionGroup": "dishes", "fieldPath": "modifierGroups", "indexes": [] },
+    { "collectionGroup": "dishes", "fieldPath": "description", "indexes": [] },
+    { "collectionGroup": "lines", "fieldPath": "options", "indexes": [] },
+    { "collectionGroup": "chunks", "fieldPath": "content", "indexes": [] }
+  ]
+}

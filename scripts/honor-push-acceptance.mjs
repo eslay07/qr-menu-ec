@@ -1,0 +1,18 @@
+import {readFile,mkdir,writeFile} from 'node:fs/promises';
+import {randomBytes} from 'node:crypto';
+import {cf,unchangedProduction} from './d1-transition-operator.mjs';
+const parent='59cf7bb8-3b42-45fc-875c-417e65657fb4';
+await unchangedProduction();
+const original=await cf(`/workers/scripts/qr-menu-ec/versions/${parent}`);
+const token=randomBytes(32).toString('hex'),runtime=original.resources.script_runtime;
+const bindings=original.resources.bindings.filter(b=>b.name!=='ASSETS').map(({name})=>({name,type:'inherit',version_id:parent}));
+bindings.push({name:'QA_TOKEN',type:'secret_text',text:token},{name:'QA_EXPIRES',type:'plain_text',text:String(Date.now()+600000)});
+const code=await readFile('work/honor-push-qa/worker.js','utf8');
+const version=await cf('/workers/workers/qr-menu-ec/versions?deploy=false','POST',{main_module:'worker.js',modules:[{name:'worker.js',content_type:'application/javascript+module',content_base64:Buffer.from(code).toString('base64')}],bindings,compatibility_date:runtime.compatibility_date,compatibility_flags:runtime.compatibility_flags,annotations:{'workers/message':'Ephemeral authorized Honor push acceptance; no traffic; expires in 10 minutes'}});
+await unchangedProduction();
+const response=await fetch(`https://${version.id.slice(0,8)}-qr-menu-ec.consola.workers.dev/test`,{method:'POST',headers:{Authorization:`Bearer ${token}`},signal:AbortSignal.timeout(60000)});
+const result=await response.json();
+await unchangedProduction();
+const receipt={checkedAt:new Date().toISOString(),versionId:version.id,httpStatus:response.status,...result,trafficPercent:0};
+await mkdir('work/honor-push-qa',{recursive:true});await writeFile('work/honor-push-qa/receipt.json',JSON.stringify(receipt,null,2));console.log(JSON.stringify(receipt));
+if(response.status!==200||result.result!=='sent')process.exitCode=1;

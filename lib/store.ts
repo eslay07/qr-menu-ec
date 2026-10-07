@@ -18,8 +18,9 @@ export interface State {
   sessionEpoch: number;
   failures: { count: number; until: number };
   createdAt: string;
-  access?: { active: boolean; features?: Feature[]; maxDishes?: number; sampleMenuEnabled?: boolean };
+  access?: { active: boolean; features?: Feature[]; maxDishes?: number; sampleMenuEnabled?: boolean; plan?: 'basic'|'medium'|'premium' };
   security?: {
+    firebaseUid?: string;
     emailCiphertext?: string;
     emailHash?: string;
     emailVerifiedAt?: string;
@@ -34,6 +35,8 @@ export interface Stored {
 }
 export interface Store {
   read(): Promise<Stored | null>;
+  readSession?(): Promise<Stored | null>;
+  readMenu?(): Promise<Stored | null>;
   commit(state: State, revision: number | null): Promise<boolean>;
   mediaGet(id: string): Promise<{ bytes: Uint8Array; type: string } | null>;
   mediaPut(id: string, bytes: Uint8Array, type: string): Promise<void>;

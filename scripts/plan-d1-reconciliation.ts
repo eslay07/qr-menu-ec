@@ -1,0 +1,22 @@
+import {writeFile} from 'node:fs/promises';
+import {privateDocumentSource} from './private-document-source';
+import {D1DocumentStore} from '../lib/d1-documents';
+import {planDocumentMerge} from '../lib/document-merge';
+import {documentManifest,canonicalDocument} from '../lib/document-transfer';
+import {remoteD1,unchangedProduction} from './d1-transition-operator.mjs';
+import {validateDocumentIntegrity} from '../lib/document-integrity';
+await unchangedProduction();
+const baseline=await privateDocumentSource('work/d1-transition/initial-source-receipt.json');
+const source=await privateDocumentSource('work/d1-transition/source-receipt.json');
+const target=await new D1DocumentStore(remoteD1('0c8dab0c-5e79-4272-a28c-90b00a93e676') as unknown as D1Database).inventoryWire(100000);
+// Explicitly reviewed monotonic CAS counters. Other fields remain strict.
+const revisionPaths=new Set(['platformConfig/creator','restaurants/998d4980-a169-469f-b009-634a373ca7ad']);
+const result=planDocumentMerge(baseline,source,target,{renewRevisionPaths:revisionPaths,conservativeRateLimits:true}),manifest=await documentManifest(result.documents);
+const integrity=result.conflicts.length?null:validateDocumentIntegrity(result.documents);
+const old=new Map(baseline.map(row=>[row.path,canonicalDocument(row.fields)]));
+const sourceChanges=source.filter(row=>old.get(row.path)!==canonicalDocument(row.fields)).length;
+const report={checkedAt:new Date().toISOString(),baselineDocuments:baseline.length,sourceDocuments:source.length,targetDocuments:target.length,mergedDocuments:result.documents.length,sourceCreatesOrUpdates:sourceChanges,conflictCount:result.conflicts.length,conflicts:result.conflicts,integrity,proposedChecksum:manifest.checksum,readOnly:true,productionUnchanged:true};
+await unchangedProduction();
+await writeFile('work/d1-transition/reconciliation-plan.json',JSON.stringify(report,null,2));
+console.log(JSON.stringify(report,null,2));
+if(result.conflicts.length)process.exitCode=2;

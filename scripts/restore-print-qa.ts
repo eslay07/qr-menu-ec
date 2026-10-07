@@ -1,0 +1,16 @@
+import { createRequire } from 'node:module';
+import { writeFile } from 'node:fs/promises';
+import { FirestoreRest } from '../lib/firestore-rest';
+import { isDeepStrictEqual } from 'node:util';
+const require=createRequire(import.meta.url),project='qr-menu-6981a';
+const auth=require('firebase-tools/lib/auth');
+await require('firebase-tools/lib/requireAuth').requireAuth({project,nonInteractive:true,...auth.getProjectDefaultAccount(process.cwd())});
+const db=new FirestoreRest(project,'',require('firebase-tools/lib/apiv2').getAccessToken);
+const path='restaurants/998d4980-a169-469f-b009-634a373ca7ad/settings/general';
+const before=await db.get(path);
+if(!before||!['QRMenu-QA',''].includes(String(before.data.wifiName))||before.data.wifiEnabled!==false||before.data.wifiCiphertext)throw Error('Refuse to overwrite non-QA or concurrent settings');
+if(before.data.wifiName==='QRMenu-QA')await db.commit([{path,data:{wifiName:''},mask:['wifiName'],updateTime:before.updateTime}]);
+const after=await db.get(path);
+if(!after||after.data.wifiName!==''||after.data.wifiEnabled!==false||after.data.wifiCiphertext||!isDeepStrictEqual({...before.data,wifiName:''},after.data))throw Error('QA restoration differs');
+const receipt={checkedAt:new Date().toISOString(),restoredOriginalWifi:true,otherSettingsUnchanged:true,ordersTouched:0,deletedDocuments:0};
+await writeFile('work/print-candidate-v2/wifi-restored.json',JSON.stringify(receipt,null,2),{flag:'wx'});console.log(JSON.stringify(receipt));

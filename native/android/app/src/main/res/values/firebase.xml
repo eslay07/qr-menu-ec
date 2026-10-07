@@ -1,0 +1,7 @@
+<resources>
+ <!-- Public Firebase SDK identifiers; not server credentials. -->
+ <string name="google_app_id" translatable="false">1:945507342553:android:4356ebe1da32ed285286c8</string>
+ <string name="gcm_defaultSenderId" translatable="false">945507342553</string>
+ <string name="project_id" translatable="false">qr-menu-6981a</string>
+ <string name="google_api_key" translatable="false">AIzaSyDG1WUb1NFxme8Mngs2PtDdHyVppMu4DWw</string>
+</resources>

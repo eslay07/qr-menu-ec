@@ -1,5 +1,33 @@
 # Riesgos operativos y respuesta
 
+Actualización 07-10-2026: producción opera sobre D1, con Firebase Auth/FCM. Se verificaron copias cifradas, restauración aislada, reanudación y reversión conservando pedidos nuevos; UUID y recursos privados se comprobaron después del corte. Recuperación por Firebase entregada al dueño durante aceptación; Resend sigue reservado para futuro dominio verificado. El estado del 28 de septiembre inferior es histórico: no interpretar «FCM sin conectar» como condición vigente. Las 16 fotos siguen en D1; Storage/R2 no se activaron. Ver `docs/launch-readiness-2026-10-06.md` y `docs/d1-cut-runbook.md`.
+
+## Estado de medidas — 28 de septiembre de 2026
+
+No hay despliegue nuevo. El adaptador de Storage se desarrolla localmente, desactivado; FCM sigue sin conectar. No confundir implementaciones locales con protección ya activa en producción.
+
+### QR antiguos
+
+Conservar siempre el UUID del restaurante y sus alias. Antes de cambiar dominio: comprobar la ruta `/r/<uuid>/menu`, el subdominio gratuito y el dominio propuesto; confirmar que cada redirección termina en HTTPS, corresponde al mismo restaurante y no forma bucles. `tests/qr-redirects.test.ts` comprueba HTTPS, UUID, alias gratuito, prioridad, aislamiento y barra final. La ruta privada `/r/<uuid>/` se conserva para administración: un QR antiguo que apunte al panel en vez de `/menu` debe revisarse y reimprimirse, no cambiarse a ciegas perjudicando el acceso del dueño.
+
+No reimprimir si el QR antiguo aún resuelve al menú correcto mediante un alias estable. Reimprimir únicamente códigos cuyo dominio ya no se controla, cuyo contenido sea incorrecto o que estén deteriorados; inventariar las mesas afectadas, escanear una muestra antes de imprimir el lote y conservar los alias recuperables. Un dominio caducado no se arregla cambiando el destino en la base si ya no recibimos sus solicitudes.
+
+### Respaldos
+
+Existe captura local consistente, fragmentación privada y checksum con lectura posterior. El timeout del emulador se corrigió usando `batchGet` y consultas dentro de la misma transacción. Están conectados creación, política diaria, restauración conservadora y ensayo mensual aislado; ver `docs/backup-drill.md`. Se recuperan catálogo, imágenes incluidas, líneas ausentes y enlaces vigentes disponibles en la copia. Operaciones fuera del límite atómico se rechazan sin sobreescribir pedidos. No prometer recuperación ilimitada ni vender activación real hasta el ensayo remoto autorizado.
+
+### Sesiones
+
+El repositorio de seguridad elimina permisos vencidos y limita renovaciones por dispositivo. El mantenimiento separa esta purga del historial comercial; una prueba con 205 pedidos verifica que anonimizar alias y retirar enlaces vencidos no borra pedidos reales. La recuperación manual del dueño revoca sesiones y dispositivos. No ejecutar limpiezas indiscriminadas de colecciones de restaurante.
+
+### Correo y recuperación manual
+
+`scripts/verify-mail-dns.ts` compara los registros exactos suministrados por Resend con DNS público, sin modificar registros ni enviar correo. Ejecutar con un manifiesto local de dominio y registros SPF/DKIM (y MX cuando corresponda). No adivinar el selector DKIM. Pendiente recibir el dominio/registros reales; pruebas simuladas no certifican el correo de producción.
+
+El envío implementa hasta tres intentos para errores transitorios, backoff e idempotencia; errores permanentes no deben repetirse. El fallback es el restablecimiento del dueño desde el panel autenticado del creador, con auditoría de solicitud y finalización sin almacenar contraseña/código en el registro. Verificar identidad del responsable por un canal previamente acordado antes de usarlo. No es un bypass de TOTP del creador ni una garantía de entrega de email.
+
+Sandbox Resend configurado en código para desarrollo: solo destinatario autorizado, no clientes reales. El creador dispone de listado de fallos y reenvío auditado con límites; el contenido se cifra y se purga al vencer. `MAIL_DOMAIN` prepara el cambio a dominio verificado. workers.dev no proporciona una zona DNS para Email Routing; procedimiento exacto en `docs/mail-domain-runbook.md`.
+
 Revisión: 27 de septiembre de 2026. Prioridad = impacto × probabilidad estimada; reevaluar con datos reales.
 
 | Riesgo | Impacto / prioridad | Señal | Prevención | Recuperación | Costo a reservar |

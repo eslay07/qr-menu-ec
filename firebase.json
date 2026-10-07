@@ -1,0 +1,12 @@
+{
+  "firestore": {
+    "rules": "src/lib/firebase.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "storage": { "rules": "src/lib/storage.rules" },
+  "emulators": {
+    "firestore": { "port": 8085 },
+    "ui": { "enabled": false },
+    "singleProjectMode": true
+  }
+}

@@ -38,6 +38,9 @@ next-env.d.ts
 /outputs/
 /output/
 /work/
+/deployment/cloudflare/work/
+/deployment/cloudflare/deployment/
+/.codex-remote-attachments/
 
 /dist-worker/
 /dist-local/
@@ -48,6 +51,9 @@ next-env.d.ts
 /native/android/**/build/
 /native/android/app/src/main/assets/ui/
 *.tsbuildinfo
+firebase-debug.log*
+firestore-debug.log*
+/.firebase/
 *.jks
 *.keystore
 
