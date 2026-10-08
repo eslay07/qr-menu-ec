@@ -1,5 +1,19 @@
 # Desplegar en la cuenta del restaurante
 
+## Procedimiento vigente del servicio existente (octubre 2026)
+
+El servicio `qr-menu-ec` utiliza D1 Documents para datos operativos, D1 histórica para imágenes, Firebase Authentication y FCM. No requiere R2, Blaze ni nuevos proveedores. Las instrucciones de instalación inferiores son históricas y no deben reemplazar los bindings actuales.
+
+1. Ejecutar tipos, pruebas, emuladores, lint y `npm run build:worker`; revisar cualquier fallo crítico antes de continuar.
+2. Respaldar las dos D1 con `scripts/production-backup.mjs` y comprobar los archivos con `scripts/verify-encrypted-backup.mjs`. Mantener claves y recibos privados fuera de Git.
+3. Aplicar solamente migraciones compatibles necesarias. `0006_order_operations.sql` agrega identidad de operación a la D1 histórica; no reemplaza datos ni tablas.
+4. Integrar mediante PR y comprobar los controles del repositorio.
+5. Con el build terminado, ejecutar `node scripts/product-release.mjs --stage`. Este flujo conserva todos los bindings de la versión activa, incluidos secretos, y conserva el APK firmado existente. No ejecutar build y staging simultáneamente.
+6. Registrar aceptación crítica y respaldo verificado en `work/product-release/acceptance.json`, con el `versionId` exacto del recibo. Ejecutar `--activate` y comprobar la versión realmente servida y los recorridos productivos con datos ficticios.
+7. Ante fallo crítico, ejecutar `node scripts/product-release.mjs --rollback`. Comprueba que la versión candidata siga activa y restaura al 100 % su versión anterior. No restaurar bases de datos de ensayo sobre producción.
+
+La URL legible `/m/nombre` funciona sin aprovisionamiento externo. Los subdominios nuevos requieren permisos de Cloudflare y verificación real de TLS/rutas; no interpretar esa ruta como un subdominio. El GET del panel de dirección no aprovisiona recursos. Las URL de versiones previas permanecen deshabilitadas.
+
 La dirección principal configurada es `https://qr-menu-ec.consola.workers.dev`.
 
 1. `npm ci` y `npm run build:worker`.

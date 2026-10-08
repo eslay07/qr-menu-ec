@@ -1,7 +1,6 @@
+import { createD1Fixture } from './d1-fixture';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { DatabaseSync } from 'node:sqlite';
-import { readFileSync } from 'node:fs';
 import { D1DocumentStore } from '../lib/d1-documents';
 import { FirestoreError } from '../lib/firestore-rest';
 import { FirestoreRestaurantStore } from '../lib/firestore-store';
@@ -17,26 +16,7 @@ import { FirestorePush } from '../lib/firestore-push';
 import { FcmSender } from '../lib/push-delivery';
 import { FirestoreSecurityRepository } from '../lib/firestore-security';
 
-function fixture() {
-  const sqlite = new DatabaseSync(':memory:');
-  sqlite.exec(readFileSync('deployment/cloudflare/d1-documents.sql','utf8'));
-  function prepare(sql: string) {
-    let values: Array<string | number | null> = [];
-    return {
-      bind(...input: Array<string | number | null>) { values=input; return this; },
-      async first() { return sqlite.prepare(sql).get(...values) || null; },
-      async all() { return { results:sqlite.prepare(sql).all(...values) }; },
-      async run() { return { success:true, meta:sqlite.prepare(sql).run(...values) }; },
-      execute() { return sqlite.prepare(sql).run(...values); },
-    };
-  }
-  const sql = { prepare, async batch(statements: Array<ReturnType<typeof prepare>>) {
-    sqlite.exec('BEGIN');
-    try { const results=statements.map(statement=>statement.execute()); sqlite.exec('COMMIT'); return results; }
-    catch (error) { sqlite.exec('ROLLBACK'); throw error; }
-  }} as unknown as D1Database;
-  return { db:new D1DocumentStore(sql), sql, sqlite };
-}
+const fixture = createD1Fixture;
 
 test('D1 document provider needs no Google credential and preserves scoped paths and wire types',async()=>{
   const {db,sql,sqlite}=fixture();
@@ -126,14 +106,18 @@ test('D1 supports 150-dish publication, encrypted WiFi, order cancellation and v
   assert.equal((await preferences.printWifi())?.text,'WiFi gratis · Clave: test-wifi-secret');
   const orders=new FirestoreOrderStore(db);
   const order:OrderRecord={id:crypto.randomUUID(),restaurantId:rid,number:'PED-TEST',status:'confirmed',demo:false,alias:'Cliente',restaurantName:'Test',menuVersion:1,currency:'USD',totalCents:500,createdAt:new Date().toISOString(),publicExpiresAt:new Date(Date.now()+3600000).toISOString(),cancelledAt:null,lines:[{id:'line-1',dishId:'dish-0',dishName:'Plato 0',quantity:1,basePriceCents:500,unitPriceCents:500,totalCents:500,note:'',options:[]}]};
-  await orders.create(order,'token-test');
+  const operation={key:crypto.randomUUID(),payloadHash:'backup-operation',token:'backup-token',order};
+  await orders.createOnce(order,'token-test',operation);
   assert.deepEqual(await orders.publicByTokenHash('token-test'),order);
   assert.equal((await orders.list(crypto.randomUUID())).length,0);
   assert.equal(await orders.setStatus(rid,order.id,'cancelled','customer'),true);
   assert.equal(await orders.setStatus(rid,order.id,'cancelled','customer'),false);
   const backup=new FirestoreBackupRepository(db,rid,store), id=await backup.create();
   assert.equal((await backup.read(id)).orders.length,1);
+  assert.equal((await backup.read(id)).orderOperations.length,1);
+  await db.commit([{path:`restaurants/${rid}/orderOperations/${operation.key}`,delete:true}]);
   assert.equal(await backup.restoreComplete(id,1),true);
+  assert.equal((await orders.operation(rid,operation.key))?.order.id,order.id);
   assert.equal((await store.read())?.state.draft.dishes.length,150);
   assert.equal((await store.read())?.state.security?.emailCiphertext,'unchanged-cipher');
   assert.equal((await orders.read(rid,order.id))?.status,'cancelled');
@@ -182,4 +166,55 @@ test('D1 push delivers through FCM contract, preferences gate delivery, tokens s
   await db.commit([{path:`restaurants/${rid}/settings/notifications`,data:{newOrder:false}},{path:`restaurants/${rid}/pushJobs/disabled`,data:{eventId:'disabled',preference:'newOrder',createdAt:now,expiresAt:new Date(now.getTime()+3600000),nextAttemptAt:now,attempt:0,delivered:[]}}]);
   await push.dispatch(sender,now); assert.equal(sends,1);
   sqlite.close();
+});
+
+test('D1 atomic operation identity accepts concurrent retry once and rejects changed payload',async()=>{
+ const {db,sqlite}=fixture(),rid=crypto.randomUUID(),orders=new FirestoreOrderStore(db);
+ const order:OrderRecord={id:crypto.randomUUID(),restaurantId:rid,number:'IDEMPOTENT',status:'confirmed',demo:true,alias:'Ensayo',restaurantName:'Ficticio',menuVersion:1,currency:'USD',totalCents:500,createdAt:new Date().toISOString(),publicExpiresAt:new Date(Date.now()+3600000).toISOString(),cancelledAt:null,lines:[{id:'line',dishId:'dish',dishName:'Ensayo',quantity:1,basePriceCents:500,unitPriceCents:500,totalCents:500,note:'',options:[]}]};
+ const operation={key:crypto.randomUUID(),payloadHash:'same',token:'token-a',order};
+ const results=await Promise.all([orders.createOnce(order,'hash-a',operation),orders.createOnce({...order,id:crypto.randomUUID()},'hash-b',{...operation,token:'token-b',order:{...order,id:crypto.randomUUID()}})]);
+ assert.equal(results[0].order.id,results[1].order.id);assert.equal((await db.all(`restaurants/${rid}/orders`)).length,1);
+ await assert.rejects(orders.createOnce({...order,id:crypto.randomUUID()},'hash-c',{...operation,payloadHash:'different'}),/otro pedido/);
+ const second={...order,id:crypto.randomUUID()};await orders.createOnce(second,'hash-d',{...operation,key:crypto.randomUUID(),order:second});assert.equal((await db.all(`restaurants/${rid}/orders`)).length,2);
+ sqlite.close();
+});
+test('D1 individual session revocation prevents its remembered device from returning and leaves another intact',async()=>{
+ const {sql,sqlite}=fixture(),rid=crypto.randomUUID(),security=new AuthSecurity({DB:sql,DATA_PROVIDER:'d1-documents'});
+ const first=await security.createSession('owner',rid),second=await security.createSession('owner',rid);
+ const a=await security.createDevice(rid,first.sessionHash),b=await security.createDevice(rid,second.sessionHash);
+ const request=(cookie:string)=>new Request('https://example.test',{headers:{cookie:cookie.split(';')[0]}});
+ await security.revokeSessionById('owner',rid,first.sessionHash);
+ assert.equal(await security.device(request(a.cookie)),null);assert.ok(await security.device(request(b.cookie)));assert.ok(await security.session(request(second.cookie),'owner',rid));sqlite.close();
+});
+
+test('D1 readable public aliases reserve atomically and retain canonical address after rename',async()=>{
+ const {sql,sqlite}=fixture();const {DomainService}=await import('../lib/domains');const domains=new DomainService({DB:sql,DATA_PROVIDER:'d1-documents'});
+ const a=crypto.randomUUID(),b=crypto.randomUUID();const urls=await Promise.all([domains.reservePublicPath(a,'Ñaña café!','https://menus.test'),domains.reservePublicPath(b,'Ñaña café!','https://menus.test')]);
+ assert.deepEqual(new Set(urls),new Set(['https://menus.test/m/nana-cafe','https://menus.test/m/nana-cafe-2']));assert.equal(await domains.reservePublicPath(a,'Cambio nombre','https://menus.test'),urls[0]);sqlite.close();
+});
+
+test('ten owner reopen refreshes reuse a valid session and preserve the other device',async()=>{
+ const {sql,sqlite}=fixture(),rid=crypto.randomUUID(),env={DB:sql,DATA_PROVIDER:'d1-documents' as const},security=new AuthSecurity(env);
+ const first=await security.createSession('owner',rid),second=await security.createSession('owner',rid),device=await security.createDevice(rid,first.sessionHash);
+ const {handleOwnerDevice}=await import('../lib/owner-auth');
+ const request=()=>new Request('https://example.test/api/owner/device-session/refresh',{method:'POST',headers:{cookie:[first.cookie.split(';')[0],device.cookie.split(';')[0]].join('; '),origin:'https://example.test','content-type':'application/json','x-csrf-token':device.csrfToken},body:'{}'});
+ const load=()=>({readSession:async()=>({revision:1,state:{restaurantId:rid,access:{active:true}}})}) as never;
+ for(let i=0;i<10;i++)assert.equal((await handleOwnerDevice(request(),env as never,load)).status,200);
+ assert.equal((await security.listSessions('owner',rid)).length,2);
+ await security.revokeSessionById('owner',rid,first.sessionHash);assert.equal((await handleOwnerDevice(request(),env as never,load)).status,401);
+ assert.ok(await security.session(new Request('https://example.test',{headers:{cookie:second.cookie.split(';')[0]}}),'owner',rid));sqlite.close();
+});
+
+test('workers.dev provisioning reserves ownership before upload and never overwrites an existing Worker',async()=>{
+ const {db,sql,sqlite}=fixture(),{DomainService}=await import('../lib/domains'),rid=crypto.randomUUID();
+ const domains=new DomainService({DB:sql,DATA_PROVIDER:'d1-documents',CLOUDFLARE_ACCOUNT_ID:'test-account',CLOUDFLARE_API_TOKEN:'fictitious-token',CLOUDFLARE_WORKERS_SUBDOMAIN:'testing'});
+ const original=globalThis.fetch,uploads:string[]=[];
+ globalThis.fetch=async(url,init)=>{
+   const service=String(url).split('/').at(-1)!;
+   if(!init?.method || init.method==='GET')return new Response(service==='mesa'?'{"success":true}':'{"success":false}',{status:service==='mesa'?200:404});
+   assert.equal(init.method,'PUT');assert.equal(service,'mesa-2');
+   const reserved=await db.get(`hostnames/${service}.testing.workers.dev`);assert.equal(reserved?.data.restaurantId,rid);assert.equal(reserved?.data.status,'provisioning');uploads.push(service);return Response.json({success:true});
+ };
+ try {assert.equal(await domains.provisionFree(rid,'Mesa','https://example.test'),'https://mesa-2.testing.workers.dev/menu');assert.deepEqual(uploads,['mesa-2']);assert.equal((await db.get('hostnames/mesa-2.testing.workers.dev'))?.data.status,'active');}
+ finally{globalThis.fetch=original;sqlite.close();}
 });

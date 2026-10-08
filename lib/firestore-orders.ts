@@ -1,4 +1,4 @@
-import type { OrderRecord, OrderStore, OrderLineSnapshot } from './orders';
+import { PublicationChangedError, OperationConflictError, type OrderOperation, type OrderRecord, type OrderStore, type OrderLineSnapshot } from './orders';
 import { FirestoreError, FirestoreRest, firestoreId, firestoreHashId, type FirestoreData } from './firestore-rest';
 import { NotificationSettings } from './restaurant-preferences';
 import { pushJob } from './firestore-push';
@@ -7,13 +7,40 @@ type Header = Omit<OrderRecord, 'lines'>;
 export class FirestoreOrderStore implements OrderStore {
   constructor(readonly db: FirestoreRest) {}
   private path(restaurantId: string, orderId: string) { return `restaurants/${firestoreId(restaurantId)}/orders/${firestoreId(orderId)}`; }
-  async create(order: OrderRecord, tokenHash: string, emitNotification = true) {
+  async operation(restaurantId:string,key:string) {return (await this.db.get<OrderOperation>('restaurants/'+firestoreId(restaurantId)+'/orderOperations/'+firestoreId(key)))?.data || null;}
+  private async publicationGuard(restaurantId:string,version:number) {
+    const path='restaurants/'+firestoreId(restaurantId);
+    const current=await this.db.get<{published:{version:number}|null}>(path);
+    if(!current || current.data.published?.version!==version)throw new PublicationChangedError();
+    return {path,data:{},mask:[],updateTime:current.updateTime};
+  }
+  async createValidated(order:OrderRecord,tokenHash:string,expectedPublicationVersion:number) {
+    const guard=await this.publicationGuard(order.restaurantId,expectedPublicationVersion);
+    try {await this.create(order,tokenHash,true,undefined,guard);}
+    catch(error) {if(error instanceof FirestoreError && error.conflict)throw new PublicationChangedError();throw error;}
+  }
+  async createOnce(order:OrderRecord,tokenHash:string,operation:OrderOperation,expectedPublicationVersion?:number) {
+    const path='restaurants/'+firestoreId(order.restaurantId)+'/orderOperations/'+firestoreId(operation.key);
+    const saved=await this.operation(order.restaurantId,operation.key);
+    if(saved) {if(saved.payloadHash!==operation.payloadHash)throw new OperationConflictError();return saved;}
+    const guard=expectedPublicationVersion===undefined?undefined:await this.publicationGuard(order.restaurantId,expectedPublicationVersion);
+    try {await this.create(order,tokenHash,true,{path,data:operation,exists:false},guard);return operation;}
+    catch(error) {
+      if(!(error instanceof FirestoreError && error.conflict))throw error;
+      const accepted=await this.operation(order.restaurantId,operation.key);
+      if(accepted) {if(accepted.payloadHash!==operation.payloadHash)throw new OperationConflictError();return accepted;}
+      if(guard)throw new PublicationChangedError();throw error;
+    }
+  }
+  async create(order: OrderRecord, tokenHash: string, emitNotification = true, operationWrite?: import('./firestore-rest').FirestoreWrite, publicationGuard?: import('./firestore-rest').FirestoreWrite) {
     if (order.lines.length < 1 || order.lines.length > 100 || new Set(order.lines.map(line => line.id)).size !== order.lines.length) throw Error('Líneas de pedido inválidas.');
     const path = this.path(order.restaurantId, order.id);
     const { lines, ...header } = order;
     const preferences = NotificationSettings.parse((await this.db.get(`restaurants/${firestoreId(order.restaurantId)}/settings/notifications`))?.data || {});
     if (!emitNotification) preferences.newOrder = false;
     await this.db.commit([
+      ...(operationWrite ? [operationWrite] : []),
+      ...(publicationGuard ? [publicationGuard] : []),
       { path, data: { ...header, createdAt: new Date(order.createdAt), publicExpiresAt: new Date(order.publicExpiresAt), cancelledAt: order.cancelledAt ? new Date(order.cancelledAt) : null }, exists: false },
       ...lines.map((line, sortOrder) => ({ path: `${path}/lines/${firestoreId(line.id)}`, data: { ...line, sortOrder }, exists: false })),
       // Private lookup preserves old opaque report links, never public reads.

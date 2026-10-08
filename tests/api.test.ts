@@ -475,3 +475,23 @@ test('authentication, conflicts, suspension and recovery remain enforced', async
   h.suspend();
   assert.equal((await h.call('session')).body.authenticated, false);
 });
+
+test('publish rejects an unconfirmed automatic name before changing the persisted draft or revision',async()=>{
+ const h=harness();await h.call('setup','POST',{name:'Mi restaurante',password:'test-password-123',setupToken:'setup-secret'});
+ let state=(await h.call('state')).body;
+ await h.call('draft','PUT',{revision:state.revision,catalog:{...demoCatalog,name:'Mi restaurante',nameConfirmed:false}});
+ state=(await h.call('state')).body;
+ const rejected=await h.call('publish','POST',{revision:state.revision});assert.equal(rejected.status,400);assert.equal(rejected.body.error,'Agrega el nombre del restaurante antes de publicar el menú.');
+ const after=(await h.call('state')).body;assert.equal(after.revision,state.revision);assert.equal(after.published,null);assert.equal(after.draft.name,'Mi restaurante');
+ await h.call('draft','PUT',{revision:state.revision,catalog:{...after.draft,nameConfirmed:true}});state=(await h.call('state')).body;
+ assert.equal((await h.call('publish','POST',{revision:state.revision})).status,200);
+});
+test('WhatsApp prepares a priced request without inserting an internal order and respects feature gates',async()=>{
+ const {h}=await configured();let state=(await h.call('state')).body;
+ const contact={address:'Prueba ficticia',phone:'',whatsapp:'+593990000000',hours:[]};
+ await h.call('draft','PUT',{revision:state.revision,catalog:{...state.draft,contact}});state=(await h.call('state')).body;await h.call('publish','POST',{revision:state.revision});
+ const input={alias:'Ensayo',lines:[{dishId:'jugo',quantity:2,selections:[],note:''}],expectedTotalCents:500};
+ const response=await h.call('whatsapp-request','POST',input);assert.equal(response.status,200);assert.equal(response.body.registered,false);assert.equal(response.body.model,'request');assert.match(response.body.url,/^https:\/\/wa\.me\/593990000000/);assert.equal(h.orders.size,0);
+ assert.equal((await h.call('whatsapp-request','POST',{...input,expectedTotalCents:1})).status,409);
+ state=(await h.call('state')).body;await h.call('settings','PUT',{revision:state.revision,settings:{webUrl:'',ordersEnabled:false}});assert.equal((await h.call('whatsapp-request','POST',input)).status,403);
+});

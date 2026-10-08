@@ -118,3 +118,74 @@
   .sidebar nav .nav-mobile-label { display: block; font-size: 11px; line-height: 1.2; }
   .sidebar nav button { min-width: 0; overflow: hidden; }
 }
+.category-editor-row { display:flex; flex-wrap:wrap; gap:12px; align-items:end; padding:12px 0; border-bottom:1px solid #d0d5dd; }
+.category-editor-row > label { flex:1 1 180px; }
+.category-editor-row .actions { flex-wrap:wrap; }
+.settings-section input[type=color] { width:54px; height:44px; flex:none; padding:3px; }
+.settings-section .actions input:not([type=color]) { min-width:100px; flex:1; }
+.customer { background:var(--menu-background,#f7f7f5); color:var(--menu-text,#202520); }
+.customer-header,.dish-card,.menu-controls,.customer .modal,.customer-intro { background:var(--menu-surface,#fff); color:var(--menu-text,#202520); }
+.customer .dish-body p,.customer-intro p,.customer-meta,.customer-footer { color:var(--menu-text,#202520); }
+.customer .add-dish,.customer .selection-bar,.customer .btn.primary { background:var(--menu-action,#244130); color:var(--menu-action-text,#fff); }
+.customer .category-tabs button.selected { background:var(--restaurant-color); color:var(--menu-surface); }
+.customer.text-large { font-size:20px; }
+.customer.text-large .dish-body p,.customer.text-large .dish-title,.customer.text-large .dish-options-summary,.customer.text-large .customer-intro p { font-size:1.1em; }
+.template-list .dish-grid,.template-compact .dish-grid { grid-template-columns:1fr; }
+.template-list .dish-card { display:grid;grid-template-columns:140px 1fr; }
+.template-list .dish-photo { height:100%; min-height:140px; }
+.template-compact .dish-card { display:flex;align-items:center; }
+.template-compact .dish-photo { width:72px;height:72px;flex:none; }
+.template-compact .dish-body { flex:1;padding:12px; }
+.template-compact .dish-body p { display:none; }
+.customer .selection-bar { bottom:calc(12px + env(safe-area-inset-bottom)); height:auto;min-height:56px;flex-wrap:wrap;padding:12px 16px;max-width:calc(100% - 24px); }
+.customer .selection-bar span { white-space:normal;min-width:0; }
+.restaurant-contact .actions { flex-wrap:wrap; }
+@media(max-width:360px){.template-list .dish-card{grid-template-columns:90px 1fr}.template-list .dish-photo{min-height:100px}.selection-bar svg{display:none}}
+.customer .section-title h2,.customer .dish-title,.customer-intro h1,.customer-brand,.customer-brand small,.customer .muted,.customer .dish-price,.customer .dish-options-summary { color:var(--menu-text); }
+.customer .menu-controls .search,.customer .menu-controls .search input,.customer .category-tabs button,.customer .modal input,.customer .modal textarea { background:var(--menu-surface);color:var(--menu-text); }
+.customer .category-tabs button.selected { background:var(--menu-action);color:var(--menu-action-text); }
+.customer .quantity button { background:var(--menu-action);color:var(--menu-action-text); }
+.customer { padding-bottom:110px; }
+.customer .dish-card:hover { transform:none; }
+.customer .customer-intro::before,.customer .customer-intro::after { display:none; }
+.template-list .customer-dishes > section:first-child .dish-card:first-child,.template-compact .customer-dishes > section:first-child .dish-card:first-child { grid-column:auto; }
+.template-list .customer-dishes > section:first-child .dish-card:first-child .dish-photo { height:100%; }
+.template-compact .customer-dishes > section:first-child .dish-card:first-child .dish-photo { height:72px; }
+.customer .eyebrow,.customer .promotion-copy h3,.customer .promotion-copy p,.customer .promotion-price,.customer .offers-heading h2 { color:var(--menu-text); }
+.customer .promotion-banner { background:var(--menu-surface);color:var(--menu-text); }
+.customer .offer-action,.customer .bag-icon b,.customer .photo-badge.promo { background:var(--menu-action);color:var(--menu-action-text); }
+@media (max-width:480px), (max-height:500px) {
+  .customer .customer-header,.customer .menu-controls { position:static;top:auto; }
+  .customer .selection-bar { font-size:14px;gap:8px;padding:8px 10px;min-height:44px; }
+  .customer .selection-bar svg { display:none; }
+  .customer .selection-bar span { flex:1 1 100px; }
+  .customer .dish-card { scroll-margin-block:16px 100px; }
+}
+.demo-controls { max-width:1080px;margin:16px auto;padding:16px 24px;background:var(--menu-surface);color:var(--menu-text); }
+.demo-controls h2 {font-size:20px;}
+.demo-controls p {font-size:14px;line-height:1.5;}
+.demo-controls select {background:var(--menu-surface);color:var(--menu-text);}
+.customer .customer-header,.customer .menu-controls { position:static;top:auto; }
+.customer .add-dish,.customer .selection-bar,.customer .btn.primary,.customer .offer-action,.customer .quantity button { border:1px solid var(--menu-text); }
+.customer .customer-brand,.customer .customer-brand span,.customer .dish-body,.customer .search input { min-width:0; }
+.customer .customer-brand { flex:1; }
+.customer .customer-brand span,.customer h1,.customer h2,.customer h3,.customer .dish-body p { overflow-wrap:anywhere; }
+.customer .customer-brand > svg,.customer .customer-brand > img,.customer .bag-icon { flex-shrink:0; }
+.customer .section-title,.customer .dish-bottom { flex-wrap:wrap;gap:8px; }
+.customer .dish-price { min-width:0;overflow-wrap:anywhere; }
+.customer .customer-dishes > section { container-type:inline-size; }
+.customer .dish-grid { grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr)); }
+.customer.template-list .dish-grid,.customer.template-compact .dish-grid { grid-template-columns:1fr; }
+.customer.template-list .dish-card { grid-template-columns:minmax(0,140px) minmax(0,1fr); }
+.customer .modal .selection-row { flex-wrap:wrap; }
+.customer .modal .selection-row > div:first-child { flex:1 1 180px;min-width:0;overflow-wrap:anywhere; }
+.customer .modal .quantity { flex-wrap:wrap;max-width:100%; }
+.customer .modal .selection-total,.customer .modal > .section-title { flex-wrap:wrap;gap:8px; }
+.customer .modal .btn { white-space:normal;min-width:0;max-width:100%; }
+.customer .modal input,.customer .modal textarea { min-width:0;max-width:100%; }
+@container (max-width:360px) {
+  .customer.template-list .dish-card { grid-template-columns:1fr; }
+  .customer.template-list .dish-photo { height:150px;min-height:0; }
+  .customer.template-compact .dish-card { flex-wrap:wrap; }
+  .customer.template-compact .dish-body { flex:1 1 150px; }
+}

@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
   Camera,
@@ -17,12 +17,14 @@ import {
 import QRCode from 'qrcode';
 import {
   activePromotion,
+  catalogTheme, actionText, isRestaurantOpen, palettePresets,
   type Catalog,
   type Dish,
   money,
   demoCatalog,
 } from '@/lib/contracts';
 import { api, restaurantBase } from './client';
+import type { OrderRecord } from '@/lib/orders';
 import Turnstile from './turnstile';
 import Promotions from './promotions';
 import { useDialogBehavior } from './dialog-behavior';
@@ -36,7 +38,7 @@ type CartLine = {
   note: string;
 };
 type Confirmation = {
-  order: any;
+  order: OrderRecord;
   publicUrl: string;
   pdfUrl: string;
   qrPayload: string;
@@ -51,11 +53,12 @@ export default function Menu({
   demo?: boolean;
   initialCatalog?: Catalog;
 }) {
+  const operation = useRef<{key:string;payload:string}|null>(null);
   const base = restaurantBase(),
     media = (value: string) =>
       value.startsWith('/api/v1/media/') ? base + value : value;
   const [catalog, setCatalog] = useState<Catalog | null>(
-      initialCatalog ?? (demo ? demoCatalog : null),
+      initialCatalog ?? (demo ? {...demoCatalog,theme:palettePresets.neutral,color:palettePresets.neutral.accent} : null),
     ),
     [error, setError] = useState(''),
     [version, setVersion] = useState(0),
@@ -75,17 +78,24 @@ export default function Menu({
     [busy, setBusy] = useState(false),
     [qrSvg, setQrSvg] = useState('');
   const [attemptedOrder, setAttemptedOrder] = useState(false);
+  const [preparedWhatsapp,setPreparedWhatsapp] = useState<{url:string;signature:string}|null>(null);
+  const whatsappSignature=JSON.stringify({cart,alias,version,whatsapp:catalog?.contact?.whatsapp});
+  const whatsappUrl=preparedWhatsapp?.signature===whatsappSignature?preparedWhatsapp.url:'';
+  const filtered = useMemo(() => catalog?.dishes.filter(dish => (cat === 'all' || dish.categoryId === cat) && `${dish.name} ${dish.description} ${dish.modifierGroups.flatMap(group => group.options.map(option => option.name)).join(' ')}`.toLocaleLowerCase('es').includes(query.toLocaleLowerCase('es'))) || [], [catalog,cat,query]);
   useDialogBehavior(bag || !!configuring, () => { setBag(false); setConfiguring(null); });
   useEffect(() => {
     if (demo || initialCatalog) return;
+    let active=true;
     api(preview ? 'state' : 'menu')
       .then((value) => {
+        if (!active) return;
         setCatalog(preview ? value.draft : value.catalog);
         setVersion(value.version || 0);
         setOrdersEnabled(value.ordersEnabled === true);
         setTurnstileSiteKey(value.turnstileSiteKey || null);
       })
-      .catch((e) => setError(e.message));
+      .catch((e) => {if(active)setError(e.message)});
+    return () => {active=false};
   }, [demo, preview, initialCatalog]);
   const priced = useMemo(
     () =>
@@ -114,6 +124,16 @@ export default function Menu({
       setConfiguring(dish);
     }
   };
+  const whatsappRequest = async () => {
+    setAttemptedOrder(true);
+    if(!alias.trim() || !cart.length){setError('Añade platos y escribe tu nombre o alias.');return;}
+    if (!/^\+[1-9]\d{7,14}$/.test(catalog?.contact?.whatsapp || '')) {setError('El restaurante no tiene un WhatsApp válido configurado.');return;}
+    setBusy(true);setError('');setPreparedWhatsapp(null);
+    try { const result = await api('whatsapp-request','POST',{alias,menuVersion:version,lines:cart.map(({dishId,quantity,selections,note})=>({dishId,quantity,selections,note})),expectedTotalCents:total});
+      if(typeof result.url !== 'string' || !/^https:\/\/wa\.me\/[1-9]\d{7,14}\?text=/.test(result.url)) throw Error('No se pudo preparar una dirección válida de WhatsApp.');
+      setPreparedWhatsapp({url:result.url,signature:whatsappSignature});
+    } catch(e){setError((e as Error).message);}finally{setBusy(false);}
+  };
   const confirmOrder = async () => {
     setAttemptedOrder(true);
     if (!catalog) return;
@@ -130,7 +150,11 @@ export default function Menu({
     setBusy(true);
     setError('');
     try {
+      const payload = JSON.stringify({alias,cart,total,version});
+      if (!operation.current || operation.current.payload !== payload) operation.current={key:crypto.randomUUID(),payload};
       const result = await api(demo ? 'demo-order' : 'orders', 'POST', {
+        operationKey: operation.current.key,
+        menuVersion: version,
         alias,
         lines: cart.map(({ dishId, quantity, selections, note }) => ({
           dishId,
@@ -143,6 +167,7 @@ export default function Menu({
         turnstileToken: turnstileToken || undefined,
       });
       setConfirmation(result);
+      operation.current=null;
       setBag(false);
       setQrSvg('');
     } catch (e) {
@@ -188,20 +213,18 @@ export default function Menu({
         setQrSvg={setQrSvg}
         onBack={() => {
           setConfirmation(null);
-          setCart([]);
-          setAlias('');
+
         }}
       />
     );
-  const matches = catalog.dishes.filter(dish =>
-    (cat === 'all' || dish.categoryId === cat) &&
-    `${dish.name} ${dish.description} ${dish.modifierGroups.flatMap(group => group.options.map(option => option.name)).join(' ')}`
-      .toLocaleLowerCase('es').includes(query.toLocaleLowerCase('es')));
+  const theme = catalogTheme(catalog);
+  const open = isRestaurantOpen(catalog.contact?.hours || []);
+  const matches = filtered;
   const visibleIds = new Set(matches.slice(0, visibleDishes).map(dish => dish.id));
   return (
     <div
-      className="customer"
-      style={{ '--restaurant-color': catalog.color } as React.CSSProperties}
+      className={`customer template-${catalog.template || "cards"} text-${catalog.textSize || "normal"}`}
+      style={{ '--restaurant-color': theme.accent, '--menu-background':theme.background,'--menu-surface':theme.surface,'--menu-text':theme.text,'--menu-action':theme.action,'--menu-action-text':actionText(theme.action) } as React.CSSProperties}
     >
       {(preview || demo) && (
         <div className="preview-ribbon">
@@ -211,10 +234,11 @@ export default function Menu({
           <a href={base || '/'}>Volver al panel</a>
         </div>
       )}
+      {demo && <section className="demo-controls" aria-label="Personalizar demostración ficticia"><h2>Demostración con datos ficticios</h2><div className="form-grid"><label>Plantilla<select value={catalog.template || 'cards'} onChange={e=>setCatalog({...catalog,template:e.target.value as 'list'|'cards'|'compact'})}><option value="list">Lista</option><option value="cards">Tarjetas</option><option value="compact">Compacta</option></select></label><label>Paleta<select value={Object.entries(palettePresets).find(([,p])=>JSON.stringify(p)===JSON.stringify(catalog.theme))?.[0] || 'neutral'} onChange={e=>setCatalog({...catalog,theme:palettePresets[e.target.value],color:palettePresets[e.target.value].accent})}><option value="neutral">Clara neutra</option><option value="dark">Oscura sobria</option><option value="warm">Cálida gastronómica</option></select></label><label>Texto<select value={catalog.textSize || 'normal'} onChange={e=>setCatalog({...catalog,textSize:e.target.value as 'normal'|'large'})}><option value="normal">Normal</option><option value="large">Ampliado</option></select></label></div><p>La selección se conserva al cambiar presentación. Estos controles no publican cambios. Para WhatsApp, el dueño debe configurar el número válido de su restaurante.</p></section>}
       <header className="customer-header">
         <div className="customer-brand">
           {catalog.logo ? (
-            <img src={media(catalog.logo)} alt="" />
+            <img src={media(catalog.logo)} alt="" width={44} height={44} fetchPriority="high" />
           ) : (
             <Utensils />
           )}
@@ -225,7 +249,7 @@ export default function Menu({
         </div>
         <button
           className="bag-icon"
-          aria-label="Ver mi pedido"
+          aria-label={`Ver pedido, ${units} ${units === 1 ? "producto" : "productos"}, ${money(total)}`}
           onClick={() => setBag(true)}
         >
           <ShoppingBag />
@@ -236,8 +260,9 @@ export default function Menu({
         <span className="eyebrow">ELIGE. CONFIGURA. DISFRUTA.</span>
         <h1>Tu pedido, justo como lo quieres.</h1>
         <p>{catalog.tagline}</p>
+        {catalog.contact && <div className="restaurant-contact"><p>{catalog.contact.address}</p><div className="actions">{/^\+[1-9]\d{7,14}$/.test(catalog.contact.phone) && <a className="btn" href={`tel:${catalog.contact.phone}`}>Llamar</a>}{catalog.contact.address && <a className="btn" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(catalog.contact.address)}`} target="_blank" rel="noopener noreferrer">Cómo llegar</a>}</div>{open !== null && <p>{open ? 'Abierto según horario' : 'Cerrado según horario'} · America/Guayaquil</p>}{!!catalog.contact.hours.length && <details><summary>Horarios · Ecuador</summary>{[...catalog.contact.hours].sort((a,b)=>a.day-b.day).map(h=><p key={h.day}>{['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'][h.day]}: {h.closed?'Cerrado':`${h.open}–${h.close}${h.close<h.open?' (día siguiente)':''}`}</p>)}</details>}</div>}
         <div className="customer-meta">
-          Precios en USD <span>•</span> Pedido confirmado frente al mesero
+          Precios en USD <span>•</span> Revisa tu selección antes de confirmar
         </div>
       </section>
       <Promotions catalog={catalog} media={media} onChoose={startDish} disabled={preview} />
@@ -295,7 +320,7 @@ export default function Menu({
                     >
                       <div className="dish-photo">
                         {dish.image ? (
-                          <img src={media(dish.image)} alt={dish.name} loading="lazy" decoding="async" />
+                          <img src={media(dish.image)} alt={dish.name} loading={matches[0]?.id===dish.id ? "eager" : "lazy"} fetchPriority={matches[0]?.id===dish.id ? "high" : "auto"} decoding="async" width={480} height={320} />
                         ) : (
                           <span className="no-photo">
                             <Utensils />
@@ -359,10 +384,10 @@ export default function Menu({
         <p>Confirma tu pedido y muéstrale la pantalla al mesero.</p>
         <small>QR Menu EC {version > 0 && `· Versión ${version}`}</small>
       </footer>
-      {units > 0 && !bag && (
-        <button className="selection-bar" onClick={() => setBag(true)}>
+      {units > 0 && !bag && !configuring && (
+        <button className="selection-bar" aria-label={`Ver pedido, ${units} ${units===1?"producto":"productos"}, ${money(total)}`} onClick={() => setBag(true)}>
           <ShoppingBag />
-          <span>Revisar mi pedido</span>
+          <span>Ver pedido · {units} {units === 1 ? "producto" : "productos"}</span>
           <strong>{money(total)}</strong>
         </button>
       )}
@@ -461,6 +486,7 @@ export default function Menu({
                   <Check />
                   {busy ? 'Confirmando…' : 'Confirmar pedido'}
                 </button>
+                {!preview && !demo && /^\+[1-9]\d{7,14}$/.test(catalog.contact?.whatsapp || '') && <><button className="btn" disabled={busy} onClick={whatsappRequest}>Preparar solicitud por WhatsApp</button>{whatsappUrl && <a className="btn primary" href={whatsappUrl} target="_blank" rel="noopener noreferrer">Abrir WhatsApp con solicitud preparada</a>}<small>Esta solicitud no crea un pedido. WhatsApp no confirma recepción, aceptación ni pago. Tu carrito se conserva.</small></>}
                 <small className="muted">
                   La confirmación aparecerá en los reportes del restaurante.
                 </small>
@@ -474,6 +500,7 @@ export default function Menu({
             <button
               className="text-button"
               onClick={() => {
+                operation.current=null;
                 setCart([]);
                 setBag(false);
               }}
@@ -672,11 +699,7 @@ function ConfirmationScreen({
         files: [file],
         url: value.publicUrl,
       });
-    else
-      window.open(
-        `https://wa.me/?text=${encodeURIComponent(`Pedido ${order.number} - ${value.publicUrl}`)}`,
-        '_blank',
-      );
+    else window.open(value.publicUrl, '_blank', 'noopener,noreferrer');
   };
   const showQr = async () => {
     if (!qrSvg)
@@ -702,13 +725,13 @@ function ConfirmationScreen({
           {order.alias ? ` · ${order.alias}` : ''}
         </p>
         <div className="confirmation-lines">
-          {order.lines.map((line: any) => (
+          {order.lines.map((line) => (
             <article key={line.id}>
               <div>
                 <strong>
                   {line.quantity} × {line.dishName}
                 </strong>
-                {line.options.map((option: any) => (
+                {line.options.map((option) => (
                   <small key={`${option.groupId}-${option.optionId}`}>
                     {option.groupName}: {option.optionName}
                   </small>

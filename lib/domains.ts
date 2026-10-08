@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { FirestoreError } from './firestore-rest';
 import { ApplicationRepository, localFirestore, type DataEnv } from './application-repository';
 import { FirestoreDomainRepository } from './firestore-domains';
 
@@ -60,11 +61,11 @@ export class DomainService {
     fallbackOrigin: string,
   ) {
     const existing = this.firestore ? (await this.firestore.list(restaurantId)).find(row => ['workers_dev', 'free', 'platform'].includes(row.kind)) : await this.env.DB.prepare(
-      "SELECT hostname FROM restaurant_hosts WHERE restaurant_id = ? AND kind IN ('workers_dev','free') ORDER BY priority DESC LIMIT 1",
+      "SELECT hostname,status FROM restaurant_hosts WHERE restaurant_id = ? AND kind IN ('workers_dev','free') ORDER BY priority DESC LIMIT 1",
     )
       .bind(restaurantId)
-      .first<{ hostname: string }>();
-    if (existing) return `https://${existing.hostname}/menu`;
+      .first<{ hostname: string; status:string }>();
+    if (existing) {if ('status' in existing && existing.status!=='active')throw Error('La dirección reservada está pendiente de verificación.');return `https://${existing.hostname}/menu`;}
     if (
       this.env.CLOUDFLARE_ACCOUNT_ID &&
       this.env.CLOUDFLARE_API_TOKEN &&
@@ -103,13 +104,32 @@ export class DomainService {
     return `https://${hostname}/menu`;
   }
 
+  async existingPublicPath(restaurantId:string,origin:string) {
+    if(!this.firestore)return null;
+    const row=await this.firestore.db.get<{slug:string}>('restaurantPublicPaths/'+restaurantId);
+    if(!row || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(row.data.slug))return null;
+    return origin+'/m/'+row.data.slug;
+  }
+  async reservePublicPath(restaurantId: string, name: string, origin: string) {
+    if (!this.firestore) return origin + '/r/' + restaurantId + '/menu';
+    const db = this.firestore.db;
+    const canonicalPath = 'restaurantPublicPaths/' + restaurantId;
+    const existing = await db.get<{slug:string}>(canonicalPath);
+    if(existing) return origin + '/m/' + existing.data.slug;
+    const base=slugFor(name);
+    for(let index=1;index<=1000;index++) {
+      const slug=index===1?base:base+'-'+index;
+      try {await db.commit([{path:'menuAliases/'+slug,data:{restaurantId,slug},exists:false},{path:canonicalPath,data:{restaurantId,slug},exists:false}]);return origin+'/m/'+slug;}
+      catch(error) {if(!(error instanceof FirestoreError && error.conflict))throw error; const saved=await db.get<{slug:string}>(canonicalPath);if(saved)return origin+'/m/'+saved.data.slug;}
+    }
+    throw Error('No se pudo reservar la dirección pública.');
+  }
   private async provisionWorkersDev(restaurantId: string, name: string) {
     const base = slugFor(name).slice(0, 50);
-    const suffix = restaurantId.replace(/-/g, '').slice(0, 6);
     const subdomain = this.env.CLOUDFLARE_WORKERS_SUBDOMAIN!.toLowerCase();
-    const candidates = [base, `${base}-${suffix}`];
+    const candidates = [base];
     for (let index = 2; index <= 20; index++)
-      candidates.push(`${base}-${suffix}-${index}`.slice(0, 63));
+      candidates.push(`${base}-${index}`.slice(0, 63));
     for (const serviceName of candidates) {
       const hostname = `${serviceName}.${subdomain}.workers.dev`;
       const firestoreCollision = this.firestore ? await this.firestore.lookup(hostname) : null;
@@ -118,7 +138,23 @@ export class DomainService {
       )
         .bind(hostname)
         .first<{ restaurant_id: string }>();
-      if (collision && collision.restaurant_id !== restaurantId) continue;
+      if (collision) {
+        if(collision.restaurant_id !== restaurantId)continue;
+        if(firestoreCollision?.status==='active')return 'https://'+hostname+'/menu';
+        throw Error('La dirección reservada requiere verificación antes de volver a aprovisionar.');
+      }
+      const scriptUrl='https://api.cloudflare.com/client/v4/accounts/'+this.env.CLOUDFLARE_ACCOUNT_ID+'/workers/scripts/'+serviceName;
+      const check=await fetch(scriptUrl,{headers:{Authorization:'Bearer '+this.env.CLOUDFLARE_API_TOKEN}});
+      if(check.ok)continue;
+      if(check.status!==404)throw Error('No se pudo verificar que el nombre del Worker esté libre.');
+      const reservation=this.record(restaurantId,hostname,'workers_dev',{status:'provisioning',provider:'cloudflare_workers',serviceName});
+      if(this.firestore) {
+        try {await this.firestore.db.commit([{path:'hostnames/'+hostname,data:reservation,exists:false},{path:'platformConfig/hostnameKinds/entries/'+restaurantId+'-workers_dev',data:{hostname},exists:false}]);}
+        catch(error) {if(error instanceof FirestoreError && error.conflict)continue;throw error;}
+      } else {
+        const reserved=await this.env.DB.prepare("INSERT OR IGNORE INTO restaurant_hosts (hostname,restaurant_id,kind,status,provider,service_name,priority,created_at,updated_at) VALUES (?,?,'workers_dev','provisioning','cloudflare_workers',?,10,?,?)").bind(hostname,restaurantId,serviceName,reservation.createdAt,reservation.updatedAt).run();
+        if(reserved.meta.changes!==1)continue;
+      }
       try {
         const form = new FormData();
         form.set(
@@ -175,9 +211,9 @@ export class DomainService {
           return `https://${hostname}/menu`;
         }
         await this.env.DB.prepare(
-          "INSERT OR REPLACE INTO restaurant_hosts (hostname,restaurant_id,kind,status,provider,service_name,priority,last_error,created_at,updated_at) VALUES (?,?,'workers_dev','active','cloudflare_workers',?,10,NULL,?,?)",
+          "UPDATE restaurant_hosts SET status='active',service_name=?,last_error=NULL,updated_at=? WHERE hostname=? AND restaurant_id=? AND status='provisioning'",
         )
-          .bind(hostname, restaurantId, serviceName, now, now)
+          .bind(serviceName, now, hostname, restaurantId)
           .run();
         return `https://${hostname}/menu`;
       } catch (error) {
@@ -187,15 +223,14 @@ export class DomainService {
           throw error;
         }
         await this.env.DB.prepare(
-          "INSERT OR REPLACE INTO restaurant_hosts (hostname,restaurant_id,kind,status,provider,service_name,priority,last_error,created_at,updated_at) VALUES (?,?,'workers_dev','error','cloudflare_workers',?,10,?,?,?)",
+          "UPDATE restaurant_hosts SET status='error',service_name=?,last_error=?,updated_at=? WHERE hostname=? AND restaurant_id=? AND status='provisioning'",
         )
           .bind(
-            hostname,
-            restaurantId,
             serviceName,
             error instanceof Error ? error.message.slice(0, 500) : 'Error desconocido',
             now,
-            now,
+            hostname,
+            restaurantId,
           )
           .run();
         throw error;

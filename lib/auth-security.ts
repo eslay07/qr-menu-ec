@@ -203,13 +203,13 @@ export class AuthSecurity {
 
   clearDeviceCookie() { return secureCookie(deviceCookie, '', 0); }
 
-  async createDevice(restaurantId: string) {
+  async createDevice(restaurantId: string, sessionHash?: string) {
     const token = randomToken() + randomToken();
     const csrfToken = randomToken();
     const now = new Date();
     const absoluteExpiresAt = new Date(now.getTime() + 180 * 86_400_000).toISOString();
     if (this.persistence) {
-      await this.persistence.create('devices', { id_hash: await digest(token), scope: 'owner', restaurant_id: restaurantId, csrf_token: csrfToken, created_at: now.toISOString(), last_seen_at: now.toISOString(), idle_expires_at: new Date(now.getTime() + 30 * 86_400_000).toISOString(), absolute_expires_at: absoluteExpiresAt, revoked_at: null });
+      await this.persistence.create('devices', { ...(sessionHash ? {session_hash:sessionHash}:{}), id_hash: await digest(token), scope: 'owner', restaurant_id: restaurantId, csrf_token: csrfToken, created_at: now.toISOString(), last_seen_at: now.toISOString(), idle_expires_at: new Date(now.getTime() + 30 * 86_400_000).toISOString(), absolute_expires_at: absoluteExpiresAt, revoked_at: null });
       return { cookie: secureCookie(deviceCookie, token, 180 * 86_400), csrfToken };
     }
     await this.env.DB.prepare('INSERT INTO owner_devices (id_hash,restaurant_id,csrf_token,created_at,last_seen_at,idle_expires_at,absolute_expires_at,revoked_at) VALUES (?,?,?,?,?,?,?,NULL)')
@@ -250,6 +250,21 @@ export class AuthSecurity {
     return { restaurantId: row.restaurant_id, cookie: secureCookie(deviceCookie, nextToken, Math.max(1, Math.floor((Date.parse(row.absolute_expires_at) - now.getTime()) / 1000))) };
   }
 
+  async bindDeviceSession(request:Request,sessionHash:string) {
+    if(!this.persistence)return;
+    const token=cookieValue(request,deviceCookie);if(!token)return;
+    await this.persistence.mutate<Grant>('devices',await digest(token),row=>this.persistence!.valid(row)?{...row,session_hash:sessionHash}:false);
+  }
+  async presentedOwnerSessionRevoked(request:Request,restaurantId:string) {
+    const token=cookieValue(request,ownerCookie);if(!token || !this.persistence)return false;
+    const grant=await this.persistence.get<Grant>('sessions',await digest(token));
+    return !!grant && grant.scope==='owner' && grant.restaurant_id===restaurantId && (!!grant.revoked_at || Date.parse(grant.absolute_expires_at)<=Date.now());
+  }
+  async rememberedSessionRevoked(device: {session_hash?:string; id_hash:string}) {
+    if(!this.persistence || !device.session_hash)return false;
+    const session=await this.persistence.get<Grant>('sessions',device.session_hash);
+    return !session || !!session.revoked_at || Date.parse(session.absolute_expires_at)<=Date.now();
+  }
   async revokeDevice(request: Request) {
     const token = cookieValue(request, deviceCookie);
     if (!token) return;
@@ -295,7 +310,7 @@ export class AuthSecurity {
     ).toISOString();
     if (this.persistence) {
       await this.persistence.create('sessions', { id_hash: await digest(token), scope, restaurant_id: restaurantId, csrf_token: csrfToken, created_at: now.toISOString(), last_seen_at: now.toISOString(), idle_expires_at: idleExpiresAt, absolute_expires_at: absoluteExpiresAt, revoked_at: null });
-      return { csrfToken, absoluteExpiresAt, cookie: secureCookie(this.cookieName(scope), token, 12 * 60 * 60) };
+      return { sessionHash: await digest(token), csrfToken, absoluteExpiresAt, cookie: secureCookie(this.cookieName(scope), token, 12 * 60 * 60) };
     }
     await this.env.DB.prepare(
       'INSERT INTO auth_sessions (id_hash,scope,restaurant_id,csrf_token,created_at,last_seen_at,idle_expires_at,absolute_expires_at,revoked_at) VALUES (?,?,?,?,?,?,?,?,NULL)',
@@ -312,6 +327,7 @@ export class AuthSecurity {
       )
       .run();
     return {
+      sessionHash: await digest(token),
       csrfToken,
       absoluteExpiresAt,
       cookie: secureCookie(this.cookieName(scope), token, 12 * 60 * 60),
@@ -421,7 +437,11 @@ export class AuthSecurity {
     restaurantId: string | null,
     idHash: string,
   ) {
-    if (this.persistence) return this.persistence.revoke('sessions', scope, restaurantId, idHash);
+    if (this.persistence) {
+      await this.persistence.revoke('sessions',scope,restaurantId,idHash);
+      if(scope==='owner')for(const device of await this.persistence.list('devices',scope,restaurantId))if(device.session_hash===idHash)await this.persistence.revoke('devices',scope,restaurantId,device.id_hash);
+      return;
+    }
     await this.env.DB.prepare(
       'UPDATE auth_sessions SET revoked_at = ? WHERE id_hash = ? AND scope = ? AND restaurant_id IS ?',
     )

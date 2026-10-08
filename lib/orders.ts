@@ -63,7 +63,13 @@ export type OrderReport = {
   byHour: Array<{ hour: number; orders: number }>;
 };
 
+export type OrderOperation = { key: string; payloadHash: string; token: string; order: OrderRecord };
+export class PublicationChangedError extends Error { constructor(){super('La carta cambió. Recarga y revisa los productos antes de confirmar.');} }
+export class OperationConflictError extends Error { constructor(){super('La clave de operación ya se usó con otro pedido.');} }
 export interface OrderStore {
+  operation?(restaurantId: string,key: string): Promise<OrderOperation|null>;
+  createOnce?(order:OrderRecord,tokenHash:string,operation:OrderOperation,expectedPublicationVersion?:number):Promise<OrderOperation>;
+  createValidated?(order:OrderRecord,tokenHash:string,expectedPublicationVersion:number):Promise<void>;
   create(order: OrderRecord, tokenHash: string): Promise<void>;
   publicByTokenHash(tokenHash: string): Promise<OrderRecord | null>;
   list(
@@ -288,8 +294,19 @@ export function reportFor(orders: OrderRecord[]): OrderReport {
 
 export class D1OrderStore implements OrderStore {
   constructor(private db: D1Database) {}
-  async create(order: OrderRecord, tokenHash: string) {
-    await this.db
+  async operation(restaurantId:string,key:string):Promise<OrderOperation|null> {
+    const row=await this.db.prepare('SELECT payload_hash,token,order_snapshot FROM order_operations WHERE restaurant_id = ? AND operation_key = ?').bind(restaurantId,key).first<{payload_hash:string;token:string;order_snapshot:string}>();
+    return row?{key,payloadHash:row.payload_hash,token:row.token,order:JSON.parse(row.order_snapshot)}:null;
+  }
+  async createOnce(order:OrderRecord,tokenHash:string,operation:OrderOperation) {
+    try {
+      await this.db.batch([this.insert(order,tokenHash),this.db.prepare('INSERT INTO order_operations (restaurant_id,operation_key,payload_hash,token,order_snapshot) VALUES (?,?,?,?,?)').bind(order.restaurantId,operation.key,operation.payloadHash,operation.token,JSON.stringify(operation.order))]);
+      return operation;
+    } catch(error) {const saved=await this.operation(order.restaurantId,operation.key);if(!saved)throw error;if(saved.payloadHash!==operation.payloadHash)throw new OperationConflictError();return saved;}
+  }
+  async create(order:OrderRecord,tokenHash:string) {await this.insert(order,tokenHash).run();}
+  private insert(order: OrderRecord, tokenHash: string) {
+    return this.db
       .prepare(
         'INSERT INTO orders (id,restaurant_id,number,status,demo,alias,restaurant_name,menu_version,currency,total_cents,created_at,public_expires_at,public_token_hash,cancelled_at,snapshot) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
       )
@@ -309,8 +326,7 @@ export class D1OrderStore implements OrderStore {
         tokenHash,
         null,
         JSON.stringify(order.lines),
-      )
-      .run();
+      );
   }
   private row(value: Record<string, unknown>): OrderRecord {
     return {

@@ -3,7 +3,7 @@ import { digest } from './security';
 
 type Kind = 'sessions' | 'devices' | 'challenges';
 const collections = { sessions: 'platformConfig/sessionGrants/entries', devices: 'platformConfig/deviceGrants/entries', challenges: 'securityChallenges' };
-export type Grant = { id_hash: string; scope: 'owner' | 'creator'; restaurant_id: string | null; csrf_token: string; created_at: string; last_seen_at: string; idle_expires_at: string; absolute_expires_at: string; revoked_at: string | null };
+export type Grant = { session_hash?: string; id_hash: string; scope: 'owner' | 'creator'; restaurant_id: string | null; csrf_token: string; created_at: string; last_seen_at: string; idle_expires_at: string; absolute_expires_at: string; revoked_at: string | null };
 export type Challenge = { id_hash: string; scope: 'owner' | 'creator'; restaurant_id: string | null; kind: 'mfa_login' | 'mfa_setup' | 'email_verify' | 'password_reset'; payload: string; attempts: number; expires_at: string; created_at: string };
 const camel = (key: string) => key.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase());
 const snake = (key: string) => key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
