@@ -1,0 +1,146 @@
+[
+  {
+    "url": "https://qa-ficticio-octubre-2026.consola.workers.dev/api/v1/menu",
+    "status": 200,
+    "cache": "no-store",
+    "version": 12,
+    "name": "QA FICTICIO · Octubre 2026",
+    "template": "list",
+    "textSize": "large",
+    "theme": {
+      "background": "#F7F7F5",
+      "surface": "#FFFFFF",
+      "text": "#202520",
+      "accent": "#315B42",
+      "action": "#244130"
+    },
+    "categories": [
+      {
+        "id": "principales",
+        "name": "Platos fuertes"
+      },
+      {
+        "id": "desayunos",
+        "name": "Desayunos QA"
+      },
+      {
+        "id": "mariscos",
+        "name": "Mariscos"
+      },
+      {
+        "id": "rapida",
+        "name": "Comida rápida"
+      },
+      {
+        "id": "bebidas",
+        "name": "Bebidas"
+      },
+      {
+        "id": "postres",
+        "name": "Postres"
+      }
+    ],
+    "dishCount": 40,
+    "promotions": [
+      {
+        "id": "promo-08f6cab8",
+        "dishId": "",
+        "kind": "notice",
+        "title": "QA FICTICIO · demostración sin ventas",
+        "description": "Aviso informativo ficticio. Los importes de los platos permanecen iguales.",
+        "badge": "DESTACADO",
+        "image": "",
+        "promotionalPriceCents": null,
+        "startsAt": null,
+        "endsAt": null,
+        "enabled": true
+      },
+      {
+        "id": "promo-dc53a24f",
+        "dishId": "ejemplo-2",
+        "kind": "discount",
+        "title": "QA FICTICIO · descuento explícito temporal",
+        "description": "Una recomendación especial de nuestra cocina.",
+        "badge": "DESTACADO",
+        "image": "",
+        "promotionalPriceCents": 400,
+        "startsAt": null,
+        "endsAt": null,
+        "enabled": false
+      }
+    ],
+    "ordersEnabled": true
+  },
+  {
+    "url": "https://qr-menu-ec.consola.workers.dev/r/76d3def9-52e9-4779-b048-1242f45c634e/api/v1/menu",
+    "status": 200,
+    "cache": "no-store",
+    "version": 12,
+    "name": "QA FICTICIO · Octubre 2026",
+    "template": "list",
+    "textSize": "large",
+    "theme": {
+      "background": "#F7F7F5",
+      "surface": "#FFFFFF",
+      "text": "#202520",
+      "accent": "#315B42",
+      "action": "#244130"
+    },
+    "categories": [
+      {
+        "id": "principales",
+        "name": "Platos fuertes"
+      },
+      {
+        "id": "desayunos",
+        "name": "Desayunos QA"
+      },
+      {
+        "id": "mariscos",
+        "name": "Mariscos"
+      },
+      {
+        "id": "rapida",
+        "name": "Comida rápida"
+      },
+      {
+        "id": "bebidas",
+        "name": "Bebidas"
+      },
+      {
+        "id": "postres",
+        "name": "Postres"
+      }
+    ],
+    "dishCount": 40,
+    "promotions": [
+      {
+        "id": "promo-08f6cab8",
+        "dishId": "",
+        "kind": "notice",
+        "title": "QA FICTICIO · demostración sin ventas",
+        "description": "Aviso informativo ficticio. Los importes de los platos permanecen iguales.",
+        "badge": "DESTACADO",
+        "image": "",
+        "promotionalPriceCents": null,
+        "startsAt": null,
+        "endsAt": null,
+        "enabled": true
+      },
+      {
+        "id": "promo-dc53a24f",
+        "dishId": "ejemplo-2",
+        "kind": "discount",
+        "title": "QA FICTICIO · descuento explícito temporal",
+        "description": "Una recomendación especial de nuestra cocina.",
+        "badge": "DESTACADO",
+        "image": "",
+        "promotionalPriceCents": 400,
+        "startsAt": null,
+        "endsAt": null,
+        "enabled": false
+      }
+    ],
+    "ordersEnabled": true
+  }
+]

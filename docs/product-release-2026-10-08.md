@@ -7,9 +7,9 @@ La implementación está integrada y desplegada en la infraestructura existente.
 - Repositorio íntegro: [eslay07/qr-menu-ec](https://github.com/eslay07/qr-menu-ec).
 - Funcionalidades integradas por [PR 16](https://github.com/eslay07/qr-menu-ec/pull/16), commit `04884f2400ed43a99bd494d73d94f26d04cb4d4c`.
 - Empaquetado y verificación MIME integrados por [PR 17](https://github.com/eslay07/qr-menu-ec/pull/17), commit `1c0ebf9f9180d85f80e9cadec4e7e7ad8e174931`.
-- Versión final preparada: `7580118f-8cd4-4c15-bb03-b56fc8b808ba`, con tráfico0 durante revisión. La versión funcional anterior93dbea4d se comprobó por HTTP y navegador; la activación y verificación de contraste productivo final se registrarán tras aprobar CI.
-- Plataforma: https://qr-menu-ec.consola.workers.dev . [Demostración pública comprobada](https://qa-ficticio-octubre-2026.consola.workers.dev/menu), publicación 8 al cierre de aceptación.
-- Corrección final de contraste y evidencias: [PR 18](https://github.com/eslay07/qr-menu-ec/pull/18); precios, opciones y mensajes de validación usan los roles aceptados. Nueve combinaciones de paleta/plantilla verificadas por colores computados, mínimo4,5:1.
+- Versión final activa: `7580118f-8cd4-4c15-bb03-b56fc8b808ba`, tráfico100%. Activada y comprobada por HTTP y navegador: HTML, JS y CSS coinciden por SHA-256 con los archivos construidos; estado privado anónimo401. Commit productivo `34558c0c7920c23fa1f2e78183f8f7f603104214` (PR18). Recibo versionado `served-version.json`.
+- Plataforma: https://qr-menu-ec.consola.workers.dev . [Demostración pública comprobada](https://qa-ficticio-octubre-2026.consola.workers.dev/menu), publicación 12 al cierre de aceptación.
+- Corrección final de contraste y evidencias: [PR 18](https://github.com/eslay07/qr-menu-ec/pull/18); precios, opciones y mensajes de validación usan los roles aceptados. Nueve combinaciones de paleta/plantilla verificadas por colores computados, mínimo4,5:1. En producción se comprobó la publicación9 oscura: texto/precios #F5F6F3 sobre #222A25, contraste13,58:1; las cinco capturas de tarjetas se repitieron en la publicación11 con esta corrección ya servida. Después se publicó la configuración neutra/lista12 y se verificaron nuevamente sus alias. En producción se comprobó la publicación9 oscura: texto/precios #F5F6F3 sobre #222A25, contraste13,58:1; las cinco capturas de tarjetas se repitieron en la publicación11 con esta corrección ya servida. Después se publicó la configuración neutra/lista12 y se verificaron nuevamente sus alias.
 - D1 operativa y D1 histórica/imágenes conservadas; migración aditiva `0006_order_operations.sql` aplicada. Firebase Authentication/FCM conservados. Sin Blaze, R2, nuevas suscripciones o proveedor contratado.
 
 ## Cambios
@@ -36,11 +36,11 @@ Cinco roles de color, HEX y contraste en cliente/servidor, tres paletas, restaur
 
 [Evidencias versionadas](evidence/2026-10-08/) incluyen recibos de idempotencia, publicación/alias/QR, precios, seguridad, sesiones y capturas. Las 15 capturas de anchos productivos completas están también en `outputs/product-production-{list,cards,compact}-<ancho>.jpg` del workspace.
 
-![Carta productiva ficticia](evidence/2026-10-08/product-production-list-390.jpg)
+![Carta productiva ficticia final](evidence/2026-10-08/product-production-final-390.jpg)
 
 ![Pedido ficticio registrado](evidence/2026-10-08/product-production-order.jpg)
 
-Tipos y build Worker aprobados. Suite completa con emulador: **168/168, cero fallos/omisiones**, más **2/2 tests de empaquetado MIME**. Reglas Firebase repetidas: 8/8. CI de los PR 16/17: build, auditoría/secretos, CodeQL y preview aprobados. Audit no tiene hallazgos altos/críticos. Smoke productivo aprobado: la automatización fue bloqueada por Turnstile, mientras el pedido anterior sí se creó en navegador mediante el flujo normal.
+Tipos y build Worker aprobados. Suite completa con emulador: **168/168, cero fallos/omisiones**, más **2/2 tests de empaquetado MIME**. Reglas Firebase repetidas: 8/8. CI de los PR 16/17/18: build, auditoría/secretos, CodeQL y preview aprobados. Audit no tiene hallazgos altos/críticos. Smoke productivo aprobado: la automatización fue bloqueada por Turnstile, mientras el pedido anterior sí se creó en navegador mediante el flujo normal.
 
 **Lint no aprobado**: comparativa completa registrada 420 errores/5 avisos previos y 450/5 en la entrega funcional; incluye deuda previa y hallazgos nuevos. No se desactivaron reglas ni aserciones. Los archivos nuevos de instrumentación visual pasaron lint. Logs locales bajo `outputs/`, especialmente `product-all-emulator.txt`, `product-production-smoke-final.txt`, `product-typecheck-evidence.txt` y `lint-product-release-final.txt`.
 
@@ -52,7 +52,7 @@ LCP frío antes/después: 10 productos **1,724→1,740 s**, 40 **2,020→2,064 s
 
 ## Subdominio, QR y operación
 
-El hostname `qa-ficticio-octubre-2026.consola.workers.dev` es **un subdominio real**, provisionado en el namespace existente, con TLS y rutas 200 verificados. El [QR SVG](evidence/2026-10-08/product-public-qr.svg) se decodificó a su URL completa. `/m/qa-ficticio-octubre-2026/api/v1/menu`, `/r/76d3def9-52e9-4779-b048-1242f45c634e/api/v1/menu` y subdominio devolvieron la misma publicación 8. El evento de descarga del navegador integrado no fue observable; el SVG adjunto se extrajo del QR realmente visible, sin regenerarlo.
+El hostname `qa-ficticio-octubre-2026.consola.workers.dev` es **un subdominio real**, provisionado en el namespace existente, con TLS y rutas 200 verificados. El [QR SVG](evidence/2026-10-08/product-public-qr.svg) se decodificó a su URL completa. `/m/qa-ficticio-octubre-2026/api/v1/menu`, `/r/76d3def9-52e9-4779-b048-1242f45c634e/api/v1/menu` y subdominio devolvieron la misma publicación 12. El evento de descarga del navegador integrado no fue observable; el SVG adjunto se extrajo del QR realmente visible, sin regenerarlo.
 
 Turnstile incorporó el hostname ficticio reemplazando únicamente un preview histórico deshabilitado; conservó los hostnames productivos, identidad y protección. Recibo versionado. **Bloqueo de provisión automática futura:** el Worker no tiene `CLOUDFLARE_API_TOKEN` permanente con permisos mínimos de Workers; el operador pudo provisionar el ejemplo usando la autorización CLI existente. No se almacenó OAuth efímero como secreto. Además, nuevos hostnames necesitan autorización Turnstile dentro de sus cuotas. Las rutas legibles funcionan aunque ese acceso no esté configurado.
 
