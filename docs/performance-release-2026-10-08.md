@@ -84,3 +84,18 @@ API ficticia local: estas cifras no acreditan latencia del backend productivo, F
 | cart-order-|after|40|order-create|-|ms | 20 | 511.73 | 411.56–739.13 |
 
 Evidencia completa local: outputs/mobile-performance/*.json y logs. Scripts versionados mobile-performance-qa.ts, owner-performance-qa.ts, session-performance-qa.ts y performance-run.mjs. Se agregaron veinte repeticiones por catálogo de disminuir, eliminar, vaciar y crear pedido con API ficticia y recalculador real, sin persistencia ni Turnstile. No acredita creación productiva.
+
+## Respuesta visual instrumentada adicional
+
+Veinte repeticiones por interacción y catálogo, en los mismos bundles y perfil. El reloj empieza en captura de input/click del navegador, espera el DOM esperado mediante MutationObserver y dos requestAnimationFrame. Es una aproximación a oportunidad de presentación, no observación de píxeles ni INP; excluye la cola anterior al evento y hardware. El catálogo de 40 usa la ventana inicial existente de 30 tarjetas. API ficticia local sin fotos; no es producción ni Honor.
+
+| Catálogo | Interacción | Antes: mediana [mín–máx], ms | Después: mediana [mín–máx], ms |
+| --- | --- | --- | --- |
+| 10 | search | 36.90 [22.60–73.40] | 38.10 [21.20–151.20] |
+| 10 | category | 34.05 [12.00–63.10] | 52.20 [26.00–108.00] |
+| 10 | cart-add | 42.40 [24.00–117.60] | 41.90 [21.50–133.60] |
+| 40 | search | 46.80 [29.10–124.00] | 38.35 [22.40–125.90] |
+| 40 | category | 86.85 [49.20–154.30] | 87.25 [31.50–360.60] |
+| 40 | cart-add | 67.85 [46.40–186.30] | 71.80 [32.80–382.60] |
+
+Las medianas posteriores están bajo 200 ms. En categoría y carrito de 40 aparecen máximos de 360,60 y 382,60 ms: el objetivo no se cumple en todas las repeticiones. Tampoco se afirma una mejora general de LCP: antes 10/40 fríos 1.724/2.020 ms, después 1.768/2.136 ms. La separación de módulos reduce el arranque inicial y mantiene medianas dentro del objetivo, pero las colas de carga fría exceden 2,5 s.

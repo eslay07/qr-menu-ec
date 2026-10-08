@@ -1,0 +1,13 @@
+{
+  "checkedAt": "2026-10-08T13:43:35.157Z",
+  "version": 7,
+  "valid": {
+    "status": 200,
+    "model": "request",
+    "registered": false,
+    "url": "https://wa.me/12025550199?text=Solicitud%20para%20QA%20FICTICIO%20%C2%B7%20Octubre%202026%0A1%20%C3%97%20Bol%C3%B3n%20de%20queso%20%C2%B7%20%244.00%0ATotal%3A%20%244.00%0ASolicitud%20sin%20pedido%20registrado%3B%20pendiente%20de%20respuesta%20del%20restaurante."
+  },
+  "stalePriceStatus": 409,
+  "staleRevisionStatus": 409,
+  "neverOpenedOrSent": true
+}

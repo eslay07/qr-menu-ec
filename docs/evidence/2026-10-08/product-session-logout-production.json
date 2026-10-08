@@ -1,0 +1,12 @@
+{
+  "checkedAt": "2026-10-08T13:53:58.998Z",
+  "restaurantId": "76d3def9-52e9-4779-b048-1242f45c634e",
+  "activeSessions": 1,
+  "sessions": [
+    {
+      "createdAt": "2026-10-08T13:22:05.200Z",
+      "lastSeenAt": "2026-10-08T13:34:08.848Z"
+    }
+  ],
+  "humanReportedTenAndroidReopens": true
+}
