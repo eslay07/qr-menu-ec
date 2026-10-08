@@ -1,0 +1,14 @@
+{
+  "checkedAt": "2026-10-08T19:16:08.586Z",
+  "version": "b01b47a7-558c-4a30-a74d-1ae3f201829a",
+  "ownerLogin": true,
+  "settingsDisclosuresObserved": 7,
+  "hoursExpandedAndCollapsed": true,
+  "remoteDraftEditSaved": true,
+  "externalChangeNoticeAndReloadButton": true,
+  "localDraftPreservedBeforeReload": true,
+  "publicVersionUnchanged": 13,
+  "cleanupVerified": true,
+  "productionReloadConfirmationCompleted": false,
+  "limitation": "Integrated browser timed out on screenshots and confirmation interaction; cancellation/acceptance covered by local Chromium test, not claimed as completed in production"
+}

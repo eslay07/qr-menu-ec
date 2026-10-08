@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto';
 import { join, relative, resolve } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import { cf } from './d1-transition-operator.mjs';
-import { assetDescriptor, assetPart, assetMime } from './release-assets.mjs';
+import { assetDescriptor, assetPart, assetMime, waitForReleaseHtml } from './release-assets.mjs';
 import { checkedAndroidRelease } from './android-release.mjs';
 
 const output = 'work/product-release';
@@ -104,9 +104,9 @@ if (mode === '--stage') {
   if (served.length !== 1 || served[0].version_id !== target || served[0].percentage !== 100) throw Error('Traffic change not verified.');
   if(mode==='--activate'){
     try{
-      const response=await fetch(origin+'/owner',{signal:AbortSignal.timeout(60000)});
-      if(!response.ok || !response.headers.get('content-type')?.startsWith('text/html'))throw Error('HTML content type invalid.');
-      const html=await response.text(),expected=await readFile('dist-worker/index.html','utf8');
+      const expected=await readFile('dist-worker/index.html','utf8');
+      const paths=Array.from(expected.matchAll(/(?:src|href)="(\/assets\/[^\"]+)"/g), match => match[1]);
+      const html=await waitForReleaseHtml(() => fetch(origin+'/owner',{signal:AbortSignal.timeout(60000)}),paths);
       for(const match of expected.matchAll(/(?:src|href)="(\/assets\/[^\"]+)"/g)){
         const path=match[1];if(!html.includes(path))throw Error('HTML release mismatch.');
         const result=await fetch(origin+path,{signal:AbortSignal.timeout(60000)});
