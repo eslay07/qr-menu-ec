@@ -173,6 +173,14 @@
 .customer .customer-brand > svg,.customer .customer-brand > img,.customer .bag-icon { flex-shrink:0; }
 .customer .section-title,.customer .dish-bottom { flex-wrap:wrap;gap:8px; }
 .customer .dish-price { min-width:0;overflow-wrap:anywhere; }
+.customer .dish-price strong,.customer .dish-price del,.customer .selection-row small,.customer .choice-option > b,.customer .offers-hint,.customer .offers-controls span { color:var(--menu-text); }
+.customer .dish-options-summary,.customer .promotion-badge,.customer .choice-option,.customer .modal > .section-title,.customer .modal > .actions,.customer .preview-ribbon { background:var(--menu-surface);color:var(--menu-text); }
+.customer .btn:not(.primary),.customer .close-button { background:var(--menu-surface);color:var(--menu-text);border-color:var(--menu-text); }
+.customer .notice,.customer .order-error { background:var(--menu-surface);color:var(--menu-text);border-color:var(--menu-text); }
+.customer .field-error { color:var(--menu-text) !important;font-weight:700; }
+.customer .choice-group legend,.customer .choice-group small,.customer .modal p { color:var(--menu-text); }
+.customer .choice-option.chosen { background:var(--menu-surface);color:var(--menu-text);outline:2px solid var(--menu-text); }
+.customer .choice-group[aria-invalid=true] { background:var(--menu-surface) !important;border-color:var(--menu-text) !important; }
 .customer .customer-dishes > section { container-type:inline-size; }
 .customer .dish-grid { grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr)); }
 .customer.template-list .dish-grid,.customer.template-compact .dish-grid { grid-template-columns:1fr; }
