@@ -1,4 +1,6 @@
-# Entrega productiva · 8 de octubre de 2026
+# Entrega productiva inicial · 8 de octubre de 2026
+
+Actualización posterior vigente: [editor, navegación y APK0.8.4](owner-editor-update-2026-10-08.md), Workerb01b47a7. Este documento conserva la evidencia de la entrega inicial7580118f.
 
 La implementación está integrada y desplegada en la infraestructura existente. Los recorridos productivos indicados abajo funcionan con el restaurante identificado **QA FICTICIO · Octubre 2026**. No se conocen fallos críticos en el alcance comprobado. Quedan limitaciones de validación y operación explícitas; este informe no certifica cumplimiento íntegro de todos los objetivos de rendimiento o Android.
 

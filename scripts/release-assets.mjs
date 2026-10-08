@@ -9,3 +9,13 @@ export function assetDescriptor(path,bytes){
  return {hash:createHash('sha256').update(bytes).update('\0'+extname(path)+'\0'+type+'\0mime-v2').digest('hex').slice(0,32),size:bytes.length};
 }
 export function assetPart(path,bytes){return new Blob([bytes.toString('base64')],{type:assetMime(path)});}
+export async function waitForReleaseHtml(read, paths, pause = () => new Promise(resolve => setTimeout(resolve, 2000)), attempts = 5) {
+ for (let attempt = 0; attempt < attempts; attempt++) {
+  const response = await read();
+  if (!response.ok || !response.headers.get('content-type')?.startsWith('text/html')) throw Error('HTML content type invalid.');
+  const html = await response.text();
+  if (paths.every(path => html.includes(path))) return html;
+  if (attempt + 1 < attempts) await pause();
+ }
+ throw Error('HTML release mismatch after propagation checks.');
+}
