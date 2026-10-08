@@ -1,12 +1,12 @@
 {
-  "checkedAt": "2026-10-08T13:47:46.972Z",
+  "checkedAt": "2026-10-08T14:26:07.322Z",
   "decodedQR": "https://qa-ficticio-octubre-2026.consola.workers.dev/menu",
   "aliases": [
     {
       "kind": "subdomain",
       "url": "https://qa-ficticio-octubre-2026.consola.workers.dev/api/v1/menu",
       "status": 200,
-      "version": 8,
+      "version": 12,
       "name": "QA FICTICIO · Octubre 2026",
       "hours": [
         {
@@ -23,7 +23,7 @@
       "kind": "oldUUID",
       "url": "https://qr-menu-ec.consola.workers.dev/r/76d3def9-52e9-4779-b048-1242f45c634e/api/v1/menu",
       "status": 200,
-      "version": 8,
+      "version": 12,
       "name": "QA FICTICIO · Octubre 2026",
       "hours": [
         {
@@ -40,7 +40,7 @@
       "kind": "readable",
       "url": "https://qr-menu-ec.consola.workers.dev/m/qa-ficticio-octubre-2026/api/v1/menu",
       "status": 200,
-      "version": 8,
+      "version": 12,
       "name": "QA FICTICIO · Octubre 2026",
       "hours": [
         {
