@@ -44,6 +44,13 @@ if (mode === '--stage') {
     }
     assets.set(path, bytes);
   }
+  // Opt-in replacement only after the operator verifies the existing signing identity.
+  if (process.env.QR_MENU_RELEASE_APK) {
+    const apk = await readFile(resolve(process.env.QR_MENU_RELEASE_APK));
+    if (!process.env.QR_MENU_RELEASE_APK_SHA256 || hash(apk) !== process.env.QR_MENU_RELEASE_APK_SHA256) throw Error('New signed APK checksum not verified.');
+    assets.set('/downloads/qr-menu-ec.apk', apk);
+    assets.set('/downloads/SHA256SUMS.txt', Buffer.from(`${hash(apk)}  qr-menu-ec.apk\n`));
+  }
   const apkHash = hash(assets.get('/downloads/qr-menu-ec.apk'));
   if (!assets.get('/downloads/SHA256SUMS.txt').toString().includes(apkHash)) throw Error('Distribution checksum mismatch.');
   const manifest = Object.fromEntries([...assets].map(([path, bytes]) => [path, assetDescriptor(path,bytes)]));

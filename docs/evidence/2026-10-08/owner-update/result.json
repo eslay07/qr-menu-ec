@@ -1,0 +1,17 @@
+{
+  "checkedAt": "2026-10-08T15:06:54.193Z",
+  "passed": [
+    "settings-disclosures",
+    "back-two-tabs",
+    "native-back-root-false",
+    "native-back-nested-tab-true",
+    "native-back-editor-dialog-consumed",
+    "external-revision-focus",
+    "cancel-reload-preserves-draft",
+    "accept-reload-fetches-state",
+    "409-preserves-draft",
+    "creator-features-and-entitlements-change",
+    "30-second-poll-with-browser-clock"
+  ],
+  "limitation": "Chromium localhost mocked APIs and virtual timer; native callback contract only, no physical Android or production authentication"
+}
