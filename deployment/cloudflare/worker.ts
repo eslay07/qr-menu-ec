@@ -113,6 +113,17 @@ async function routeRequest(request: Request, env: Env, context: ExecutionContex
   if (url.pathname === '/api/owner/login') return handleOwnerAuth(request, env, id => cloudStore(id, env));
   if (url.pathname === '/api/owner/recovery') return handleOwnerRecovery(request, env, id => cloudStore(id, env));
   if (url.pathname.startsWith('/api/owner/device-session')) return handleOwnerDevice(request, env, id => cloudStore(id, env));
+  // Public readable aliases resolve through a private, atomically reserved map.
+  // Keep the UUID route as the API scope and preserve all previously printed QR.
+  const readable = url.pathname.match(/^\/m\/([a-z0-9]+(?:-[a-z0-9]+)*)(\/.*)?$/);
+  if (readable) {
+    const alias = firestore ? await firestore.get<{ restaurantId: string }>(`menuAliases/${readable[1]}`) : null;
+    if (!alias || !/^[a-f0-9-]{36}$/.test(alias.data.restaurantId)) return new Response('Carta no encontrada.', { status: 404, headers: { 'Cache-Control': 'no-store' } });
+    const remainder = readable[2] || '/menu';
+    if (remainder !== '/menu' && !remainder.startsWith('/api/v1/') && !remainder.startsWith('/order/')) return new Response('No encontrado.', { status: 404 });
+    url.pathname = `/r/${alias.data.restaurantId}${remainder}`;
+    return routeRequest(new Request(url, request), env, context);
+  }
   const match = url.pathname.match(restaurantPath);
   const firestoreHost = firestore && !match ? await new FirestoreDomainRepository(firestore).lookup(url.hostname.toLowerCase()) : null;
   const hostRow = firestore ? (firestoreHost?.status === 'active' ? { restaurant_id: firestoreHost.restaurantId, kind: firestoreHost.kind } : null) : !match
@@ -143,12 +154,16 @@ async function routeRequest(request: Request, env: Env, context: ExecutionContex
   }
   if (id && scopedPath.startsWith('/api/v1/')) {
     const store = cloudStore(id, env);
+    const root = firestore ? await firestore.get<{ revision?: number; publishedCatalogId?: string; access?: { active?: boolean; features?: Feature[] } }>(`restaurants/${id}`) : null;
     if (firestore && store.readMenu) {
       const readMenu = store.readMenu.bind(store);
-      store.readMenu = () => menuCache(env).read(id, readMenu);
+      // Read the current root before consulting the isolate cache. Publication
+      // changes its immutable catalog pointer, including across Worker isolates.
+      const key = `${id}:${root?.data.publishedCatalogId || 'none'}:${root?.data.revision || 0}`;
+      store.readMenu = () => menuCache(env).read(key, readMenu);
     }
     const access = firestore
-      ? (await firestore.get<{ access?: { active?: boolean; features?: Feature[] } }>(`restaurants/${id}`))?.data.access
+      ? root?.data.access
       : (await store.read())?.state.access;
     const creator = await isCreatorRequest(request, env);
     url.pathname = scopedPath;

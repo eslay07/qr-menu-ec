@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, Utensils } from 'lucide-react';
 import { activePromotion, money, type Catalog, type Dish } from '@/lib/contracts';
 
@@ -7,7 +7,9 @@ export default function Promotions({ catalog, media, onChoose, disabled }: {
 }) {
   const track = useRef<HTMLDivElement>(null);
   const [index, setIndex] = useState(0);
-  const offers = catalog.promotions.filter(p => activePromotion(catalog, p.dishId)?.id === p.id);
+  const [now,setNow]=useState(()=>Date.now());
+  useEffect(()=>{const timer=setInterval(()=>setNow(Date.now()),30_000);return()=>clearInterval(timer)},[]);
+  const offers = catalog.promotions.filter(p => p.enabled && (!p.startsAt || Date.parse(p.startsAt)<=now) && (!p.endsAt || Date.parse(p.endsAt)>now) && ((p.kind==='banner'||p.kind==='notice') || activePromotion(catalog, p.dishId)?.id === p.id));
   if (!offers.length) return null;
   function move(next: number) {
     const element = track.current?.children[next] as HTMLElement | undefined;
@@ -35,16 +37,16 @@ export default function Promotions({ catalog, media, onChoose, disabled }: {
       setIndex(nearest);
     }}>
       {offers.map((promotion, position) => {
-        const dish = catalog.dishes.find(d => d.id === promotion.dishId)!;
-        const image = promotion.image || dish.image;
+        const dish = catalog.dishes.find(d => d.id === promotion.dishId);
+        const image = promotion.image || dish?.image;
         return <article className={`promotion-banner offer-color-${position % 3}`} key={promotion.id} aria-label={`${position + 1} de ${offers.length}: ${promotion.title}`}>
           <div className="promotion-copy"><span className="promotion-badge">{promotion.badge || 'Especial de hoy'}</span>
             <h3>{promotion.title}</h3><p>{promotion.description}</p>
-            <div className="promotion-price"><strong>{money(promotion.promotionalPriceCents ?? dish.priceCents)}</strong>
-              {promotion.promotionalPriceCents !== null && <del>{money(dish.priceCents)}</del>}</div>
-            <button className="offer-action" disabled={!dish.available || disabled} onClick={() => onChoose(dish)}>{dish.available ? 'Elegir promoción' : 'Agotado'} <ArrowRight size={16} /></button>
+            {dish && <div className="promotion-price"><strong>{money(promotion.promotionalPriceCents ?? dish.priceCents)}</strong>
+              {promotion.promotionalPriceCents !== null && <del>{money(dish.priceCents)}</del>}</div>}
+            {dish && <button className="offer-action" disabled={!dish.available || disabled} onClick={() => onChoose(dish)}>{dish.available ? 'Elegir promoción' : 'Agotado'} <ArrowRight size={16} /></button>}
           </div>
-          {image ? <img src={media(image)} alt={dish.name} loading="lazy" /> : <div className="promotion-placeholder"><Utensils size={42} /><span>Hecho para ti</span></div>}
+          {image ? <img src={media(image)} alt={dish?.name || promotion.title} loading="lazy" decoding="async" width={480} height={320} /> : <div className="promotion-placeholder"><Utensils size={42} /><span>Hecho para ti</span></div>}
         </article>;
       })}
     </div>

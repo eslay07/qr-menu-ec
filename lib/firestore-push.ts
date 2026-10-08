@@ -8,7 +8,8 @@ import { FcmSender, pushRetryAt } from './push-delivery';
 
 type Preference = 'newOrder' | 'customerCancelled' | 'soldOut' | 'dailySummary' | 'inactivity';
 const eventLabels: Record<Preference, string> = { newOrder:'Nuevo pedido recibido', customerCancelled:'Pedido cancelado por el comensal', soldOut:'Producto agotado', dailySummary:'Resumen diario de pedidos', inactivity:'Alerta de inactividad' };
-type Device = { tokenCiphertext: string; sessionEpoch: number; sessionBinding: string; registeredAt: string; expiresAt: string };
+type SessionGrant = {idHash:string;scope:string;restaurantId:string|null;csrfToken:string;revokedAt:string|null;absoluteExpiresAt:string;idleExpiresAt:string;familySessionHash?:string};
+type Device = { sessionGrantHash?:string;sessionFamilyHash?:string; tokenCiphertext: string; sessionEpoch: number; sessionBinding: string; registeredAt: string; expiresAt: string };
 type Job = { eventId: string; preference: Preference; createdAt: string; expiresAt: string; nextAttemptAt: string; attempt: number; delivered: string[] };
 export const PushRegistration = z.object({ token: z.string().min(20).max(4096).regex(/^[A-Za-z0-9_:.-]+$/), platform: z.enum(['web', 'android']) }).strict();
 
@@ -25,18 +26,59 @@ export class FirestorePush {
   }
   async register(value: unknown, sessionEpoch: number, sessionBinding: string) {
     const input = PushRegistration.parse(value), id = firestoreHashId(await digest(input.token));
+    const sessions=await this.db.query<SessionGrant>('platformConfig/sessionGrants/entries',[{field:'scope',value:'owner'},{field:'restaurantId',value:this.restaurantId},{field:'csrfToken',value:sessionBinding}],2);
+    if(sessions.length!==1)throw Error('La sesión de notificaciones no está disponible.');
+    const session=sessions[0], familyHash=session.data.familySessionHash || session.data.idHash;
+    if(Date.parse(session.data.idleExpiresAt)<=Date.now() || !await this.sessionDeliveryValid(session.data.idHash))throw Error('La sesión de notificaciones fue revocada o venció.');
+    const family=familyHash===session.data.idHash?session:await this.db.get<SessionGrant>(this.sessionPath(familyHash));
+    if(!family || family.data.revokedAt || Date.parse(family.data.absoluteExpiresAt)<=Date.now())throw Error('La sesión de notificaciones fue revocada o venció.');
     const registryPath = `${this.root}/private/pushRegistry`, registry = await this.db.get(registryPath);
     const path = `${this.root}/pushDevices/${id}`, old = await this.db.get<Device>(path);
     const devices = await this.db.list(`${this.root}/pushDevices`, 21);
     if (!old && devices.documents.length >= 20) throw Error('Se alcanzó el límite de 20 dispositivos. Desactiva uno antes de agregar otro.');
     const now = new Date();
     await this.db.commit([
+      {path:session.path,data:{familySessionHash:familyHash},mask:['familySessionHash'],updateTime:session.updateTime},
+      ...(family.path!==session.path?[{path:family.path,data:{},mask:[],updateTime:family.updateTime}]:[]),
       { path: registryPath, data: { updatedAt: now }, ...(registry ? { updateTime: registry.updateTime } : { exists: false }) },
-      { path, data: { tokenCiphertext: await this.security.encrypt(input.token), platform: input.platform, sessionEpoch, sessionBinding: await digest(sessionBinding), registeredAt: old?.data.registeredAt || now, expiresAt: new Date(now.getTime() + 30 * 86_400_000) }, ...(old ? { updateTime: old.updateTime } : { exists: false }) },
+      { path, data: { tokenCiphertext: await this.security.encrypt(input.token), platform: input.platform, sessionGrantHash:session.data.idHash,sessionFamilyHash:familyHash,sessionEpoch, sessionBinding: await digest(sessionBinding), registeredAt: old?.data.registeredAt || now, expiresAt: new Date(now.getTime() + 30 * 86_400_000) }, ...(old ? { updateTime: old.updateTime } : { exists: false }) },
       // A shared phone can only receive messages for its most recently registered restaurant.
       { path: `platformConfig/pushTokens/entries/${id}`, data: { restaurantId: this.restaurantId, expiresAt: new Date(now.getTime() + 30 * 86_400_000) } },
     ]);
     return { id, restaurantId: this.restaurantId };
+  }
+  private sessionPath(hash:string){return 'platformConfig/sessionGrants/entries/'+firestoreHashId(hash);}
+  private async sessionDeliveryValid(hash:string,now=new Date()) {
+    const session=await this.db.get<SessionGrant>(this.sessionPath(hash));
+    if(!session || session.data.scope!=='owner' || session.data.restaurantId!==this.restaurantId || session.data.revokedAt || Date.parse(session.data.absoluteExpiresAt)<=now.getTime())return false;
+    const rootHash=session.data.familySessionHash || session.data.idHash;
+    const root=rootHash===hash?session:await this.db.get<SessionGrant>(this.sessionPath(rootHash));
+    return !!root && root.data.scope==='owner' && root.data.restaurantId===this.restaurantId && !root.data.revokedAt && Date.parse(root.data.absoluteExpiresAt)>now.getTime();
+  }
+  private async legacyBindings() {
+    const rows=await this.db.query<SessionGrant>('platformConfig/sessionGrants/entries',[{field:'scope',value:'owner'},{field:'restaurantId',value:this.restaurantId}],1000);
+    const bindings=new Map<string,string|null>();
+    for(const row of rows){const binding=await digest(row.data.csrfToken);bindings.set(binding,bindings.has(binding)?null:row.data.idHash);}
+    return bindings;
+  }
+  async revokeSessionFamily(hash:string) {
+    const session=await this.db.get<SessionGrant>(this.sessionPath(hash));
+    if(session && (session.data.scope!=='owner' || session.data.restaurantId!==this.restaurantId))return;
+    const rootHash=session?.data.familySessionHash || hash;
+    const grants=await this.db.query<SessionGrant>('platformConfig/sessionGrants/entries',[{field:'scope',value:'owner'},{field:'restaurantId',value:this.restaurantId}],1000);
+    const bindings=new Set(await Promise.all(grants.filter(g=>(g.data.familySessionHash || g.data.idHash)===rootHash).map(g=>digest(g.data.csrfToken))));
+    for(let attempt=0;attempt<3;attempt++){
+      const devices=(await this.db.list<Device>(this.root+'/pushDevices',20)).documents.filter(d=>d.data.sessionFamilyHash===rootHash || d.data.sessionGrantHash===hash || bindings.has(d.data.sessionBinding));
+      if(!devices.length)return;
+      try{await this.db.commit(devices.map(d=>({path:d.path,delete:true,updateTime:d.updateTime})));return;}
+      catch(error){if(!(error instanceof FirestoreError&&error.conflict))throw error;}
+    }
+  }
+  async revokeDeviceFamily(hash:string) {
+    const device=await this.db.get<{scope:string;restaurantId:string;familySessionHash?:string;sessionHash?:string}>('platformConfig/deviceGrants/entries/'+firestoreHashId(hash));
+    if(!device || device.data.scope!=='owner' || device.data.restaurantId!==this.restaurantId)return;
+    const root=device.data.familySessionHash || device.data.sessionHash;
+    if(root)await this.revokeSessionFamily(root);
   }
   async revokeSession(sessionBinding: string) {
     const binding = await digest(sessionBinding);
@@ -53,8 +95,10 @@ export class FirestorePush {
     const auth = await this.db.get<{ sessionEpoch: number }>(`${this.root}/private/auth`);
     const settings = NotificationSettings.parse((await this.db.get(`${this.root}/settings/notifications`))?.data || {});
     const devices = (await this.db.list<Device>(`${this.root}/pushDevices`, 20)).documents;
-    for (const device of devices) if (Date.parse(device.data.expiresAt) <= now.getTime() || device.data.sessionEpoch !== auth?.data.sessionEpoch || root?.data.access?.active !== true) {
-      await this.db.commit([{ path: device.path, delete: true, updateTime: device.updateTime }]);
+    let legacy:Promise<Map<string,string|null>>|undefined;
+    const allowed=async(device:Device)=>{const hash=device.sessionGrantHash || (await (legacy ||= this.legacyBindings())).get(device.sessionBinding);return !!hash && this.sessionDeliveryValid(hash,now);};
+    for (const device of devices) if (Date.parse(device.data.expiresAt) <= now.getTime() || device.data.sessionEpoch !== auth?.data.sessionEpoch || root?.data.access?.active !== true || !await allowed(device.data)) {
+      try{await this.db.commit([{ path: device.path, delete: true, updateTime: device.updateTime }]);}catch(error){if(!(error instanceof FirestoreError&&error.conflict))throw error;}
     }
     const jobs = await this.db.query<Job>(`${this.root}/pushJobs`, [{ field: 'nextAttemptAt', op: 'LESS_THAN_OR_EQUAL', value: now }], 20);
     for (const job of jobs) {
@@ -81,6 +125,9 @@ export class FirestorePush {
         // A concurrent token refresh is not a delivery and must not erase the
         // event. Retry against the fresh snapshot; logout still revokes it.
         if (currentDevice.updateTime !== device.updateTime) { deferred = true; continue; }
+        // Re-read session/family immediately before delivery; token snapshots
+        // alone cannot authorize a session revoked during queue preparation.
+        if(!await allowed(device.data)){try{await this.db.commit([{path:device.path,delete:true,updateTime:currentDevice.updateTime}]);}catch(error){if(!(error instanceof FirestoreError&&error.conflict))throw error;}continue;}
         budget.remaining--;
         const result = await sender.send({ token: await this.security.decrypt(device.data.tokenCiphertext), eventId: job.data.eventId, restaurantId: this.restaurantId, title: notification?.data.title.slice(0,120) || eventLabels[job.data.preference], body: notification?.data.message.slice(0,600) || `${eventLabels[job.data.preference]}. Abre este aviso para consultar el detalle.` });
         console.info('push_delivery_result', { eventId:job.data.eventId, result });

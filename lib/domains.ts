@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { FirestoreError } from './firestore-rest';
 import { ApplicationRepository, localFirestore, type DataEnv } from './application-repository';
 import { FirestoreDomainRepository } from './firestore-domains';
 
@@ -60,11 +61,11 @@ export class DomainService {
     fallbackOrigin: string,
   ) {
     const existing = this.firestore ? (await this.firestore.list(restaurantId)).find(row => ['workers_dev', 'free', 'platform'].includes(row.kind)) : await this.env.DB.prepare(
-      "SELECT hostname FROM restaurant_hosts WHERE restaurant_id = ? AND kind IN ('workers_dev','free') ORDER BY priority DESC LIMIT 1",
+      "SELECT hostname,status FROM restaurant_hosts WHERE restaurant_id = ? AND kind IN ('workers_dev','free') ORDER BY priority DESC LIMIT 1",
     )
       .bind(restaurantId)
-      .first<{ hostname: string }>();
-    if (existing) return `https://${existing.hostname}/menu`;
+      .first<{ hostname: string; status:string }>();
+    if (existing) {if ('status' in existing && existing.status!=='active')throw Error('La dirección reservada está pendiente de verificación.');return `https://${existing.hostname}/menu`;}
     if (
       this.env.CLOUDFLARE_ACCOUNT_ID &&
       this.env.CLOUDFLARE_API_TOKEN &&
@@ -73,43 +74,62 @@ export class DomainService {
       return this.provisionWorkersDev(restaurantId, name);
     if (!this.env.PLATFORM_MENU_DOMAIN)
       return `${fallbackOrigin}/r/${restaurantId}/menu`;
-    const base = slugFor(name),
-      domain = this.env.PLATFORM_MENU_DOMAIN.toLowerCase();
-    let hostname = '';
-    for (const length of [0, 6, 8, 10, 12, 16, 32]) {
-      const candidate = length
-        ? `${base}-${restaurantId.replace(/-/g, '').slice(0, length)}.${domain}`
-        : `${base}.${domain}`;
-      const collision = this.firestore ? await this.firestore.lookup(candidate) : await this.env.DB.prepare(
-        'SELECT 1 AS found FROM restaurant_hosts WHERE hostname = ?',
-      )
-        .bind(candidate)
-        .first();
-      if (!collision) {
-        hostname = candidate;
-        break;
+    const hostname=await this.reservePlatformHost(restaurantId,name,this.env.PLATFORM_MENU_DOMAIN.toLowerCase());
+    return 'https://'+hostname+'/menu';
+  }
+  private async reservePlatformHost(restaurantId:string,name:string,domain:string) {
+    const canonicalKey='platformConfig/hostnameKinds/entries/'+restaurantId+'-platform';
+    const existing=this.firestore ? await this.firestore.db.get<{hostname:string}>(canonicalKey) : null;
+    const legacy=this.firestore?null:await this.env.DB.prepare("SELECT hostname FROM restaurant_hosts WHERE restaurant_id=? AND kind='platform'").bind(restaurantId).first<{hostname:string}>();
+    const previous=existing?.data.hostname || legacy?.hostname;
+    if(previous) {
+      if(!previous.endsWith('.'+domain))throw Error('La dirección anterior se conserva. La migración de dominio requiere un procedimiento específico.');
+      return previous;
+    }
+    const base=slugFor(name);
+    for(let index=1;index<=1000;index++) {
+      const hostname=(index===1?base:base+'-'+index)+'.'+domain;
+      const record=this.record(restaurantId,hostname,'platform',{status:'pending_route'});
+      if(this.firestore) {
+        try{await this.firestore.db.commit([{path:'hostnames/'+hostname,data:record,exists:false},{path:canonicalKey,data:{hostname},exists:false}]);return hostname;}
+        catch(error){if(!(error instanceof FirestoreError && error.conflict))throw error;const saved=await this.firestore.db.get<{hostname:string}>(canonicalKey);if(saved){if(!saved.data.hostname.endsWith('.'+domain))throw Error('La dirección anterior se conserva.');return saved.data.hostname;}}
+      }else{
+        const inserted=await this.env.DB.prepare("INSERT OR IGNORE INTO restaurant_hosts (hostname,restaurant_id,kind,status,provider,priority,created_at,updated_at) VALUES (?,?,'platform','pending_route','platform_zone',20,?,?)").bind(hostname,restaurantId,record.createdAt,record.updatedAt).run();
+        if(inserted.meta.changes===1)return hostname;
+        const saved=await this.env.DB.prepare("SELECT hostname FROM restaurant_hosts WHERE restaurant_id=? AND kind='platform'").bind(restaurantId).first<{hostname:string}>();
+        if(saved){if(!saved.hostname.endsWith('.'+domain))throw Error('La dirección anterior se conserva.');return saved.hostname;}
       }
     }
-    if (!hostname) throw Error('No se pudo reservar la dirección gratuita.');
-    if (this.firestore) {
-      await this.firestore.save(this.record(restaurantId, hostname, 'platform', { status: 'active' }));
-      return `https://${hostname}/menu`;
-    }
-    await this.env.DB.prepare(
-      "INSERT INTO restaurant_hosts (hostname,restaurant_id,kind,status,provider,priority,created_at,updated_at) VALUES (?,?,?,'active','platform_zone',20,?,?)",
-    )
-      .bind(hostname, restaurantId, 'platform', new Date().toISOString(), new Date().toISOString())
-      .run();
-    return `https://${hostname}/menu`;
+    throw Error('No se pudo reservar la dirección gratuita.');
   }
 
+
+  async existingPublicPath(restaurantId:string,origin:string) {
+    if(!this.firestore)return null;
+    const row=await this.firestore.db.get<{slug:string}>('restaurantPublicPaths/'+restaurantId);
+    if(!row || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(row.data.slug))return null;
+    return origin+'/m/'+row.data.slug;
+  }
+  async reservePublicPath(restaurantId: string, name: string, origin: string) {
+    if (!this.firestore) return origin + '/r/' + restaurantId + '/menu';
+    const db = this.firestore.db;
+    const canonicalPath = 'restaurantPublicPaths/' + restaurantId;
+    const existing = await db.get<{slug:string}>(canonicalPath);
+    if(existing) return origin + '/m/' + existing.data.slug;
+    const base=slugFor(name);
+    for(let index=1;index<=1000;index++) {
+      const slug=index===1?base:base+'-'+index;
+      try {await db.commit([{path:'menuAliases/'+slug,data:{restaurantId,slug},exists:false},{path:canonicalPath,data:{restaurantId,slug},exists:false}]);return origin+'/m/'+slug;}
+      catch(error) {if(!(error instanceof FirestoreError && error.conflict))throw error; const saved=await db.get<{slug:string}>(canonicalPath);if(saved)return origin+'/m/'+saved.data.slug;}
+    }
+    throw Error('No se pudo reservar la dirección pública.');
+  }
   private async provisionWorkersDev(restaurantId: string, name: string) {
     const base = slugFor(name).slice(0, 50);
-    const suffix = restaurantId.replace(/-/g, '').slice(0, 6);
     const subdomain = this.env.CLOUDFLARE_WORKERS_SUBDOMAIN!.toLowerCase();
-    const candidates = [base, `${base}-${suffix}`];
+    const candidates = [base];
     for (let index = 2; index <= 20; index++)
-      candidates.push(`${base}-${suffix}-${index}`.slice(0, 63));
+      candidates.push(`${base}-${index}`.slice(0, 63));
     for (const serviceName of candidates) {
       const hostname = `${serviceName}.${subdomain}.workers.dev`;
       const firestoreCollision = this.firestore ? await this.firestore.lookup(hostname) : null;
@@ -118,7 +138,23 @@ export class DomainService {
       )
         .bind(hostname)
         .first<{ restaurant_id: string }>();
-      if (collision && collision.restaurant_id !== restaurantId) continue;
+      if (collision) {
+        if(collision.restaurant_id !== restaurantId)continue;
+        if(firestoreCollision?.status==='active')return 'https://'+hostname+'/menu';
+        throw Error('La dirección reservada requiere verificación antes de volver a aprovisionar.');
+      }
+      const scriptUrl='https://api.cloudflare.com/client/v4/accounts/'+this.env.CLOUDFLARE_ACCOUNT_ID+'/workers/scripts/'+serviceName;
+      const check=await fetch(scriptUrl,{headers:{Authorization:'Bearer '+this.env.CLOUDFLARE_API_TOKEN}});
+      if(check.ok)continue;
+      if(check.status!==404)throw Error('No se pudo verificar que el nombre del Worker esté libre.');
+      const reservation=this.record(restaurantId,hostname,'workers_dev',{status:'provisioning',provider:'cloudflare_workers',serviceName});
+      if(this.firestore) {
+        try {await this.firestore.db.commit([{path:'hostnames/'+hostname,data:reservation,exists:false},{path:'platformConfig/hostnameKinds/entries/'+restaurantId+'-workers_dev',data:{hostname},exists:false}]);}
+        catch(error) {if(error instanceof FirestoreError && error.conflict)continue;throw error;}
+      } else {
+        const reserved=await this.env.DB.prepare("INSERT OR IGNORE INTO restaurant_hosts (hostname,restaurant_id,kind,status,provider,service_name,priority,created_at,updated_at) VALUES (?,?,'workers_dev','provisioning','cloudflare_workers',?,10,?,?)").bind(hostname,restaurantId,serviceName,reservation.createdAt,reservation.updatedAt).run();
+        if(reserved.meta.changes!==1)continue;
+      }
       try {
         const form = new FormData();
         form.set(
@@ -175,9 +211,9 @@ export class DomainService {
           return `https://${hostname}/menu`;
         }
         await this.env.DB.prepare(
-          "INSERT OR REPLACE INTO restaurant_hosts (hostname,restaurant_id,kind,status,provider,service_name,priority,last_error,created_at,updated_at) VALUES (?,?,'workers_dev','active','cloudflare_workers',?,10,NULL,?,?)",
+          "UPDATE restaurant_hosts SET status='active',service_name=?,last_error=NULL,updated_at=? WHERE hostname=? AND restaurant_id=? AND status='provisioning'",
         )
-          .bind(hostname, restaurantId, serviceName, now, now)
+          .bind(serviceName, now, hostname, restaurantId)
           .run();
         return `https://${hostname}/menu`;
       } catch (error) {
@@ -187,15 +223,14 @@ export class DomainService {
           throw error;
         }
         await this.env.DB.prepare(
-          "INSERT OR REPLACE INTO restaurant_hosts (hostname,restaurant_id,kind,status,provider,service_name,priority,last_error,created_at,updated_at) VALUES (?,?,'workers_dev','error','cloudflare_workers',?,10,?,?,?)",
+          "UPDATE restaurant_hosts SET status='error',service_name=?,last_error=?,updated_at=? WHERE hostname=? AND restaurant_id=? AND status='provisioning'",
         )
           .bind(
-            hostname,
-            restaurantId,
             serviceName,
             error instanceof Error ? error.message.slice(0, 500) : 'Error desconocido',
             now,
-            now,
+            hostname,
+            restaurantId,
           )
           .run();
         throw error;
@@ -433,10 +468,7 @@ export class DomainService {
       await this.firestore.setPlatformConfig({ baseHostname, zoneId: this.env.CLOUDFLARE_ZONE_ID, status: 'ready_for_route', validation: { route: `*.${baseHostname}/*`, worker: this.env.CORE_WORKER_SERVICE || 'qr-menu-ec' }, updatedAt: new Date() });
       for (const row of await new ApplicationRepository(this.env).list()) {
         const state = JSON.parse(row.data) as { draft: { name: string } };
-        const slug = slugFor(state.draft.name);
-        const collision = await this.firestore.lookup(`${slug}.${baseHostname}`);
-        const hostname = collision && collision.restaurantId !== row.id ? `${slug}-${row.id.replace(/-/g, '').slice(0, 6)}.${baseHostname}` : `${slug}.${baseHostname}`;
-        await this.firestore.save(this.record(row.id, hostname, 'platform', { status: 'pending_route' }));
+        await this.reservePlatformHost(row.id,state.draft.name,baseHostname);
       }
       return this.platformConfig();
     }
@@ -460,20 +492,7 @@ export class DomainService {
     ).all<{ id: string; data: string }>();
     for (const row of rows.results) {
       const state = JSON.parse(row.data) as { draft?: { name?: string } };
-      const slug = slugFor(state.draft?.name || 'restaurante');
-      const collision = await this.env.DB.prepare(
-        'SELECT restaurant_id FROM restaurant_hosts WHERE hostname = ?',
-      )
-        .bind(`${slug}.${baseHostname}`)
-        .first<{ restaurant_id: string }>();
-      const hostname = collision && collision.restaurant_id !== row.id
-        ? `${slug}-${row.id.replace(/-/g, '').slice(0, 6)}.${baseHostname}`
-        : `${slug}.${baseHostname}`;
-      await this.env.DB.prepare(
-        "INSERT OR REPLACE INTO restaurant_hosts (hostname,restaurant_id,kind,status,provider,priority,created_at,updated_at) VALUES (?,?,'platform','pending_route','platform_zone',20,?,?)",
-      )
-        .bind(hostname, row.id, now, now)
-        .run();
+      await this.reservePlatformHost(row.id,state.draft?.name || 'restaurante',baseHostname);
     }
     return this.platformConfig();
   }

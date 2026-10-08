@@ -14,6 +14,7 @@ const Snapshot = z.object({
   draft: Catalog, settings: Settings,
   published: z.object({ version: z.number().int(), at: z.string(), catalog: Catalog, mode: z.string().optional(), settings: Settings.optional() }).nullable(),
   orders: z.array(z.record(z.string(), z.unknown())).max(10_000),
+  orderOperations: z.array(z.object({key:z.string().uuid(),payloadHash:z.string().max(256),token:z.string().max(256),order:z.record(z.string(),z.unknown())}).strict()).max(10000).default([]),
   orderTokens: z.array(z.object({ hash: z.string().min(1).max(256), restaurantId: z.string(), orderId: z.string(), expiresAt: z.string().datetime() }).strict()).max(10_000).default([]),
   media: z.array(z.object({ id: z.string().uuid(), type: z.enum(['image/jpeg', 'image/png', 'image/webp']), content: z.string().max(1_400_000), checksum: z.string() }).strict()).max(320).default([]),
   preferences: z.record(z.string(), z.record(z.string(), z.unknown())).default({}),
@@ -32,6 +33,7 @@ export class FirestoreBackupRepository {
       const before = await new FirestoreRestaurantStore(db, this.restaurantId, this.store).read();
       if (!before || before.state.restaurantId !== this.restaurantId) throw Error('Restaurante no disponible.');
       const orders = await new FirestoreOrderStore(db).exportRecords(this.restaurantId);
+      const orderOperations=(await db.all(`restaurants/${this.restaurantId}/orderOperations`,10000)).map(row=>row.data);
       const orderTokens: Array<{ hash: string; restaurantId: string; orderId: string; expiresAt: string }> = [];
       let tokenCursor: string | undefined;
       for (;;) {
@@ -46,9 +48,9 @@ export class FirestoreBackupRepository {
         const row = await db.get(`restaurants/${this.restaurantId}/settings/${key}`);
         if (row) preferences[key] = row.data;
       }
-      return { before, orders, orderTokens, preferences };
+      return { before, orders, orderTokens, orderOperations, preferences };
     });
-    const { before, orders, orderTokens, preferences } = capture;
+    const { before, orders, orderTokens, orderOperations, preferences } = capture;
     const media = [];
     const refs = JSON.stringify([before.state.draft, before.state.published?.catalog]);
     const ids = new Set([...refs.matchAll(/\/media\/([0-9a-f-]{36})/gi)].map(match => match[1]));
@@ -58,7 +60,7 @@ export class FirestoreBackupRepository {
       const content = encodeBytes(item.bytes);
       media.push({ id, type: item.type, content, checksum: await digest(content) });
     }
-    const snapshot = Snapshot.parse({ ...businessSnapshot(before.state), orders, orderTokens, media, preferences });
+    const snapshot = Snapshot.parse({ ...businessSnapshot(before.state), orders, orderTokens, orderOperations, media, preferences });
     const payload = JSON.stringify(snapshot);
     if (new TextEncoder().encode(payload).length > 32_000_000) throw Error('El respaldo requiere exportación por lotes.');
     const id = crypto.randomUUID();
@@ -121,6 +123,13 @@ export class FirestoreBackupRepository {
       }
     }
     const orderIds = new Set(snapshot.orders.map(order => order.id));
+    for(const operation of snapshot.orderOperations) {
+      if(operation.order.restaurantId!==this.restaurantId || !orderIds.has(operation.order.id))throw Error('Operación de pedido fuera del respaldo.');
+      const path='restaurants/'+this.restaurantId+'/orderOperations/'+firestoreId(operation.key);
+      const existing=await this.db.get(path);
+      if(existing && stable(existing.data)!==stable(operation))throw Error('La identidad de operación existente cambió; no se sobrescribirá.');
+      if(!existing)writes.push({path,data:operation,exists:false});
+    }
     for (const token of snapshot.orderTokens) {
       if (token.restaurantId !== this.restaurantId || !orderIds.has(token.orderId)) throw Error('Enlace de pedido fuera del respaldo.');
       // Never resurrect links after their privacy deadline.

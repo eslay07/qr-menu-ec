@@ -1,7 +1,23 @@
 import { nativePush } from './native-push';
-export function restaurantBase(){if(typeof location==='undefined')return '';const match=location.pathname.match(/^\/r\/([a-f0-9-]{36})(?:\/|$)/);return match?`/r/${match[1]}`:'';}
+export function restaurantBase(){if(typeof location==='undefined')return '';const match=location.pathname.match(/^\/r\/([a-f0-9-]{36})(?:\/|$)/);if(match)return `/r/${match[1]}`;const alias=location.pathname.match(/^\/m\/([a-z0-9]+(?:-[a-z0-9]+)*)(?:\/|$)/);return alias?`/m/${alias[1]}`:'';}
 let csrfToken='';
+const pendingReads = new Map<string, ReturnType<typeof request>>();
 export async function api(path: string, method = 'GET', data?: unknown) {
+  const key = `${restaurantBase()}/api/v1/${path}`;
+  if (method !== 'GET' || data !== undefined) {
+    // In-flight reads from before a mutation cannot be reused after it.
+    pendingReads.clear();
+    return request(path, method, data);
+  }
+  let pending = pendingReads.get(key);
+  if (!pending) {
+    pending = request(path, method, data).finally(() => { if (pendingReads.get(key) === pending) pendingReads.delete(key); });
+    pendingReads.set(key, pending);
+  }
+  // Do not share mutable private state between callers; no persistent cache.
+  return structuredClone(await pending);
+}
+async function request(path: string, method: string, data?: unknown) {
   const headers: Record<string, string> = data === undefined ? {} : { 'Content-Type': 'application/json' };
   if (!['GET', 'HEAD'].includes(method) && csrfToken) headers['X-CSRF-Token'] = csrfToken;
   const response = await fetch(`${restaurantBase()}/api/v1/${path}`, { method, headers, body: data === undefined ? undefined : JSON.stringify(data) });

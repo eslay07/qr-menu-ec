@@ -3,12 +3,14 @@ import {commercialPlan,entitlements} from './entitlements';
 import QRCode from 'qrcode';
 import {
   Catalog,
+  CreateOrderInput,
   Settings,
   blankCatalog,
   defaultSettings,
   demoCatalog,
   normalizeCatalog,
   normalizeSettings,
+  publishNameValid, publishNameMessage,
   type Feature,
 } from './contracts';
 import {
@@ -26,6 +28,8 @@ import {
 import type { Store, State } from './store';
 import {
   PriceChangedError,
+  OperationConflictError,
+  PublicationChangedError,
   createOrderRecord,
   reportFor,
   type OrderStore,
@@ -313,7 +317,7 @@ export async function handleApi(
     }
 
     const stored = await (path === 'session' && method === 'GET' && store.readSession ? store.readSession()
-      : path === 'menu' && method === 'GET' && store.readMenu ? store.readMenu() : store.read()),
+      : ((path === 'menu' && method === 'GET') || (['orders','whatsapp-request'].includes(path) && method === 'POST')) && store.readMenu ? store.readMenu() : store.read()),
       s = stored?.state ? normalizeState(stored.state) : null;
     if (path === 'setup' && method === 'POST') {
       if (s)
@@ -633,6 +637,19 @@ export async function handleApi(
         turnstileSiteKey: opts.security?.turnstileSiteKey || null,
       });
     }
+    if (path === 'whatsapp-request' && method === 'POST') {
+      const rate=opts.security ? await opts.security.rateLimit(req,'whatsapp-request',s.restaurantId,30,10*60_000) : {allowed:true,retryAfter:0};
+      if(!rate.allowed)return json({error:'Se alcanzó el límite temporal de solicitudes. Intenta más tarde.'},429,{'Retry-After':String(rate.retryAfter)});
+      if(!s.published || !s.settings.ordersEnabled || !features.includes('orders'))return json({error:'Los pedidos por QR no están habilitados.'},403);
+      const number=s.published.catalog.contact?.whatsapp;
+      if(!number || !/^\+[1-9]\d{7,14}$/.test(number))return json({error:'El restaurante no tiene un WhatsApp válido configurado.'},400);
+      const input=CreateOrderInput.parse(await body(req));
+      if(input.menuVersion !== undefined && input.menuVersion !== s.published.version)return json({error:'La carta cambió. Recarga y revisa los productos antes de preparar la solicitud.'},409);
+      const checked=await createOrderRecord(input,s.published.catalog,s.restaurantId,s.published.catalog.name,s.published.version,false,features.includes('promotions'));
+      const order=checked.order;
+      const message=['Solicitud para '+order.restaurantName,...order.lines.map(line=>line.quantity+' × '+line.dishName+(line.options.length?' ('+line.options.map(option=>option.optionName).join(', ')+')':'')+' · $'+(line.totalCents/100).toFixed(2)), 'Total: $'+(order.totalCents/100).toFixed(2),'Solicitud sin pedido registrado; pendiente de respuesta del restaurante.'].join('\n');
+      return json({model:'request',registered:false,totalCents:order.totalCents,lines:order.lines,url:'https://wa.me/'+number.slice(1)+'?text='+encodeURIComponent(message)});
+    }
     if (path === 'orders' && method === 'POST') {
       if (
         !opts.orderStore ||
@@ -656,12 +673,21 @@ export async function handleApi(
           429,
           { 'Retry-After': String(orderRate.retryAfter) },
         );
-      const input = await body(req);
+      const input = CreateOrderInput.parse(await body(req));
+      const payloadHash = await digest(JSON.stringify({alias:input.alias,lines:input.lines,expectedTotalCents:input.expectedTotalCents,menuVersion:input.menuVersion}));
+      const previous = input.operationKey && opts.orderStore.operation ? await opts.orderStore.operation(s.restaurantId,input.operationKey) : null;
+      if(previous) {
+        if(previous.payloadHash!==payloadHash)throw new OperationConflictError();
+        if(Date.parse(previous.order.publicExpiresAt)<=Date.now())return json({error:'El enlace público del pedido expiró. La operación se conserva y no se creará otro pedido.'},410);
+        const publicUrl=orderPublicUrl(req,previous.token,opts.basePath);
+        return json({order:previous.order,publicUrl,pdfUrl:orderPdfUrl(req,previous.token,opts.basePath),qrPayload:publicUrl},201);
+      }
       if (
         opts.security &&
         !(await opts.security.verifyTurnstile(input.turnstileToken, req))
       )
         return json({ error: 'No se pudo verificar que seas una persona.' }, 403);
+      if(input.menuVersion !== undefined && input.menuVersion !== s.published.version)return json({error:'La carta cambió. Recarga y revisa los productos antes de confirmar.'},409);
       const created = await createOrderRecord(
         input,
         s.published.catalog,
@@ -671,7 +697,11 @@ export async function handleApi(
         false,
         features.includes('promotions'),
       );
-      await opts.orderStore.create(created.order, created.tokenHash);
+      if(input.operationKey && opts.orderStore.createOnce) {
+        const accepted=await opts.orderStore.createOnce(created.order,created.tokenHash,{key:input.operationKey,payloadHash,token:created.token,order:created.order},s.published.version);
+        created.order=accepted.order;created.token=accepted.token;
+      } else if(opts.orderStore.createValidated) await opts.orderStore.createValidated(created.order,created.tokenHash,s.published.version);
+      else await opts.orderStore.create(created.order, created.tokenHash);
       const publicUrl = orderPublicUrl(req, created.token, opts.basePath);
       return json(
         {
@@ -731,10 +761,17 @@ export async function handleApi(
     }
     if (path === 'logout' && method === 'POST') {
       const closingSession = opts.push ? await secureSession() : null;
-      if (closingSession && opts.push) await opts.push.revokeSession(closingSession.csrfToken);
       if (opts.security) {
         await opts.security.revokeSession(req, securityScope);
         if (securityScope === 'owner') await opts.security.revokeDevice(req);
+        if (closingSession && opts.push) await opts.push.revokeSession(closingSession.csrfToken);
+        if(opts.push && securityScope==='owner') {
+          const cookie=(name:string)=>req.headers.get('cookie')?.split(';').map(part=>part.trim()).find(part=>part.startsWith(name+'='))?.slice(name.length+1);
+          const ownerToken=cookie('__Host-qrmenu_owner'),deviceToken=cookie('__Host-qrmenu_device');
+          if(ownerToken)await opts.push.revokeSessionFamily(await digest(ownerToken));
+          if(deviceToken)await opts.push.revokeDeviceFamily(await digest(deviceToken));
+        }
+
         const response = json({ ok: true }, 200, {
           'Set-Cookie': opts.security.clearSessionCookie(securityScope),
         });
@@ -796,15 +833,14 @@ export async function handleApi(
     if (deviceMatch && method === 'DELETE' && opts.security) {
       const deviceId = z.string().regex(/^(?:[a-f0-9]{64}|[A-Za-z0-9+/]{43}=)$/).parse(decodeURIComponent(deviceMatch[1]));
       await opts.security.revokeDeviceById(s.restaurantId, deviceId);
+      if(opts.push)await opts.push.revokeDeviceFamily(deviceId);
       return json({ ok: true });
     }
     const sessionMatch = path.match(/^sessions\/([^/]+)$/);
     if (sessionMatch && method === 'DELETE' && opts.security) {
-      await opts.security.revokeSessionById(
-        'owner',
-        s.restaurantId,
-        z.string().regex(/^(?:[a-f0-9]{64}|[A-Za-z0-9+/]{43}=)$/).parse(decodeURIComponent(sessionMatch[1])),
-      );
+      const sessionId=z.string().regex(/^(?:[a-f0-9]{64}|[A-Za-z0-9+/]{43}=)$/).parse(decodeURIComponent(sessionMatch[1]));
+      await opts.security.revokeSessionById('owner',s.restaurantId,sessionId);
+      if(opts.push)await opts.push.revokeSessionFamily(sessionId);
       return json({ ok: true });
     }
     if (path === 'state' && method === 'GET')
@@ -861,16 +897,9 @@ export async function handleApi(
     if (path === 'domain' && method === 'GET') {
       if (!opts.domains)
         return json({ free: null, custom: null, cnameTarget: null });
-      let domains = await opts.domains.get(s.restaurantId);
-      if (!domains.free) {
-        await opts.domains.provisionFree(
-          s.restaurantId,
-          s.draft.name,
-          url.origin,
-        );
-        domains = await opts.domains.get(s.restaurantId);
-      }
-      return json(domains);
+      const domains = await opts.domains.get(s.restaurantId);
+      const publicPath = await opts.domains.existingPublicPath(s.restaurantId,url.origin);
+      return json({...domains,primaryUrl:domains.primaryUrl || publicPath,publicPath});
     }
     if (path === 'domain' && method === 'PUT') {
       if (role !== 'creator')
@@ -932,6 +961,7 @@ export async function handleApi(
       return json({ revision: stored.revision + 1 });
     }
     if (path === 'publish' && method === 'POST') {
+      if (!publishNameValid(s.draft, !!s.published)) return json({error:publishNameMessage},400);
       const value = await body(req);
       if (value.revision !== stored.revision)
         return json(
@@ -948,6 +978,7 @@ export async function handleApi(
             { error: 'Faltan fotos. Restaura el respaldo completo.' },
             400,
           );
+      const publicUrl = opts.domains ? await opts.domains.reservePublicPath(s.restaurantId,s.draft.name,url.origin) : undefined;
       s.published = {
         version: (s.published?.version || 0) + 1,
         at: new Date().toISOString(),
@@ -956,7 +987,7 @@ export async function handleApi(
         settings: structuredClone(s.settings),
       };
       await save();
-      return json({ version: s.published.version });
+      return json({ version: s.published.version, publicUrl });
     }
     if (path === 'license' && method === 'POST') {
       const value = await body(req);
@@ -1083,7 +1114,7 @@ export async function handleApi(
         : null;
       const payload = domains?.primary
         ? `https://${domains.primary.hostname}/menu`
-        : opts.publicMenuUrl || `${url.origin}${opts.basePath || ''}/menu`;
+        : (opts.domains ? await opts.domains.existingPublicPath(s.restaurantId,url.origin) : null) || opts.publicMenuUrl || `${url.origin}${opts.basePath || ''}/menu`;
       const svg = await QRCode.toString(payload, {
         type: 'svg',
         errorCorrectionLevel: 'M',
@@ -1194,7 +1225,7 @@ export async function handleApi(
               ? error.message
               : 'No se pudo completar la operación.',
       },
-      error instanceof PriceChangedError ? 409 : 400,
+      error instanceof PriceChangedError || error instanceof OperationConflictError || error instanceof PublicationChangedError ? 409 : 400,
     );
   }
 }

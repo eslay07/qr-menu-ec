@@ -1,3 +1,5 @@
+import { Theme, Contact, contrastRatio, actionText } from './menu-design';
+export { palettePresets, contrastRatio, catalogTheme, actionText, publishNameValid, publishNameMessage, isRestaurantOpen } from './menu-design';
 import { z } from 'zod';
 
 const id = z.string().regex(/^[a-zA-Z0-9_-]{1,80}$/);
@@ -87,7 +89,8 @@ export type Dish = z.infer<typeof Dish>;
 export const Promotion = z
   .object({
     id,
-    dishId: id,
+    dishId: z.union([id, z.literal('')]),
+    kind: z.enum(['banner','notice','offer','discount']).optional(),
     title: z.string().trim().min(1).max(80),
     description: z.string().trim().max(220),
     badge: singleLine(30),
@@ -99,6 +102,8 @@ export const Promotion = z
   })
   .strict()
   .superRefine((promotion, context) => {
+    if (['banner','notice'].includes(promotion.kind || '') && promotion.promotionalPriceCents !== null) context.addIssue({code:'custom',message:'Un banner o aviso no puede modificar precios.'});
+    if (['offer','discount'].includes(promotion.kind || '') && (!promotion.dishId || promotion.promotionalPriceCents === null)) context.addIssue({code:'custom',message:'La oferta o descuento requiere plato y precio explícitos.'});
     if (
       promotion.startsAt &&
       promotion.endsAt &&
@@ -120,6 +125,7 @@ export function activePromotion(
   return catalog.promotions.find(
     (promotion) =>
       promotion.enabled &&
+      !['banner','notice'].includes(promotion.kind || '') &&
       promotion.dishId === dishId &&
       (!promotion.startsAt || Date.parse(promotion.startsAt) <= timestamp) &&
       (!promotion.endsAt || Date.parse(promotion.endsAt) > timestamp),
@@ -130,6 +136,11 @@ export const Catalog = z
   .object({
     name: z.string().trim().min(1).max(80),
     tagline: z.string().max(180),
+    nameConfirmed: z.boolean().optional(),
+    theme: Theme.optional(),
+    template: z.enum(['list','cards','compact']).optional(),
+    textSize: z.enum(['normal','large']).optional(),
+    contact: Contact.optional(),
     color: z.string().regex(/^#[a-fA-F0-9]{6}$/),
     logo: Asset,
     categories: z
@@ -140,6 +151,9 @@ export const Catalog = z
     promotions: z.array(Promotion).max(8).default([]),
   })
   .superRefine((value, context) => {
+    if(value.theme) { const t=value.theme; if (contrastRatio(t.text,t.background)<4.5 || contrastRatio(t.text,t.surface)<4.5 || contrastRatio(t.accent,t.surface)<3 || contrastRatio(t.action,actionText(t.action))<4.5) context.addIssue({code:'custom',message:'Los colores no alcanzan el contraste mínimo legible.'}); }
+    const categoryNames=value.categories.map(c=>c.name.normalize('NFKD').replace(/[\u0300-\u036f\p{Cf}]/gu,'').replace(/\s+/g,' ').trim().toLocaleLowerCase('es'));
+    if(categoryNames.some(n=>!n)||new Set(categoryNames).size!==categoryNames.length)context.addIssue({code:'custom',message:'Las categorías deben tener nombres visibles y diferentes.'});
     const categories = new Set(value.categories.map((item) => item.id));
     if (
       categories.size !== value.categories.length ||
@@ -157,7 +171,7 @@ export const Catalog = z
     const dishes = new Map(value.dishes.map((dish) => [dish.id, dish]));
     for (const promotion of value.promotions) {
       const dish = dishes.get(promotion.dishId);
-      if (!dish)
+      if (!dish && !['banner','notice'].includes(promotion.kind || ''))
         context.addIssue({
           code: 'custom',
           message: `La promoción “${promotion.title}” apunta a un plato inexistente.`,
@@ -174,9 +188,9 @@ export const Catalog = z
     }
     for (let index = 0; index < value.promotions.length; index++) {
       const left = value.promotions[index];
-      if (!left.enabled) continue;
+      if (!left.enabled || left.promotionalPriceCents === null) continue;
       for (const right of value.promotions.slice(index + 1)) {
-        if (!right.enabled || right.dishId !== left.dishId) continue;
+        if (!right.enabled || right.promotionalPriceCents === null || right.dishId !== left.dishId) continue;
         const leftStart = left.startsAt ? Date.parse(left.startsAt) : -Infinity;
         const leftEnd = left.endsAt ? Date.parse(left.endsAt) : Infinity;
         const rightStart = right.startsAt
@@ -436,6 +450,8 @@ export const CreateOrderInput = z.object({
   alias: singleLine(80).trim().min(1, 'Escribe tu nombre o alias.'),
   lines: z.array(OrderLineInput).min(1).max(100),
   expectedTotalCents: z.number().int().min(0).max(999_999_999),
+  operationKey: z.string().uuid().optional(),
+  menuVersion: z.number().int().nonnegative().optional(),
   demo: z.boolean().optional(),
   turnstileToken: z.string().max(4096).optional(),
 }).strict();

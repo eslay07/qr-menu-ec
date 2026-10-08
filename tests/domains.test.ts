@@ -5,7 +5,7 @@ import { DomainService } from '../lib/domains';
 type HostRow = {
   hostname: string;
   restaurant_id: string;
-  kind: 'free' | 'custom';
+  kind: 'free' | 'custom' | 'platform';
   status: string;
   cloudflare_id: string | null;
   validation_data: string | null;
@@ -23,6 +23,7 @@ function fakeDb(initial: HostRow[] = []) {
           return statement;
         },
         async first<T>() {
+          if(sql.includes("restaurant_id=? AND kind='platform'"))return rows.find(row=>row.restaurant_id===values[0] && row.kind==='platform') as T|undefined;
           if (sql.includes("restaurant_id = ? AND kind = 'free'"))
             return rows.find(
               (row) => row.restaurant_id === values[0] && row.kind === 'free',
@@ -43,6 +44,10 @@ function fakeDb(initial: HostRow[] = []) {
           } as { results: T[] };
         },
         async run() {
+          if(sql.startsWith('INSERT OR IGNORE INTO restaurant_hosts')) {
+            if(rows.some(row=>row.hostname===values[0] || (row.restaurant_id===values[1]&&row.kind==='platform')))return {meta:{changes:0}};
+            rows.push({hostname:String(values[0]),restaurant_id:String(values[1]),kind:'platform',status:'pending_route',cloudflare_id:null,validation_data:null,created_at:String(values[2])});return {meta:{changes:1}};
+          }
           if (sql.startsWith('INSERT INTO restaurant_hosts')) {
             if (sql.includes("'active'"))
               rows.push({
@@ -106,7 +111,9 @@ test('free hostnames normalize names and resolve collisions', async () => {
     'La Mésa',
     'https://platform.test',
   );
-  assert.equal(url, 'https://la-mesa-abcdef.menus.test/menu');
+  assert.equal(url, 'https://la-mesa-2.menus.test/menu');
+  assert.equal(rows[0].restaurant_id,'existing');
+  assert.equal(rows.at(-1)?.status,'pending_route');
   assert.equal(
     rows.at(-1)?.restaurant_id,
     'abcdef12-0000-0000-0000-000000000000',

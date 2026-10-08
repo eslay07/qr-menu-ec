@@ -112,9 +112,16 @@ test('Firestore domain aliases reserve restaurant ownership and preserve free ad
   const free = await service.provisionFree(first, 'La sazón', 'https://example.test');
   const collision = await service.provisionFree(second, 'La sazón', 'https://example.test');
   assert.notEqual(free, collision);
-  assert.equal(await service.provisionFree(first, 'Otro nombre', 'https://example.test'), free);
+  const pending=(await service.get(first)).free!;
+  assert.equal(pending.status,'pending_route');
+  assert.equal((await service.get(first)).primary,null);
+  await assert.rejects(service.provisionFree(first,'Otro nombre','https://example.test'),/pendiente de verificación/);
   const repository = new FirestoreDomainRepository(new FirestoreRest('demo-qr-menu-ec', process.env.FIRESTORE_EMULATOR_HOST!));
+  // Emulator-only fixture: simulate completed route/TLS verification before activation.
+  await repository.save({...pending,status:'active'});
+  assert.equal(await service.provisionFree(first,'Otro nombre','https://example.test'),free);
   const record = (await service.get(first)).free!;
+  assert.equal(record.status,'active');
   await assert.rejects(repository.save({ ...record, restaurantId: second }));
   const custom = { ...record, hostname: `${first}.custom.example.test`, kind: 'custom' as const, priority: 30, status: 'pending_validation' };
   await repository.save(custom);

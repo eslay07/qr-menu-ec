@@ -63,7 +63,7 @@ export async function handleOwnerAuth(request: Request, env: CentralEnv, loadSto
     await security.audit(state.restaurantId, `owner:${state.restaurantId}`, 'auth.email-login', 'success', Date.now());
     const response = json({ ownerUrl: `/r/${state.restaurantId}/` }, 200, { 'Set-Cookie': session.cookie });
     if (input.rememberDevice) {
-      const device = await security.createDevice(state.restaurantId);
+      const device = await security.createDevice(state.restaurantId, session.sessionHash);
       response.headers.append('Set-Cookie', device.cookie);
     }
     return response;
@@ -87,16 +87,34 @@ export async function handleOwnerDevice(request: Request, env: CentralEnv, loadS
     return json({ error: 'Solicitud no autorizada.' }, 403);
   const current = await security.device(request);
   if (!current) return json({ error: 'Vuelve a iniciar sesión.' }, 401);
-  const stored = await loadStore(current.restaurant_id).read();
+  if(await security.rememberedSessionRevoked(current) || await security.presentedOwnerSessionRevoked(request,current.restaurant_id)) {await security.revokeDevice(request);return json({error:'Vuelve a iniciar sesión.'},401,{'Set-Cookie':security.clearDeviceCookie()});}
+  const sessionStore = loadStore(current.restaurant_id);
+  const stored = await (sessionStore.readSession ? sessionStore.readSession() : sessionStore.read());
   if (!stored || stored.state.access?.active === false) return json({ error: 'Acceso no disponible.' }, 403);
   if (!await security.rememberedDeviceValid(current.restaurant_id, current.created_at)) {
     await security.revokeSubject('owner', current.restaurant_id);
     return json({ error: 'La contraseña cambió. Vuelve a iniciar sesión.' }, 401, { 'Set-Cookie': security.clearDeviceCookie() });
   }
+  if (current.csrf_token !== request.headers.get('x-csrf-token')) return json({error:'Vuelve a iniciar sesión.'},401);
+  const validSession = await security.session(request, 'owner', current.restaurant_id);
+  if (validSession) {
+    const token=request.headers.get('cookie')?.split(';').map(p=>p.trim()).find(p=>p.startsWith('__Host-qrmenu_owner='))?.slice('__Host-qrmenu_owner='.length)||'';
+    if (!await security.bindDeviceSession(request,await digest(token)) || await security.rememberedSessionRevoked({id_hash:'',session_hash:await digest(token)})) {
+      await security.revokeSession(request,'owner');
+      const response=json({error:'Vuelve a iniciar sesión.'},401,{'Set-Cookie':security.clearDeviceCookie()});
+      response.headers.append('Set-Cookie',security.clearSessionCookie('owner'));return response;
+    }
+    return json({ownerUrl:`/r/${current.restaurant_id}/`});
+  }
   const rotated = await security.rotateDevice(request, request.headers.get('x-csrf-token')!);
   if (!rotated) return json({ error: 'Vuelve a iniciar sesión.' }, 401);
   await security.resumeRememberedOwner(rotated.restaurantId);
   const session = await security.createSession('owner', rotated.restaurantId);
+  if(!await security.bindDeviceSession(new Request(request.url,{headers:{cookie:rotated.cookie.split(';')[0]}}),session.sessionHash) || await security.rememberedSessionRevoked({id_hash:'',session_hash:session.sessionHash})){
+    await security.revokeSessionById('owner',rotated.restaurantId,session.sessionHash);
+    const response=json({error:'Vuelve a iniciar sesión.'},401,{'Set-Cookie':security.clearDeviceCookie()});
+    response.headers.append('Set-Cookie',security.clearSessionCookie('owner'));return response;
+  }
   const response = json({ ownerUrl: `/r/${rotated.restaurantId}/` }, 200, { 'Set-Cookie': session.cookie });
   response.headers.append('Set-Cookie', rotated.cookie);
   return response;

@@ -32,6 +32,7 @@ import {
   defaultSettings,
   demoCatalog,
   money,
+  publishNameValid,
 } from '@/lib/contracts';
 import { api, download, restaurantBase, uploadPhoto } from './client';
 import Turnstile from './turnstile';
@@ -41,6 +42,8 @@ import { useDialogBehavior } from './dialog-behavior';
 import { revealIssue } from './reveal-issue';
 import RestaurantPreferencesPanel from './restaurant-preferences';
 import OwnerNotifications from './owner-notifications';
+import ContactEditor from './contact-editor';
+import { AppearanceEditor, CategoriesEditor, validateAppearance } from './catalog-editors';
 
 type PanelState = {
   entitlements?: {push:boolean;notificationPreferences:boolean;reports:boolean;wifi:boolean;scheduledBackups:boolean};
@@ -109,11 +112,13 @@ export default function Dashboard() {
     return () => clearTimeout(timer);
   }, [message]);
 
+  const loadGeneration = useRef(0);
   async function loadState(force = false, preserve?: 'draft' | 'settings') {
+    const generation = ++loadGeneration.current;
     const current = await api('session');
+    if (generation !== loadGeneration.current) return;
     if (current.authProvider === 'firebase') {
-      const { synchronizeFirebaseClient } = await import('@/src/lib/firebase-auth-client');
-      await synchronizeFirebaseClient(current, () => api('firebase/client-token', 'POST', {}));
+      void import('@/src/lib/firebase-auth-client').then(({synchronizeFirebaseClient}) => synchronizeFirebaseClient(current, () => api('firebase/client-token', 'POST', {}))).catch(() => setError('No se pudo sincronizar las notificaciones. La carta sigue disponible.'));
     }
     setSession(current);
     if (!current.authenticated) {
@@ -122,6 +127,7 @@ export default function Dashboard() {
     }
     if (pendingRef.current && !force) return;
     const loaded = await api('state');
+    if (generation !== loadGeneration.current) return;
     setState(loaded);
     if (preserve !== 'draft') setDraft(loaded.draft);
     if (preserve !== 'settings') setSettings(loaded.settings);
@@ -157,6 +163,10 @@ export default function Dashboard() {
     }
   }
   async function saveDraft() {
+    validateAppearance(draft);
+    for (const number of [draft.contact?.phone,draft.contact?.whatsapp]) if(number&&!/^\+[1-9]\d{7,14}$/.test(number)) throw Error('Usa teléfono y WhatsApp internacionales válidos, con + y entre 8 y 15 dígitos.');
+    const names = draft.categories.map(c => c.name.normalize('NFKD').replace(/[\u0300-\u036f\p{Cf}]/gu, '').replace(/\s+/g, ' ').trim().toLocaleLowerCase('es'));
+    if (names.some(n => !n) || new Set(names).size !== names.length) throw Error('Usa nombres de categorías no vacíos y distintos.');
     await api('draft', 'PUT', { revision: state!.revision, catalog: draft });
     await loadState(true, 'settings');
     setMessage(
@@ -169,6 +179,11 @@ export default function Dashboard() {
     setMessage('Configuración guardada.');
   }
   async function publish() {
+    if (!publishNameValid(draft, !!state?.published)) {
+      setTab('Ajustes');
+      setTimeout(() => document.getElementById('restaurant-name')?.focus(), 0);
+      throw Error('Agrega el nombre del restaurante antes de publicar el menú.');
+    }
     if (dirty) await saveDraft();
     const latest = await api('state');
     await api('publish', 'POST', { revision: latest.revision });
@@ -477,11 +492,12 @@ export default function Dashboard() {
                 </button>
               </div>
             </div>
+            <CategoriesEditor draft={draft} setDraft={setDraft} />
             <section className="menu-list">
               {draft.dishes.slice(0, visibleDishes).map((dish) => (
                 <article className="menu-row" key={dish.id}>
                   {dish.image ? (
-                    <img src={dish.image} alt="" />
+                    <img src={dish.image} alt="" loading="lazy" decoding="async" width={72} height={72} />
                   ) : (
                     <span className="row-placeholder">
                       <Utensils />
@@ -627,6 +643,7 @@ export default function Dashboard() {
                   ? domain?.primaryUrl || `https://${domain?.free?.hostname}/menu`
                   : `${location.origin}${base}/menu`}
               </code>
+              <button className="btn" onClick={() => run(async () => {const url = domain?.primaryUrl || (domain?.free?.status==='active' ? `https://${domain.free.hostname}/menu` : `${location.origin}${base}/menu`); await navigator.clipboard.writeText(url);setMessage('URL pública copiada.');})}>Copiar URL pública</button>
               {domain?.capacity && (
                 <p className="muted">
                   Direcciones gratuitas utilizadas: {domain.capacity.used} de{' '}
@@ -737,11 +754,15 @@ export default function Dashboard() {
               <label>
                 Nombre
                 <input
+                  id="restaurant-name"
+                  aria-describedby="restaurant-name-message"
                   maxLength={80}
                   value={draft.name}
-                  onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+                  onChange={(e) => setDraft({ ...draft, name: e.target.value, nameConfirmed: true })}
                 />
               </label>
+              {error === 'Agrega el nombre del restaurante antes de publicar el menú.' && <p id="restaurant-name-message" className="notice error" role="alert">{error}</p>}
+              {draft.name.trim() === 'Mi restaurante' && !draft.nameConfirmed && <label className="check-label"><input type="checkbox" checked={false} onChange={() => setDraft({...draft,nameConfirmed:true})}/>Confirmo que Mi restaurante es el nombre del negocio</label>}
               <label>
                 Frase de bienvenida
                 <input
@@ -749,16 +770,6 @@ export default function Dashboard() {
                   value={draft.tagline}
                   onChange={(e) =>
                     setDraft({ ...draft, tagline: e.target.value })
-                  }
-                />
-              </label>
-              <label>
-                Color
-                <input
-                  type="color"
-                  value={draft.color}
-                  onChange={(e) =>
-                    setDraft({ ...draft, color: e.target.value })
                   }
                 />
               </label>
@@ -786,6 +797,13 @@ export default function Dashboard() {
             </button>
           </section>
         )}
+
+        {tab === 'Ajustes' && <section className="card settings-section"><h2>Presentación</h2><div className="form-grid"><label>Plantilla<select value={draft.template || 'cards'} onChange={e=>setDraft({...draft,template:e.target.value as 'list'|'cards'|'compact'})}><option value="list">Lista</option><option value="cards">Tarjetas</option><option value="compact">Compacta</option></select></label><label>Tamaño del texto<select value={draft.textSize || 'normal'} onChange={e=>setDraft({...draft,textSize:e.target.value as 'normal'|'large'})}><option value="normal">Normal</option><option value="large">Ampliado</option></select></label></div><a className="btn" href={`${base}/preview`} target="_blank" rel="noopener noreferrer">Vista previa guardada del borrador</a></section>}
+        {tab === 'Ajustes' && <ContactEditor draft={draft} setDraft={setDraft} />}
+        {tab === 'Ajustes' && <AppearanceEditor draft={draft} saved={state.draft} setDraft={setDraft} />}
+        {tab === 'Ajustes' && <div className="save-bar"><span>{dirty?'Cambios públicos sin guardar':'Borrador guardado'}<small>Guardar conserva el borrador. Publicar actualiza la carta pública.</small></span><button className="btn primary" disabled={!dirty||busy} onClick={()=>run(saveDraft)}>{busy?'Guardando…':'Guardar borrador'}</button></div>}
+
+
 
         {tab === 'Ajustes' && (
           <SecuritySettings busy={busy} run={run} role={state.role} />
@@ -1627,15 +1645,16 @@ function PromotionsEditor({
     });
   const add = () => {
     const dish = catalog.dishes[0];
-    if (!dish || catalog.promotions.length >= 8) return;
+    if (catalog.promotions.length >= 8) return;
     setCatalog({
       ...catalog,
       promotions: [
         ...catalog.promotions,
         {
           id: uid('promo'),
-          dishId: dish.id,
-          title: `Descubre ${dish.name}`,
+          dishId: dish?.id || "",
+          kind: dish ? "offer" : "notice",
+          title: dish ? `Descubre ${dish.name}` : "Aviso del restaurante",
           description: 'Una recomendación especial de nuestra cocina.',
           badge: 'DESTACADO',
           image: '',
@@ -1659,14 +1678,14 @@ function PromotionsEditor({
         </div>
         <button
           className="btn primary"
-          disabled={busy || !catalog.dishes.length || catalog.promotions.length >= 8}
+          disabled={busy || catalog.promotions.length >= 8}
           onClick={add}
         >
           <Plus size={16} /> Nueva campaña
         </button>
       </div>
       {!catalog.dishes.length && (
-        <div className="notice">Añade un plato antes de crear promociones.</div>
+        <div className="notice">Puedes crear banners y avisos informativos. Las ofertas y descuentos requieren un plato.</div>
       )}
       <div className="promotion-editor-list">
         {catalog.promotions.map((promotion, index) => (
@@ -1692,6 +1711,7 @@ function PromotionsEditor({
                   onChange={(event) => change(promotion.id, { title: event.target.value })}
                 />
               </label>
+              <label>Tipo<select value={promotion.kind || 'offer'} onChange={event => { const kind = event.target.value as 'banner'|'notice'|'offer'|'discount'; change(promotion.id,{kind,...(kind === 'banner'||kind === 'notice'?{dishId:'',promotionalPriceCents:null}:{dishId:catalog.dishes[0]?.id||''})}); }}><option value="banner">Banner</option><option value="notice">Aviso</option><option value="offer">Oferta</option><option value="discount">Descuento</option></select></label>
               <label>
                 Insignia
                 <input
@@ -1703,22 +1723,25 @@ function PromotionsEditor({
               <label>
                 Plato
                 <select
+                  disabled={promotion.kind === "banner" || promotion.kind === "notice"}
                   value={promotion.dishId}
                   onChange={(event) =>
                     change(promotion.id, { dishId: event.target.value })
                   }
                 >
+                  <option value="">Sin plato (informativo)</option>
                   {catalog.dishes.map((dish) => (
                     <option key={dish.id} value={dish.id}>{dish.name}</option>
                   ))}
                 </select>
               </label>
               <label>
-                Precio promocional opcional
+                Precio promocional explícito (no se interpretan textos como 2×1)
                 <input
                   type="number"
                   min="0"
                   step="0.01"
+                  disabled={promotion.kind === "banner" || promotion.kind === "notice"}
                   value={
                     promotion.promotionalPriceCents === null
                       ? ''

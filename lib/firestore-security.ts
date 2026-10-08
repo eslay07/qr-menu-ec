@@ -3,7 +3,7 @@ import { digest } from './security';
 
 type Kind = 'sessions' | 'devices' | 'challenges';
 const collections = { sessions: 'platformConfig/sessionGrants/entries', devices: 'platformConfig/deviceGrants/entries', challenges: 'securityChallenges' };
-export type Grant = { id_hash: string; scope: 'owner' | 'creator'; restaurant_id: string | null; csrf_token: string; created_at: string; last_seen_at: string; idle_expires_at: string; absolute_expires_at: string; revoked_at: string | null };
+export type Grant = { family_session_hash?: string; session_hash?: string; id_hash: string; scope: 'owner' | 'creator'; restaurant_id: string | null; csrf_token: string; created_at: string; last_seen_at: string; idle_expires_at: string; absolute_expires_at: string; revoked_at: string | null };
 export type Challenge = { id_hash: string; scope: 'owner' | 'creator'; restaurant_id: string | null; kind: 'mfa_login' | 'mfa_setup' | 'email_verify' | 'password_reset'; payload: string; attempts: number; expires_at: string; created_at: string };
 const camel = (key: string) => key.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase());
 const snake = (key: string) => key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
@@ -42,11 +42,61 @@ export class FirestoreSecurityRepository {
     if (!this.valid(row) || row.csrf_token !== csrf) return false;
     try {
       await this.db.commit([
-        { path, delete: true, updateTime: current.updateTime },
+        { path, data: toDocument({ ...row, revoked_at: new Date().toISOString() }), updateTime: current.updateTime },
         { path: this.path('devices', nextHash), data: toDocument({ ...row, id_hash: nextHash, csrf_token: nextCsrf, last_seen_at: new Date().toISOString(), idle_expires_at: new Date(Date.now() + 30 * 86_400_000).toISOString() }), exists: false },
       ]);
       return true;
     } catch (error) { if (error instanceof FirestoreError && error.conflict) return false; throw error; }
+  }
+  // Device/session linkage and its root are guarded in one document transaction.
+  // The root is stable across token rotation and allows an old session's revoke
+  // to invalidate a replacement without affecting a different device.
+  async bindDeviceSession(deviceHash: string, sessionHash: string) {
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const device = await this.db.get(this.path('devices', deviceHash));
+      if (!device) return false;
+      const row = fromDocument<Grant>(device.data);
+      if (!this.valid(row) || row.scope !== 'owner' || !row.restaurant_id) return false;
+      const next = await this.db.get(this.path('sessions', sessionHash));
+      if (!next) return false;
+      const session = fromDocument<Grant>(next.data);
+      if (!this.valid(session) || session.scope !== 'owner' || session.restaurant_id !== row.restaurant_id) return false;
+      const rootHash = row.family_session_hash || row.session_hash || session.family_session_hash || sessionHash;
+      const root = rootHash === sessionHash ? next : await this.db.get(this.path('sessions', rootHash));
+      if (!root) return false;
+      const rootRow = fromDocument<Grant>(root.data);
+      if (rootRow.revoked_at || Date.parse(rootRow.absolute_expires_at) <= Date.now() || rootRow.scope !== 'owner' || rootRow.restaurant_id !== row.restaurant_id) return false;
+      const previous = row.session_hash && row.session_hash !== rootHash && row.session_hash !== sessionHash ? await this.db.get(this.path('sessions', row.session_hash)) : null;
+      if (row.session_hash && row.session_hash !== rootHash && row.session_hash !== sessionHash && (!previous || previous.data.revokedAt || Date.parse(String(previous.data.absoluteExpiresAt)) <= Date.now())) return false;
+      const writes = new Map<string, {path:string;data:FirestoreData;updateTime:string}>();
+      writes.set(device.path, {path:device.path,data:toDocument({...row,session_hash:sessionHash,family_session_hash:rootHash}),updateTime:device.updateTime});
+      writes.set(root.path, {path:root.path,data:toDocument({...rootRow,family_session_hash:rootHash}),updateTime:root.updateTime});
+      if(previous) writes.set(previous.path,{path:previous.path,data:{...previous.data,familySessionHash:rootHash},updateTime:previous.updateTime});
+      writes.set(next.path,{path:next.path,data:toDocument({...session,family_session_hash:rootHash}),updateTime:next.updateTime});
+      try {await this.db.commit([...writes.values()]);return true;}
+      catch(error){if(!(error instanceof FirestoreError && error.conflict))throw error;}
+    }
+    return false;
+  }
+  async familyRevoked(row: Grant) {
+    if (!row.family_session_hash || row.family_session_hash === row.id_hash) return !!row.revoked_at;
+    const root = await this.get<Grant>('sessions', row.family_session_hash);
+    return !root || !!root.revoked_at || root.scope !== row.scope || root.restaurant_id !== row.restaurant_id || Date.parse(root.absolute_expires_at) <= Date.now();
+  }
+  async revokeSessionFamily(scope: string, restaurantId: string | null, hash: string) {
+    const row = await this.get<Grant>('sessions', hash);
+    if (!row || row.scope !== scope || row.restaurant_id !== restaurantId) return;
+    // Bind always CAS-writes this record; if it races our first read, retry
+    // against its latest family metadata before considering revoke complete.
+    let rootHash = row.family_session_hash || hash;
+    await this.revoke('sessions',scope,restaurantId,rootHash);
+    await this.revoke('sessions',scope,restaurantId,hash);
+    const current = await this.get<Grant>('sessions',hash);
+    if(current?.family_session_hash && current.family_session_hash !== rootHash){rootHash=current.family_session_hash;await this.revoke('sessions',scope,restaurantId,rootHash);}
+    for(const device of await this.list('devices',scope,restaurantId)){
+      if(device.session_hash === hash || device.family_session_hash === rootHash || device.session_hash === rootHash) await this.revoke('devices',scope,restaurantId,device.id_hash);
+    }
+    for(const session of await this.list('sessions',scope,restaurantId))if(session.family_session_hash===rootHash && !session.revoked_at)await this.revoke('sessions',scope,restaurantId,session.id_hash);
   }
   async list(kind: Kind, scope: string, restaurantId: string | null) {
     return (await this.db.query(collections[kind], [{ field: 'scope', value: scope }, { field: 'restaurantId', value: restaurantId }], 1000)).map(row => fromDocument<Grant>(row.data));
@@ -96,10 +146,17 @@ export class FirestoreSecurityRepository {
       [collections.devices, 'absoluteExpiresAt', now], [collections.devices, 'idleExpiresAt', now],
       [collections.challenges, 'expiresAt', now], ['rateLimits', 'resetAt', now], ['auditEvents', 'createdAt', new Date(Date.now() - 90 * 86_400_000)],
     ] as const) {
+      let after: {path:string;at:Date} | undefined;
       for (let batch = 0; batch < 20; batch++) {
-        const rows = await this.db.query(collection, [{ field, value, op: 'LESS_THAN_OR_EQUAL' }]);
+        const rows = await this.db.query(collection, [{ field, value, op: 'LESS_THAN_OR_EQUAL' }],200,{orderBy:[{field,direction:'ASCENDING'},{field:'__name__',direction:'ASCENDING'}],...(after?{startAfter:[{value:after.at},{reference:after.path}]}:{})});
         if (!rows.length) break;
-        try { await this.db.commit(rows.map(row => ({ path: row.path, delete: true, updateTime: row.updateTime }))); }
+        const last=rows.at(-1)!;after={path:last.path,at:new Date(String(last.data[field]))};
+        // Family grants retain revocation and FCM linkage until absolute expiry.
+        // Their idle-expired cookies still fail valid(); keeping metadata does
+        // not reactivate them or extend their absolute lifetime.
+        const deletable=collection===collections.sessions && field==='idleExpiresAt' ? rows.filter(row=>!row.data.familySessionHash) : rows;
+        if(!deletable.length)continue;
+        try { await this.db.commit(deletable.map(row => ({ path: row.path, delete: true, updateTime: row.updateTime }))); }
         catch (error) { if (!(error instanceof FirestoreError && error.conflict)) throw error; }
       }
     }

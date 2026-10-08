@@ -1,12 +1,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { FirestoreRest, type FirestoreData } from '../lib/firestore-rest';
+import { FirestoreRest, firestoreHashId, type FirestoreData } from '../lib/firestore-rest';
 import { FirestoreBusinessRepository } from '../lib/firestore-business';
 import { RestaurantPreferences } from '../lib/restaurant-preferences';
 import { firestoreMaintenance } from '../lib/firestore-maintenance';
 import type { AuthSecurity } from '../lib/auth-security';
 import { FirestorePush, pushJob } from '../lib/firestore-push';
 import { FcmSender } from '../lib/push-delivery';
+import { digest } from '../lib/security';
+async function seedSession(db:FirestoreRest,rid:string,csrf:string){const hash=await digest(crypto.randomUUID());const now=new Date();await db.commit([{path:'platformConfig/sessionGrants/entries/'+firestoreHashId(hash),data:{idHash:hash,scope:'owner',restaurantId:rid,csrfToken:csrf,revokedAt:null,createdAt:now,lastSeenAt:now,idleExpiresAt:new Date(now.getTime()+30*60_000),absoluteExpiresAt:new Date(now.getTime()+12*3600_000)}}]);}
 
 const skip = !process.env.FIRESTORE_EMULATOR_HOST;
 test('a concurrent device renewal retains the push job instead of silently dropping it', {skip}, async () => {
@@ -21,6 +23,7 @@ test('a concurrent device renewal retains the push job instead of silently dropp
   const rid=crypto.randomUUID(),root=`restaurants/${rid}`;
   await db.commit([{path:root,data:{access:{active:true}}},{path:`${root}/private/auth`,data:{sessionEpoch:0}}]);
   const push=new FirestorePush(db,rid,{encrypt:async value=>value,decrypt:async value=>value});
+  await seedSession(db,rid,'test-session');
   const device=await push.register({token:`test_${crypto.randomUUID()}`,platform:'android'},0,'test-session');
   const now=new Date(); await db.commit([pushJob(rid,'renewal-race','newOrder',now)]);
   db.refreshPath=`${root}/pushDevices/${device.id}`;
@@ -43,6 +46,7 @@ test('push queue isolates restaurants, retries, revokes logout and suppresses di
   await db.commit([{ path: root, data: { access: { active: true } } }, { path: `${root}/private/auth`, data: { sessionEpoch: 0 } }]);
   const push = new FirestorePush(db, rid, security), another = new FirestorePush(db, other, security);
   const token = `test_${crypto.randomUUID()}`;
+  await seedSession(db,rid,'session-one');
   const device = await push.register({ token, platform: 'web' }, 0, 'session-one');
   const stored = await db.get(`${root}/pushDevices/${device.id}`);
   assert.ok(stored); assert.ok(!JSON.stringify(stored.data).includes(token));
@@ -66,6 +70,7 @@ test('push queue isolates restaurants, retries, revokes logout and suppresses di
   await push.dispatch(sender, now); assert.equal(calls, 2);
   await push.revokeSession('another-session'); assert.ok(await db.get(`${root}/pushDevices/${device.id}`));
   await push.revokeSession('session-one'); assert.equal(await db.get(`${root}/pushDevices/${device.id}`), null);
+  await seedSession(db,rid,'session-two');
   await push.register({ token, platform: 'android' }, 0, 'session-two');
   await db.commit([{ path: root, data: { access: { active: true, plan: 'basic' } }, mask: ['access'] }, pushJob(rid, 'basic-plan', 'soldOut', now)]);
   await push.dispatch(sender, now); assert.equal(calls, 2);

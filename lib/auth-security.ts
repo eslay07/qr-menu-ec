@@ -203,13 +203,14 @@ export class AuthSecurity {
 
   clearDeviceCookie() { return secureCookie(deviceCookie, '', 0); }
 
-  async createDevice(restaurantId: string) {
+  async createDevice(restaurantId: string, sessionHash?: string) {
     const token = randomToken() + randomToken();
     const csrfToken = randomToken();
     const now = new Date();
     const absoluteExpiresAt = new Date(now.getTime() + 180 * 86_400_000).toISOString();
     if (this.persistence) {
-      await this.persistence.create('devices', { id_hash: await digest(token), scope: 'owner', restaurant_id: restaurantId, csrf_token: csrfToken, created_at: now.toISOString(), last_seen_at: now.toISOString(), idle_expires_at: new Date(now.getTime() + 30 * 86_400_000).toISOString(), absolute_expires_at: absoluteExpiresAt, revoked_at: null });
+      await this.persistence.create('devices', { ...(sessionHash ? {session_hash:sessionHash,family_session_hash:sessionHash}:{}), id_hash: await digest(token), scope: 'owner', restaurant_id: restaurantId, csrf_token: csrfToken, created_at: now.toISOString(), last_seen_at: now.toISOString(), idle_expires_at: new Date(now.getTime() + 30 * 86_400_000).toISOString(), absolute_expires_at: absoluteExpiresAt, revoked_at: null });
+      if(sessionHash && !await this.persistence.bindDeviceSession(await digest(token),sessionHash)){await this.persistence.revoke('devices','owner',restaurantId,await digest(token));await this.persistence.revoke('sessions','owner',restaurantId,sessionHash);throw Error('La sesión fue revocada durante el acceso.');}
       return { cookie: secureCookie(deviceCookie, token, 180 * 86_400), csrfToken };
     }
     await this.env.DB.prepare('INSERT INTO owner_devices (id_hash,restaurant_id,csrf_token,created_at,last_seen_at,idle_expires_at,absolute_expires_at,revoked_at) VALUES (?,?,?,?,?,?,?,NULL)')
@@ -224,7 +225,7 @@ export class AuthSecurity {
     const now = new Date().toISOString();
     if (this.persistence) {
       const row = await this.persistence.get<Grant>('devices', hash);
-      return row && row.scope === 'owner' && row.restaurant_id && this.persistence.valid(row) ? { ...row, restaurant_id: row.restaurant_id } : null;
+      return row && row.scope === 'owner' && row.restaurant_id && this.persistence.valid(row) && !await this.persistence.familyRevoked(row) ? { ...row, restaurant_id: row.restaurant_id } : null;
     }
     const row = await this.env.DB.prepare('SELECT id_hash,restaurant_id,csrf_token,created_at,idle_expires_at,absolute_expires_at FROM owner_devices WHERE id_hash = ? AND revoked_at IS NULL AND idle_expires_at > ? AND absolute_expires_at > ?')
       .bind(hash, now, now).first<{ id_hash: string; restaurant_id: string; csrf_token: string; created_at: string; idle_expires_at: string; absolute_expires_at: string }>();
@@ -250,10 +251,31 @@ export class AuthSecurity {
     return { restaurantId: row.restaurant_id, cookie: secureCookie(deviceCookie, nextToken, Math.max(1, Math.floor((Date.parse(row.absolute_expires_at) - now.getTime()) / 1000))) };
   }
 
+  async bindDeviceSession(request:Request,sessionHash:string):Promise<boolean> {
+    if(!this.persistence)return true;
+    const token=cookieValue(request,deviceCookie);if(!token)return false;
+    return this.persistence.bindDeviceSession(await digest(token),sessionHash);
+  }
+  async presentedOwnerSessionRevoked(request:Request,restaurantId:string) {
+    const token=cookieValue(request,ownerCookie);if(!token || !this.persistence)return false;
+    const grant=await this.persistence.get<Grant>('sessions',await digest(token));
+    return !!grant && grant.scope==='owner' && grant.restaurant_id===restaurantId && (!!grant.revoked_at || Date.parse(grant.absolute_expires_at)<=Date.now());
+  }
+  async rememberedSessionRevoked(device: {session_hash?:string; id_hash:string}) {
+    if(!this.persistence)return false;
+    if(await this.persistence.familyRevoked(device as Grant))return true;
+    if(!device.session_hash)return false;
+    const session=await this.persistence.get<Grant>('sessions',device.session_hash);
+    return !session || !!session.revoked_at || Date.parse(session.absolute_expires_at)<=Date.now() || await this.persistence.familyRevoked(session);
+  }
   async revokeDevice(request: Request) {
     const token = cookieValue(request, deviceCookie);
     if (!token) return;
-    if (this.persistence) { await this.persistence.mutate<Grant>('devices', await digest(token), row => ({ ...row, revoked_at: new Date().toISOString() })); return; }
+    if (this.persistence) {
+      const row=await this.persistence.get<Grant>('devices',await digest(token));
+      if(row?.restaurant_id && (row.family_session_hash || row.session_hash))await this.persistence.revokeSessionFamily('owner',row.restaurant_id,(row.family_session_hash || row.session_hash)!);
+      await this.persistence.mutate<Grant>('devices', await digest(token), row => ({ ...row, revoked_at: new Date().toISOString() })); return;
+    }
     await this.env.DB.prepare('UPDATE owner_devices SET revoked_at = ? WHERE id_hash = ?')
       .bind(new Date().toISOString(), await digest(token)).run();
   }
@@ -273,7 +295,7 @@ export class AuthSecurity {
   }
 
   async revokeDeviceById(restaurantId: string, idHash: string) {
-    if (this.persistence) return this.persistence.revoke('devices', 'owner', restaurantId, idHash);
+    if (this.persistence) {const row=await this.persistence.get<Grant>('devices',idHash);if(row?.restaurant_id===restaurantId && (row.family_session_hash || row.session_hash))await this.persistence.revokeSessionFamily('owner',restaurantId,(row.family_session_hash || row.session_hash)!);return this.persistence.revoke('devices','owner',restaurantId,idHash);}
     await this.env.DB.prepare('UPDATE owner_devices SET revoked_at = ? WHERE restaurant_id = ? AND id_hash = ?')
       .bind(new Date().toISOString(), restaurantId, idHash).run();
   }
@@ -295,7 +317,7 @@ export class AuthSecurity {
     ).toISOString();
     if (this.persistence) {
       await this.persistence.create('sessions', { id_hash: await digest(token), scope, restaurant_id: restaurantId, csrf_token: csrfToken, created_at: now.toISOString(), last_seen_at: now.toISOString(), idle_expires_at: idleExpiresAt, absolute_expires_at: absoluteExpiresAt, revoked_at: null });
-      return { csrfToken, absoluteExpiresAt, cookie: secureCookie(this.cookieName(scope), token, 12 * 60 * 60) };
+      return { sessionHash: await digest(token), csrfToken, absoluteExpiresAt, cookie: secureCookie(this.cookieName(scope), token, 12 * 60 * 60) };
     }
     await this.env.DB.prepare(
       'INSERT INTO auth_sessions (id_hash,scope,restaurant_id,csrf_token,created_at,last_seen_at,idle_expires_at,absolute_expires_at,revoked_at) VALUES (?,?,?,?,?,?,?,?,NULL)',
@@ -312,6 +334,7 @@ export class AuthSecurity {
       )
       .run();
     return {
+      sessionHash: await digest(token),
       csrfToken,
       absoluteExpiresAt,
       cookie: secureCookie(this.cookieName(scope), token, 12 * 60 * 60),
@@ -328,13 +351,15 @@ export class AuthSecurity {
     if (this.provider && !await this.provider.verifySession(token, this.uid(scope, restaurantId))) return null;
     const now = new Date();
     if (this.persistence) {
+      const grant = await this.persistence.get<Grant>('sessions',await digest(token));
+      if(!grant || await this.persistence.familyRevoked(grant))return null;
       let accepted: ActiveSession | null = null;
       const valid = await this.persistence.mutate<Grant>('sessions', await digest(token), row => {
         if (row.scope !== scope || row.restaurant_id !== restaurantId || !this.persistence!.valid(row)) return false;
         accepted = { csrfToken: row.csrf_token, absoluteExpiresAt: row.absolute_expires_at };
         return { ...row, last_seen_at: now.toISOString(), idle_expires_at: new Date(now.getTime() + 30 * 60_000).toISOString() };
       });
-      return valid ? accepted : null;
+      return valid && !await this.persistence.familyRevoked(grant) ? accepted : null;
     }
     const row = await this.env.DB.prepare(
       'SELECT csrf_token,idle_expires_at,absolute_expires_at,revoked_at FROM auth_sessions WHERE id_hash = ? AND scope = ? AND restaurant_id IS ?',
@@ -379,7 +404,7 @@ export class AuthSecurity {
   async revokeSession(request: Request, scope: AuthScope) {
     const token = cookieValue(request, this.cookieName(scope));
     if (!token) return;
-    if (this.persistence) { await this.persistence.mutate<Grant>('sessions', await digest(token), row => row.scope === scope ? { ...row, revoked_at: new Date().toISOString() } : false); return; }
+    if (this.persistence) {const row=await this.persistence.get<Grant>('sessions',await digest(token));if(row?.scope===scope)await this.persistence.revokeSessionFamily(scope,row.restaurant_id,await digest(token));return;}
     await this.env.DB.prepare(
       'UPDATE auth_sessions SET revoked_at = ? WHERE id_hash = ?',
     )
@@ -421,7 +446,7 @@ export class AuthSecurity {
     restaurantId: string | null,
     idHash: string,
   ) {
-    if (this.persistence) return this.persistence.revoke('sessions', scope, restaurantId, idHash);
+    if (this.persistence) return this.persistence.revokeSessionFamily(scope,restaurantId,idHash);
     await this.env.DB.prepare(
       'UPDATE auth_sessions SET revoked_at = ? WHERE id_hash = ? AND scope = ? AND restaurant_id IS ?',
     )
