@@ -1,6 +1,6 @@
 # Rendimiento reproducible
 
-Medición serial 2026-10-08T06:44:39.201Z: bundles anteriores y posteriores preservados, servidor estático con gzip, Chromium 390×844, CPU 4×, descarga 1,6 Mbps, subida 750 kbps, RTT 150 ms. Cinco cargas frías y cinco calientes válidas por catálogo de 10/40 productos. Veinte repeticiones por interacción mostrada.
+Medición serial 2026-10-08T14:04:48.413Z: bundles anteriores y posteriores preservados, servidor estático con gzip, Chromium 390×844, CPU 4×, descarga 1,6 Mbps, subida 750 kbps, RTT 150 ms. Cinco cargas frías y cinco calientes válidas por catálogo de 10/40 productos. Veinte repeticiones por interacción mostrada.
 
 API ficticia local: estas cifras no acreditan latencia del backend productivo, Firebase real ni Android físico. Las interacciones incluyen automatización; no equivalen a tiempo visual. usableMs incluye asentamiento networkidle. La medición posterior se repitió con el bundle final, incluido el ajuste de diálogo y ruta explícita. Se descarta la comparación anterior sin gzip por no representar la transferencia comprimida productiva.
 
@@ -24,24 +24,24 @@ API ficticia local: estas cifras no acreditan latencia del backend productivo, F
 | public-|before|40|search|-|ms | 20 | 195.88 | 86.81–353.75 |
 | public-|before|40|category|-|ms | 20 | 267.37 | 166.34–789.03 |
 | public-|before|40|cart-add|-|ms | 20 | 448.10 | 171.49–664.19 |
-| public-|after|10|load|cold|usableMs | 5 | 2451.14 | 2294.69–3333.95 |
-| public-|after|10|load|cold|lcp | 5 | 1768.00 | 1720.00–3048.00 |
+| public-|after|10|load|cold|usableMs | 5 | 2485.19 | 2303.90–4039.99 |
+| public-|after|10|load|cold|lcp | 5 | 1740.00 | 1708.00–3792.00 |
 | public-|after|10|load|cold|cls | 5 | 0.06 | 0.06–0.06 |
-| public-|after|10|load|warm|usableMs | 5 | 2394.68 | 2361.99–2501.80 |
-| public-|after|10|load|warm|lcp | 5 | 1776.00 | 1724.00–1776.00 |
+| public-|after|10|load|warm|usableMs | 5 | 2404.03 | 2233.52–2460.33 |
+| public-|after|10|load|warm|lcp | 5 | 1732.00 | 1616.00–1800.00 |
 | public-|after|10|load|warm|cls | 5 | 0.06 | 0.06–0.06 |
-| public-|after|10|search|-|ms | 20 | 124.98 | 83.91–283.67 |
-| public-|after|10|category|-|ms | 20 | 200.88 | 126.51–418.90 |
-| public-|after|10|cart-add|-|ms | 20 | 300.15 | 161.15–589.32 |
-| public-|after|40|load|cold|usableMs | 5 | 2559.25 | 2383.56–3350.61 |
-| public-|after|40|load|cold|lcp | 5 | 2136.00 | 1744.00–3208.00 |
+| public-|after|10|search|-|ms | 20 | 111.33 | 45.61–458.63 |
+| public-|after|10|category|-|ms | 20 | 181.76 | 94.78–492.54 |
+| public-|after|10|cart-add|-|ms | 20 | 363.24 | 151.71–521.75 |
+| public-|after|40|load|cold|usableMs | 5 | 2565.47 | 2447.76–3200.51 |
+| public-|after|40|load|cold|lcp | 5 | 2064.00 | 1912.00–3000.00 |
 | public-|after|40|load|cold|cls | 5 | 0.06 | 0.06–0.06 |
-| public-|after|40|load|warm|usableMs | 5 | 2454.58 | 2420.49–2622.72 |
-| public-|after|40|load|warm|lcp | 5 | 2028.00 | 1852.00–2072.00 |
+| public-|after|40|load|warm|usableMs | 5 | 2533.51 | 2378.69–2552.29 |
+| public-|after|40|load|warm|lcp | 5 | 1972.00 | 1728.00–2068.00 |
 | public-|after|40|load|warm|cls | 5 | 0.06 | 0.06–0.06 |
-| public-|after|40|search|-|ms | 20 | 184.94 | 94.60–301.29 |
-| public-|after|40|category|-|ms | 20 | 272.53 | 117.83–518.38 |
-| public-|after|40|cart-add|-|ms | 20 | 361.04 | 190.91–571.66 |
+| public-|after|40|search|-|ms | 20 | 204.42 | 99.86–331.52 |
+| public-|after|40|category|-|ms | 20 | 312.95 | 156.92–569.15 |
+| public-|after|40|cart-add|-|ms | 20 | 443.03 | 148.85–627.17 |
 | owner-|before|10|panel-open|cold|ms | 5 | 2091.49 | 2003.59–4306.93 |
 | owner-|before|10|panel-open|warm|ms | 5 | 2094.79 | 1958.90–2504.74 |
 | owner-|before|10|save|-|ms | 20 | 764.43 | 692.56–1046.86 |
@@ -91,11 +91,13 @@ Veinte repeticiones por interacción y catálogo, en los mismos bundles y perfil
 
 | Catálogo | Interacción | Antes: mediana [mín–máx], ms | Después: mediana [mín–máx], ms |
 | --- | --- | --- | --- |
-| 10 | search | 36.90 [22.60–73.40] | 38.10 [21.20–151.20] |
-| 10 | category | 34.05 [12.00–63.10] | 52.20 [26.00–108.00] |
-| 10 | cart-add | 42.40 [24.00–117.60] | 41.90 [21.50–133.60] |
-| 40 | search | 46.80 [29.10–124.00] | 38.35 [22.40–125.90] |
-| 40 | category | 86.85 [49.20–154.30] | 87.25 [31.50–360.60] |
-| 40 | cart-add | 67.85 [46.40–186.30] | 71.80 [32.80–382.60] |
+| 10 | search | 36.90 [22.60–73.40] | 37.45 [18.90–143.50] |
+| 10 | category | 34.05 [12.00–63.10] | 63.55 [34.10–109.20] |
+| 10 | cart-add | 42.40 [24.00–117.60] | 47.75 [26.70–152.80] |
+| 40 | search | 46.80 [29.10–124.00] | 40.75 [28.30–139.10] |
+| 40 | category | 86.85 [49.20–154.30] | 84.75 [47.20–326.20] |
+| 40 | cart-add | 67.85 [46.40–186.30] | 69.45 [11.20–166.30] |
 
-Las medianas posteriores están bajo 200 ms. En categoría y carrito de 40 aparecen máximos de 360,60 y 382,60 ms: el objetivo no se cumple en todas las repeticiones. Tampoco se afirma una mejora general de LCP: antes 10/40 fríos 1.724/2.020 ms, después 1.768/2.136 ms. La separación de módulos reduce el arranque inicial y mantiene medianas dentro del objetivo, pero las colas de carga fría exceden 2,5 s.
+Las medianas posteriores están bajo 200 ms. En categoría de 40 aparece un máximo de 326,20 ms: el objetivo no se cumple en todas las repeticiones. Tampoco se afirma una mejora general de LCP: antes 10/40 fríos 1.724/2.020 ms, después 1.740/2.064 ms. La separación de módulos reduce el arranque inicial y mantiene medianas dentro del objetivo, pero las colas de carga fría exceden 2,5 s.
+
+Carta y respuesta instrumentada se repitieron tras la corrección final de contraste, con el CSS final servido en4186. Las muestras de panel, sesión y API de carrito/pedido anteriores se conservaron: los cambios finales son selectores limitados a la carta pública y no cambian esas rutas ni el servidor.

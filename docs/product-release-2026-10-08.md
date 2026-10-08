@@ -7,8 +7,9 @@ La implementación está integrada y desplegada en la infraestructura existente.
 - Repositorio íntegro: [eslay07/qr-menu-ec](https://github.com/eslay07/qr-menu-ec).
 - Funcionalidades integradas por [PR 16](https://github.com/eslay07/qr-menu-ec/pull/16), commit `04884f2400ed43a99bd494d73d94f26d04cb4d4c`.
 - Empaquetado y verificación MIME integrados por [PR 17](https://github.com/eslay07/qr-menu-ec/pull/17), commit `1c0ebf9f9180d85f80e9cadec4e7e7ad8e174931`.
-- Worker/backend y assets/frontend activos al 100%: `93dbea4d-ad00-4641-97ee-a0fe35db00de`. HTML, JavaScript y CSS se comprobaron por HTTP, tipo y hash; también se recorrió el producto servido.
+- Worker/backend y assets/frontend activos al 100%: `7580118f-8cd4-4c15-bb03-b56fc8b808ba`. HTML, JavaScript y CSS se comprobaron por HTTP, tipo y hash; también se recorrió el producto servido.
 - Plataforma: https://qr-menu-ec.consola.workers.dev . [Demostración pública comprobada](https://qa-ficticio-octubre-2026.consola.workers.dev/menu), publicación 8 al cierre de aceptación.
+- Corrección final de contraste y evidencias: [PR 18](https://github.com/eslay07/qr-menu-ec/pull/18); precios, opciones y mensajes de validación usan los roles aceptados. Nueve combinaciones de paleta/plantilla verificadas por colores computados, mínimo4,5:1.
 - D1 operativa y D1 histórica/imágenes conservadas; migración aditiva `0006_order_operations.sql` aplicada. Firebase Authentication/FCM conservados. Sin Blaze, R2, nuevas suscripciones o proveedor contratado.
 
 ## Cambios
@@ -47,7 +48,7 @@ Tipos y build Worker aprobados. Suite completa con emulador: **168/168, cero fal
 
 [Informe completo con mediana/rango](performance-release-2026-10-08.md): mismo perfil 390 px, CPU 4×, 1,6 Mbps/750 kbps/RTT 150 ms, catálogos ficticios 10/40, cinco cargas frías y cinco calientes por fase, veinte repeticiones por interacción. API local simulada; no representa latencia de Firebase/backend productivo ni el teléfono físico.
 
-LCP frío antes/después: 10 productos **1,724→1,768 s**, 40 **2,020→2,136 s**; medianas dentro de 2,5 s, algunos máximos posteriores hasta 3,208 s. CLS posterior aproximadamente **0,065**. Reapertura del panel simulado: medianas **2,52/2,57 s**. Respuesta instrumentada evento→DOM→dos frames: medianas posteriores 38–87 ms; categoría/carrito40 tienen máximos 361/383 ms. No se afirma mejora general de LCP ni cumplimiento de 200 ms en todas las muestras. Guardado/publicación con API simulada queda separado en la tabla; la confirmación real se verificó funcionalmente, sin atribuirle la latencia simulada.
+LCP frío antes/después: 10 productos **1,724→1,740 s**, 40 **2,020→2,064 s**; medianas dentro de 2,5 s, algunos máximos posteriores hasta 3,792 s. CLS posterior aproximadamente **0,065**. Reapertura del panel simulado: medianas **2,52/2,57 s**. Respuesta instrumentada evento→DOM→dos frames: medianas posteriores 37–85 ms; categoría40 tiene máximo326 ms. No se afirma mejora general de LCP ni cumplimiento de 200 ms en todas las muestras. Guardado/publicación con API simulada queda separado en la tabla; la confirmación real se verificó funcionalmente, sin atribuirle la latencia simulada.
 
 ## Subdominio, QR y operación
 
@@ -61,7 +62,7 @@ APK firmado **0.8.2/versionCode13 conservado**, sin cambios nativos ni APK nuevo
 
 Respaldos cifrados verificables antes de activar: `work/private-backups/2026-10-08T06-32-43.842Z-bc42b1e2` (2.140 documentos operativos) y `2026-10-08T06-32-43.850Z-2d7aa660` (D1 histórica, 16 imágenes). AES-256-GCM, clave DPAPI CurrentUser fuera de Git; descifrado desde disco/restauración SQLite en memoria con integridad, FK y checksums correctos. Restauración de aplicación/pedidos/operaciones también ensayada aisladamente; ninguna restauración de ensayo sobre producción.
 
-Rollback compatible: `node scripts/product-release.mjs --rollback` valida candidato activo y devuelve al padre `b582cbc6-9d31-4d51-b42b-790fea80ce9a` al 100%; preserva escrituras y esquema aditivo. Verificar HTML/JS/CSS, autenticación y enlaces después. No restaurar SQL antiguo sobre producción. Reversión Turnstile: configuración previa privada `work/product-release/turnstile-rollback.json`; conservar la protección y dominios reales. El subdominio ficticio puede deshabilitarse aisladamente sin tocar hostnames existentes.
+Rollback compatible: `node scripts/product-release.mjs --rollback` valida candidato activo y devuelve al padre `93dbea4d-ad00-4641-97ee-a0fe35db00de` al 100%; preserva escrituras y esquema aditivo. Verificar HTML/JS/CSS, autenticación y enlaces después. No restaurar SQL antiguo sobre producción. Reversión Turnstile: configuración previa privada `work/product-release/turnstile-rollback.json`; conservar la protección y dominios reales. El subdominio ficticio puede deshabilitarse aisladamente sin tocar hostnames existentes.
 
 La primera activación tuvo MIME incorrecto y se revirtió inmediatamente al padre; se corrigió el empaquetado, añadieron tests y verificación automática con rollback antes de la activación vigente. No se oculta ese incidente como despliegue exitoso.
 
