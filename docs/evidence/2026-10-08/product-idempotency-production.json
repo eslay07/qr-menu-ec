@@ -1,0 +1,18 @@
+{
+  "checkedAt": "2026-10-08T13:35:46.946Z",
+  "restaurantId": "76d3def9-52e9-4779-b048-1242f45c634e",
+  "concurrentReplays": [
+    {
+      "status": 201,
+      "sameOrder": true
+    },
+    {
+      "status": 201,
+      "sameOrder": true
+    }
+  ],
+  "differentPayload": 409,
+  "ordersAfter": 1,
+  "orderNumber": "PED-261008-516K",
+  "noNewOperationCreated": true
+}

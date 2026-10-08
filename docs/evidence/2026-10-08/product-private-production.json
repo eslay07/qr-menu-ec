@@ -1,0 +1,30 @@
+{
+  "checkedAt": "2026-10-08T13:48:32.511Z",
+  "anonymousPrivate": [
+    {
+      "path": "state",
+      "status": 401,
+      "cache": "no-store"
+    },
+    {
+      "path": "orders",
+      "status": 401,
+      "cache": "no-store"
+    },
+    {
+      "path": "sessions",
+      "status": 401,
+      "cache": "no-store"
+    },
+    {
+      "path": "backups",
+      "status": 401,
+      "cache": "no-store"
+    },
+    {
+      "path": "settings/notifications",
+      "status": 401,
+      "cache": "no-store"
+    }
+  ]
+}

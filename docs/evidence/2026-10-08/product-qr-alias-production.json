@@ -1,0 +1,59 @@
+{
+  "checkedAt": "2026-10-08T13:47:46.972Z",
+  "decodedQR": "https://qa-ficticio-octubre-2026.consola.workers.dev/menu",
+  "aliases": [
+    {
+      "kind": "subdomain",
+      "url": "https://qa-ficticio-octubre-2026.consola.workers.dev/api/v1/menu",
+      "status": 200,
+      "version": 8,
+      "name": "QA FICTICIO · Octubre 2026",
+      "hours": [
+        {
+          "day": 4,
+          "closed": false,
+          "open": "22:00",
+          "close": "02:00"
+        }
+      ],
+      "contactClean": true,
+      "logo": true
+    },
+    {
+      "kind": "oldUUID",
+      "url": "https://qr-menu-ec.consola.workers.dev/r/76d3def9-52e9-4779-b048-1242f45c634e/api/v1/menu",
+      "status": 200,
+      "version": 8,
+      "name": "QA FICTICIO · Octubre 2026",
+      "hours": [
+        {
+          "day": 4,
+          "closed": false,
+          "open": "22:00",
+          "close": "02:00"
+        }
+      ],
+      "contactClean": true,
+      "logo": true
+    },
+    {
+      "kind": "readable",
+      "url": "https://qr-menu-ec.consola.workers.dev/m/qa-ficticio-octubre-2026/api/v1/menu",
+      "status": 200,
+      "version": 8,
+      "name": "QA FICTICIO · Octubre 2026",
+      "hours": [
+        {
+          "day": 4,
+          "closed": false,
+          "open": "22:00",
+          "close": "02:00"
+        }
+      ],
+      "contactClean": true,
+      "logo": true
+    }
+  ],
+  "browserDownloadEventObserved": false,
+  "artifactObtainedFromVisibleQrSvg": true
+}

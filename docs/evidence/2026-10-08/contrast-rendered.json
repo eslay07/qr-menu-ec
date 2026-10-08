@@ -1,0 +1,74 @@
+[
+  {
+    "palette": "neutral",
+    "template": "list",
+    "prices": 4,
+    "options": 15,
+    "errors": 2,
+    "minimumContrast": 4.5
+  },
+  {
+    "palette": "neutral",
+    "template": "cards",
+    "prices": 4,
+    "options": 15,
+    "errors": 2,
+    "minimumContrast": 4.5
+  },
+  {
+    "palette": "neutral",
+    "template": "compact",
+    "prices": 4,
+    "options": 15,
+    "errors": 2,
+    "minimumContrast": 4.5
+  },
+  {
+    "palette": "dark",
+    "template": "list",
+    "prices": 4,
+    "options": 15,
+    "errors": 2,
+    "minimumContrast": 4.5
+  },
+  {
+    "palette": "dark",
+    "template": "cards",
+    "prices": 4,
+    "options": 15,
+    "errors": 2,
+    "minimumContrast": 4.5
+  },
+  {
+    "palette": "dark",
+    "template": "compact",
+    "prices": 4,
+    "options": 15,
+    "errors": 2,
+    "minimumContrast": 4.5
+  },
+  {
+    "palette": "warm",
+    "template": "list",
+    "prices": 4,
+    "options": 15,
+    "errors": 2,
+    "minimumContrast": 4.5
+  },
+  {
+    "palette": "warm",
+    "template": "cards",
+    "prices": 4,
+    "options": 15,
+    "errors": 2,
+    "minimumContrast": 4.5
+  },
+  {
+    "palette": "warm",
+    "template": "compact",
+    "prices": 4,
+    "options": 15,
+    "errors": 2,
+    "minimumContrast": 4.5
+  }
+]

@@ -37,3 +37,6 @@ Capturas locales: 30 combinaciones de 3 plantillas, cinco anchos (320/360/390/76
 Migración aditiva 0006 aplicada y comprobada en D1 histórica, sin modificar datos existentes. Las versiones preparadas sin tráfico no constituyen despliegue ni aceptación productiva. No habilitar URL de versiones históricas para probar candidatos.
 
 Las carreras de publicación/pedido, revocación/refresh y entrega FCM quedaron corregidas y verificadas con pruebas independientes. El dueño ficticio inició sesión realmente; el Honor conectado abrió esa misma cuenta. Se creó el subdominio real de ensayo con TLS/ruta verificados. Pendiente comprobación completa de la versión productiva nueva. No afirmar producto listo para vender hasta completar recorridos productivos.
+## Cierre productivo posterior
+
+El estado final autoritativo está en [product-release-2026-10-08.md](product-release-2026-10-08.md). Sustituye el estado pendiente/histórico anterior: versión7580118f preparada sin tráfico durante revisión, 168/168 tests con emulador más2/2 MIME y recorridos productivos ficticios comprobados. Declara por separado lint no aprobado, límites de rendimiento, zoom CSS y revisión Android incompleta.

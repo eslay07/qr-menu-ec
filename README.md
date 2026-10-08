@@ -4,7 +4,11 @@ Plataforma HTTPS para crear y publicar cartas de restaurantes. Cada restaurante 
 
 La carta admite categorías, fotografías, disponibilidad, grupos de opciones por plato y hasta ocho campañas promocionales. Cuando el creador habilita Pedidos, el restaurante puede activarlos y el cliente confirma desde su celular con nombre o alias obligatorio. La confirmación muestra el pedido completo, un QR opcional para el mesero, PDF y acciones para compartir. El evento queda registrado inmediatamente en los reportes.
 
-El panel está organizado en `Carta`, `Promociones`, `Pedidos`, `Compartir` y `Ajustes`. Usa divulgación progresiva, skeletons sin saltos, foco visible, controles táctiles de 44 px y mensajes de guardado accesibles. Los estilos no dependen de design tokens globales; solo el color elegido por cada restaurante se mantiene como propiedad CSS dinámica.
+El panel permite crear, renombrar, ordenar y eliminar categorías con reasignación segura. La presentación combina tres plantillas propias (lista, tarjetas y compacta), texto normal/ampliado y cinco colores independientes con validación HEX y contraste. Publicar exige un nombre confirmado; el borrador y la publicación conservan revisiones independientes.
+
+La carta muestra información pública aceptada, horarios de Ecuador y un carrito que cuenta unidades. La solicitud de WhatsApp revalida importes y no registra un pedido ni envía mensajes. La confirmación interna conserva una identidad de operación para evitar duplicados en reintentos. Los permisos y límites se comprueban en servidor.
+
+Entrega vigente: [informe de producción del 08-10-2026](docs/product-release-2026-10-08.md), [mediciones reproducibles](docs/performance-release-2026-10-08.md) y [guía de incorporación](docs/restaurant-onboarding.md). El informe distingue producción, emulación, Android y limitaciones pendientes.
 
 ## Desarrollo
 
@@ -16,7 +20,7 @@ npm run db:local
 npm run dev
 ```
 
-Rutas principales: `/creator`, `/owner`, `/demo`, `/r/<uuid>/menu` y `/order/<token>`. Ejecuta `npm run check`, `npm test`, `npm audit --audit-level=high` y `npm run build:worker` antes de desplegar.
+Rutas principales: `/creator`, `/owner`, `/demo`, `/m/<nombre>/menu`, `/r/<uuid>/menu` y `/order/<token>`. Ejecuta `npm run check`, `npm run lint`, `npm test`, los emuladores, `npm audit --audit-level=high` y `npm run build:worker` antes de desplegar.
 
 Plataforma principal: `https://qr-menu-ec.consola.workers.dev`.
 
@@ -26,7 +30,7 @@ Estado productivo 07-10-2026: proveedor operativo `d1-documents`, Firebase Authe
 
 El Worker usa D1 privada y Cloudflare for SaaS; el navegador nunca recibe una clave de base de datos. Aplica en orden las migraciones `0000` a `0003` de `drizzle/`. Configura como secretos `DATA_ENCRYPTION_KEY`, `TURNSTILE_SECRET_KEY`, `TURNSTILE_SITE_KEY`, `CLOUDFLARE_API_TOKEN` y, cuando se active correo, `RESEND_API_KEY`. El token de Cloudflare debe tener permisos mínimos para Workers y Custom Hostnames.
 
-- El subdominio gratuito se crea junto con el restaurante y permanece como alias.
+- Las rutas legibles conservan los enlaces UUID anteriores. Un subdominio requiere provisión y TLS/rutas verificados. La provisión automática necesita el secreto Cloudflare con permisos mínimos; su ausencia no debe presentarse como un subdominio creado. El informe vigente registra el hostname real comprobado.
 - El dominio propio es opcional y solo se activa cuando hostname y certificado estén activos.
 - Todas las direcciones públicas usan HTTPS.
 - Los reportes privados conservan el historial. El enlace público y el PDF del pedido expiran a las 24 horas.
