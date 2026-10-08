@@ -7,7 +7,7 @@ La implementación está integrada y desplegada en la infraestructura existente.
 - Repositorio íntegro: [eslay07/qr-menu-ec](https://github.com/eslay07/qr-menu-ec).
 - Funcionalidades integradas por [PR 16](https://github.com/eslay07/qr-menu-ec/pull/16), commit `04884f2400ed43a99bd494d73d94f26d04cb4d4c`.
 - Empaquetado y verificación MIME integrados por [PR 17](https://github.com/eslay07/qr-menu-ec/pull/17), commit `1c0ebf9f9180d85f80e9cadec4e7e7ad8e174931`.
-- Worker/backend y assets/frontend activos al 100%: `7580118f-8cd4-4c15-bb03-b56fc8b808ba`. HTML, JavaScript y CSS se comprobaron por HTTP, tipo y hash; también se recorrió el producto servido.
+- Versión final preparada: `7580118f-8cd4-4c15-bb03-b56fc8b808ba`, con tráfico0 durante revisión. La versión funcional anterior93dbea4d se comprobó por HTTP y navegador; la activación y verificación de contraste productivo final se registrarán tras aprobar CI.
 - Plataforma: https://qr-menu-ec.consola.workers.dev . [Demostración pública comprobada](https://qa-ficticio-octubre-2026.consola.workers.dev/menu), publicación 8 al cierre de aceptación.
 - Corrección final de contraste y evidencias: [PR 18](https://github.com/eslay07/qr-menu-ec/pull/18); precios, opciones y mensajes de validación usan los roles aceptados. Nueve combinaciones de paleta/plantilla verificadas por colores computados, mínimo4,5:1.
 - D1 operativa y D1 histórica/imágenes conservadas; migración aditiva `0006_order_operations.sql` aplicada. Firebase Authentication/FCM conservados. Sin Blaze, R2, nuevas suscripciones o proveedor contratado.
