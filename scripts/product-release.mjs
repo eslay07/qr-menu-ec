@@ -1,9 +1,10 @@
 import { execFileSync } from 'node:child_process';
 import { readFile, readdir, mkdir, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
-import { join, relative, extname, resolve } from 'node:path';
+import { join, relative, resolve } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import { cf } from './d1-transition-operator.mjs';
+import { assetDescriptor, assetPart, assetMime } from './release-assets.mjs';
 
 const output = 'work/product-release';
 const base = '/workers/scripts/qr-menu-ec';
@@ -45,13 +46,13 @@ if (mode === '--stage') {
   }
   const apkHash = hash(assets.get('/downloads/qr-menu-ec.apk'));
   if (!assets.get('/downloads/SHA256SUMS.txt').toString().includes(apkHash)) throw Error('Distribution checksum mismatch.');
-  const manifest = Object.fromEntries([...assets].map(([path, bytes]) => [path, { hash: hash(bytes.toString('base64') + extname(path).slice(1)).slice(0,32), size: bytes.length }]));
-  const byHash = new Map([...assets].map(([path, bytes]) => [manifest[path].hash, bytes]));
+  const manifest = Object.fromEntries([...assets].map(([path, bytes]) => [path, assetDescriptor(path,bytes)]));
+  const byHash = new Map([...assets].map(([path, bytes]) => [manifest[path].hash, {path,bytes}]));
   const session = await cf(base + '/assets-upload-session', 'POST', { manifest });
   let jwt = session.buckets.length ? null : session.jwt;
   for (const bucket of session.buckets) {
     const data = new FormData();
-    for (const key of bucket) data.append(key, new Blob([byHash.get(key).toString('base64')], { type: 'application/octet-stream' }), key);
+    for (const key of bucket) {const asset=byHash.get(key);data.append(key,assetPart(asset.path,asset.bytes),key);}
     const response = await fetch('https://api.cloudflare.com/client/v4/accounts/088309af758852fcbfc714c622dff11d/workers/assets/upload?base64=true', { method: 'POST', headers: { Authorization: `Bearer ${session.jwt}` }, body: data, signal: AbortSignal.timeout(60000) });
     const result = await response.json();
     if (!response.ok || !result.success) throw Error('Asset upload failed.');
@@ -84,6 +85,26 @@ if (mode === '--stage') {
   await cf(base + '/deployments', 'POST', { strategy: 'percentage', versions: [{ version_id: target, percentage: 100 }] });
   const served = await active();
   if (served.length !== 1 || served[0].version_id !== target || served[0].percentage !== 100) throw Error('Traffic change not verified.');
+  if(mode==='--activate'){
+    try{
+      const response=await fetch(origin+'/owner',{signal:AbortSignal.timeout(60000)});
+      if(!response.ok || !response.headers.get('content-type')?.startsWith('text/html'))throw Error('HTML content type invalid.');
+      const html=await response.text(),expected=await readFile('dist-worker/index.html','utf8');
+      for(const match of expected.matchAll(/(?:src|href)="(\/assets\/[^\"]+)"/g)){
+        const path=match[1];if(!html.includes(path))throw Error('HTML release mismatch.');
+        const result=await fetch(origin+path,{signal:AbortSignal.timeout(60000)});
+        if(!result.ok || !result.headers.get('content-type')?.startsWith(assetMime(path)))throw Error('Asset content type invalid: '+path);
+        if(hash(Buffer.from(await result.arrayBuffer()))!==hash(await readFile('dist-worker'+path)))throw Error('Asset bytes mismatch: '+path);
+      }
+    }catch(error){
+      const current=await active();
+      if(current.length!==1 || current[0].version_id!==target || current[0].percentage!==100)throw Error('Activation check failed and traffic changed; inspect before rollback.');
+      await cf(base+'/deployments','POST',{strategy:'percentage',versions:[{version_id:receipt.parentVersion,percentage:100}]});
+      const restored=await active();if(restored.length!==1 || restored[0].version_id!==receipt.parentVersion || restored[0].percentage!==100)throw Error('Activation failed and rollback unconfirmed.');
+      await writeFile(output+'/rollback.json',JSON.stringify({checkedAt:new Date().toISOString(),versionId:receipt.parentVersion,traffic:100,reason:String(error)},null,2));
+      throw Error('Activation validation failed; rollback verified: '+String(error));
+    }
+  }
   await writeFile(output + (mode === '--rollback' ? '/rollback.json' : '/deployment.json'), JSON.stringify({ checkedAt: new Date().toISOString(), versionId: target, traffic: 100 }, null, 2));
   console.log(JSON.stringify({versionId:target,traffic:100}));
 }
