@@ -38,7 +38,7 @@ try {
   await page.getByLabel('Naranja').check();
   await page.getByLabel('Nota para este plato').fill('sin azúcar');
   await page.getByRole('button', { name: 'Añadir configurado' }).click();
-  await page.getByRole('button', { name: 'Revisar mi pedido' }).click();
+  await page.locator('.selection-bar').click();
   await page.getByLabel('Nombre o alias').fill('Prueba producción');
   await page.getByRole('button', { name: 'Confirmar pedido' }).click();
 

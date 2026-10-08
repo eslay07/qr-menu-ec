@@ -17,3 +17,15 @@ void test('legacy migration 0006 and D1 operation batches preserve retry identit
  }finally{sqlite.close();}
 });
 
+
+void test('legacy order commit guards publication version inside SQL batch and never leaves an operation after concurrent publish',async()=>{
+ const {sql,sqlite}=createD1Fixture();sqlite.exec(readFileSync('drizzle/0002_orders_and_hosts.sql','utf8'));sqlite.exec(readFileSync('drizzle/0006_order_operations.sql','utf8'));sqlite.exec('CREATE TABLE application (id TEXT PRIMARY KEY, revision INTEGER, data TEXT)');
+ const store=new D1OrderStore(sql),rid=crypto.randomUUID();sqlite.prepare('INSERT INTO application VALUES (?,0,?)').run(rid,JSON.stringify({published:{version:1},access:{active:true,features:['orders']},settings:{ordersEnabled:true}}));
+ const order:OrderRecord={id:crypto.randomUUID(),restaurantId:rid,number:'FICTICIO',status:'confirmed',demo:false,alias:'Ensayo',restaurantName:'Prueba concurrente',menuVersion:1,currency:'USD',totalCents:500,createdAt:new Date().toISOString(),publicExpiresAt:new Date(Date.now()+3600000).toISOString(),cancelledAt:null,lines:[{id:'line',dishId:'dish',dishName:'Plato',quantity:1,basePriceCents:500,unitPriceCents:500,totalCents:500,note:'',options:[]}]};
+ const operation={key:crypto.randomUUID(),payloadHash:'same',token:'legacy-test',order};const batch=sql.batch.bind(sql);let raced=false;
+ sql.batch=async(statements)=>{if(!raced){raced=true;sqlite.prepare('UPDATE application SET data=? WHERE id=?').run(JSON.stringify({published:{version:2},access:{active:true,features:['orders']},settings:{ordersEnabled:true}}),rid);}return batch(statements);};
+ try{
+  await assert.rejects(store.createOnce(order,'hash-a',operation,1),/La carta cambió/);assert.equal((await store.list(rid)).length,0);assert.equal(await store.operation(rid,operation.key),null);
+  const accepted=await store.createOnce(order,'hash-a',operation,2);assert.equal(accepted.order.id,order.id);sqlite.prepare('UPDATE application SET data=? WHERE id=?').run(JSON.stringify({published:{version:3},access:{active:true,features:['orders']},settings:{ordersEnabled:true}}),rid);assert.equal((await store.createOnce(order,'hash-b',operation,2)).order.id,order.id);assert.equal((await store.list(rid)).length,1);
+ }finally{sqlite.close();}
+});

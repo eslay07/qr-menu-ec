@@ -10,27 +10,38 @@ export class FirestoreOrderStore implements OrderStore {
   async operation(restaurantId:string,key:string) {return (await this.db.get<OrderOperation>('restaurants/'+firestoreId(restaurantId)+'/orderOperations/'+firestoreId(key)))?.data || null;}
   private async publicationGuard(restaurantId:string,version:number) {
     const path='restaurants/'+firestoreId(restaurantId);
-    const current=await this.db.get<{published:{version:number}|null}>(path);
+    const current=await this.db.get<{published:{version:number}|null;access?:{active?:boolean;features?:string[]}}>(path);
     if(!current || current.data.published?.version!==version)throw new PublicationChangedError();
+    if(current.data.access && (current.data.access.active===false || !current.data.access.features?.includes('orders')))throw new PublicationChangedError();
+    const settings=await this.db.get('restaurants/'+firestoreId(restaurantId)+'/settings/general');
+    if(settings && settings.data.ordersEnabled!==true)throw new PublicationChangedError();
     return {path,data:{},mask:[],updateTime:current.updateTime};
   }
   async createValidated(order:OrderRecord,tokenHash:string,expectedPublicationVersion:number) {
-    const guard=await this.publicationGuard(order.restaurantId,expectedPublicationVersion);
-    try {await this.create(order,tokenHash,true,undefined,guard);}
-    catch(error) {if(error instanceof FirestoreError && error.conflict)throw new PublicationChangedError();throw error;}
+    for(let attempt=0;attempt<5;attempt++) {
+      const guard=await this.publicationGuard(order.restaurantId,expectedPublicationVersion);
+      try {await this.create(order,tokenHash,true,undefined,guard);return;}
+      catch(error) {if(!(error instanceof FirestoreError && error.conflict))throw error;}
+    }
+    throw new PublicationChangedError();
   }
   async createOnce(order:OrderRecord,tokenHash:string,operation:OrderOperation,expectedPublicationVersion?:number) {
     const path='restaurants/'+firestoreId(order.restaurantId)+'/orderOperations/'+firestoreId(operation.key);
-    const saved=await this.operation(order.restaurantId,operation.key);
-    if(saved) {if(saved.payloadHash!==operation.payloadHash)throw new OperationConflictError();return saved;}
-    const guard=expectedPublicationVersion===undefined?undefined:await this.publicationGuard(order.restaurantId,expectedPublicationVersion);
-    try {await this.create(order,tokenHash,true,{path,data:operation,exists:false},guard);return operation;}
-    catch(error) {
-      if(!(error instanceof FirestoreError && error.conflict))throw error;
-      const accepted=await this.operation(order.restaurantId,operation.key);
-      if(accepted) {if(accepted.payloadHash!==operation.payloadHash)throw new OperationConflictError();return accepted;}
-      if(guard)throw new PublicationChangedError();throw error;
+    for(let attempt=0;attempt<5;attempt++) {
+      const saved=await this.operation(order.restaurantId,operation.key);
+      if(saved) {if(saved.payloadHash!==operation.payloadHash)throw new OperationConflictError();return saved;}
+      const guard=expectedPublicationVersion===undefined?undefined:await this.publicationGuard(order.restaurantId,expectedPublicationVersion);
+      try {await this.create(order,tokenHash,true,{path,data:operation,exists:false},guard);return operation;}
+      catch(error) {
+        if(!(error instanceof FirestoreError && error.conflict))throw error;
+        const accepted=await this.operation(order.restaurantId,operation.key);
+        if(accepted) {if(accepted.payloadHash!==operation.payloadHash)throw new OperationConflictError();return accepted;}
+        if(!guard)throw error;
+        // Another purchase may have touched the same root without publishing.
+        // The next iteration checks the current version/permissions and CAS again.
+      }
     }
+    throw new PublicationChangedError();
   }
   async create(order: OrderRecord, tokenHash: string, emitNotification = true, operationWrite?: import('./firestore-rest').FirestoreWrite, publicationGuard?: import('./firestore-rest').FirestoreWrite) {
     if (order.lines.length < 1 || order.lines.length > 100 || new Set(order.lines.map(line => line.id)).size !== order.lines.length) throw Error('Líneas de pedido inválidas.');

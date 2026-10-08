@@ -1,6 +1,6 @@
 import { readFile, writeFile } from 'node:fs/promises';
 const rows = [];
-for (const kind of ['', 'owner-', 'session-']) for (const phase of ['before', 'after']) {
+for (const kind of ['', 'owner-', 'session-', 'cart-order-']) for (const phase of ['before', 'after']) {
   let document;
   try { document = JSON.parse(await readFile(`outputs/mobile-performance/${kind}${phase}.json`, 'utf8')); } catch { continue; }
   const groups = new Map();

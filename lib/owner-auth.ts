@@ -97,12 +97,24 @@ export async function handleOwnerDevice(request: Request, env: CentralEnv, loadS
   }
   if (current.csrf_token !== request.headers.get('x-csrf-token')) return json({error:'Vuelve a iniciar sesión.'},401);
   const validSession = await security.session(request, 'owner', current.restaurant_id);
-  if (validSession) {await security.bindDeviceSession(request,await digest(request.headers.get('cookie')?.split(';').map(p=>p.trim()).find(p=>p.startsWith('__Host-qrmenu_owner='))?.slice('__Host-qrmenu_owner='.length)||''));return json({ownerUrl:`/r/${current.restaurant_id}/`});}
+  if (validSession) {
+    const token=request.headers.get('cookie')?.split(';').map(p=>p.trim()).find(p=>p.startsWith('__Host-qrmenu_owner='))?.slice('__Host-qrmenu_owner='.length)||'';
+    if (!await security.bindDeviceSession(request,await digest(token)) || await security.rememberedSessionRevoked({id_hash:'',session_hash:await digest(token)})) {
+      await security.revokeSession(request,'owner');
+      const response=json({error:'Vuelve a iniciar sesión.'},401,{'Set-Cookie':security.clearDeviceCookie()});
+      response.headers.append('Set-Cookie',security.clearSessionCookie('owner'));return response;
+    }
+    return json({ownerUrl:`/r/${current.restaurant_id}/`});
+  }
   const rotated = await security.rotateDevice(request, request.headers.get('x-csrf-token')!);
   if (!rotated) return json({ error: 'Vuelve a iniciar sesión.' }, 401);
   await security.resumeRememberedOwner(rotated.restaurantId);
   const session = await security.createSession('owner', rotated.restaurantId);
-  await security.bindDeviceSession(new Request(request.url,{headers:{cookie:rotated.cookie.split(';')[0]}}),session.sessionHash);
+  if(!await security.bindDeviceSession(new Request(request.url,{headers:{cookie:rotated.cookie.split(';')[0]}}),session.sessionHash) || await security.rememberedSessionRevoked({id_hash:'',session_hash:session.sessionHash})){
+    await security.revokeSessionById('owner',rotated.restaurantId,session.sessionHash);
+    const response=json({error:'Vuelve a iniciar sesión.'},401,{'Set-Cookie':security.clearDeviceCookie()});
+    response.headers.append('Set-Cookie',security.clearSessionCookie('owner'));return response;
+  }
   const response = json({ ownerUrl: `/r/${rotated.restaurantId}/` }, 200, { 'Set-Cookie': session.cookie });
   response.headers.append('Set-Cookie', rotated.cookie);
   return response;

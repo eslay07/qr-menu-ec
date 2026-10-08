@@ -28,7 +28,7 @@ El inventario remoto de los respaldos nuevos confirmó `b582cbc6-9d31-4d51-b42b-
 
 ## Verificación local y límites actuales
 
-Tipos y build Worker aprobados. Suite general: 142 casos, 123 aprobados, 19 dependientes del emulador omitidos; suite específica Firestore 21 aprobados y reglas 8 aprobados. El primer launcher Firestore terminó con error al detener el emulador tras pasar sus pruebas; la repetición de reglas terminó correctamente. Lint no está aprobado: conserva deuda previa y hallazgos de archivos modificados; no se desactivaron reglas. Consultar logs locales outputs/product-tests-final.txt, product-emulator-tests.txt, product-rules-final.txt y lint-product-release-final.txt.
+Tipos y build Worker aprobados. Suite general: 160 casos, 141 aprobados, 19 dependientes del emulador omitidos; suite específica Firestore y reglas repetida: 21 aprobados, cero fallos y cero omisiones. El primer launcher Firestore terminó con error al detener el emulador tras pasar sus pruebas; la repetición de reglas terminó correctamente. Lint no está aprobado: conserva deuda previa y hallazgos de archivos modificados; no se desactivaron reglas. Consultar logs locales outputs/product-tests-final.txt, product-emulator-tests.txt, product-rules-final.txt y lint-product-release-final.txt.
 
 La comparación vigente de rendimiento está en [performance-release-2026-10-08.md](performance-release-2026-10-08.md). Sustituye mediciones anteriores sin gzip. Declara por separado API simulada, automatización y muestras aún faltantes; no acredita un dispositivo físico.
 
@@ -36,4 +36,4 @@ Capturas locales: 30 combinaciones de 3 plantillas, cinco anchos (320/360/390/76
 
 Migración aditiva 0006 aplicada y comprobada en D1 histórica, sin modificar datos existentes. Las versiones preparadas sin tráfico no constituyen despliegue ni aceptación productiva. No habilitar URL de versiones históricas para probar candidatos.
 
-Pendiente antes de activar: cerrar carreras concurrentes publicación/pedido y revocación/refresh detectadas por revisión independiente; ejecutar pruebas específicas y preparar versión nueva. Pendiente comprobación de dueño ficticio y Android real con cuenta ficticia. No afirmar producto listo para vender hasta completar recorridos productivos.
+Las carreras de publicación/pedido, revocación/refresh y entrega FCM quedaron corregidas y verificadas con pruebas independientes. El dueño ficticio inició sesión realmente; el Honor conectado abrió esa misma cuenta. Se creó el subdominio real de ensayo con TLS/ruta verificados. Pendiente comprobación completa de la versión productiva nueva. No afirmar producto listo para vender hasta completar recorridos productivos.

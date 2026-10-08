@@ -678,6 +678,7 @@ export async function handleApi(
       const previous = input.operationKey && opts.orderStore.operation ? await opts.orderStore.operation(s.restaurantId,input.operationKey) : null;
       if(previous) {
         if(previous.payloadHash!==payloadHash)throw new OperationConflictError();
+        if(Date.parse(previous.order.publicExpiresAt)<=Date.now())return json({error:'El enlace público del pedido expiró. La operación se conserva y no se creará otro pedido.'},410);
         const publicUrl=orderPublicUrl(req,previous.token,opts.basePath);
         return json({order:previous.order,publicUrl,pdfUrl:orderPdfUrl(req,previous.token,opts.basePath),qrPayload:publicUrl},201);
       }
@@ -760,10 +761,17 @@ export async function handleApi(
     }
     if (path === 'logout' && method === 'POST') {
       const closingSession = opts.push ? await secureSession() : null;
-      if (closingSession && opts.push) await opts.push.revokeSession(closingSession.csrfToken);
       if (opts.security) {
         await opts.security.revokeSession(req, securityScope);
         if (securityScope === 'owner') await opts.security.revokeDevice(req);
+        if (closingSession && opts.push) await opts.push.revokeSession(closingSession.csrfToken);
+        if(opts.push && securityScope==='owner') {
+          const cookie=(name:string)=>req.headers.get('cookie')?.split(';').map(part=>part.trim()).find(part=>part.startsWith(name+'='))?.slice(name.length+1);
+          const ownerToken=cookie('__Host-qrmenu_owner'),deviceToken=cookie('__Host-qrmenu_device');
+          if(ownerToken)await opts.push.revokeSessionFamily(await digest(ownerToken));
+          if(deviceToken)await opts.push.revokeDeviceFamily(await digest(deviceToken));
+        }
+
         const response = json({ ok: true }, 200, {
           'Set-Cookie': opts.security.clearSessionCookie(securityScope),
         });
@@ -825,15 +833,14 @@ export async function handleApi(
     if (deviceMatch && method === 'DELETE' && opts.security) {
       const deviceId = z.string().regex(/^(?:[a-f0-9]{64}|[A-Za-z0-9+/]{43}=)$/).parse(decodeURIComponent(deviceMatch[1]));
       await opts.security.revokeDeviceById(s.restaurantId, deviceId);
+      if(opts.push)await opts.push.revokeDeviceFamily(deviceId);
       return json({ ok: true });
     }
     const sessionMatch = path.match(/^sessions\/([^/]+)$/);
     if (sessionMatch && method === 'DELETE' && opts.security) {
-      await opts.security.revokeSessionById(
-        'owner',
-        s.restaurantId,
-        z.string().regex(/^(?:[a-f0-9]{64}|[A-Za-z0-9+/]{43}=)$/).parse(decodeURIComponent(sessionMatch[1])),
-      );
+      const sessionId=z.string().regex(/^(?:[a-f0-9]{64}|[A-Za-z0-9+/]{43}=)$/).parse(decodeURIComponent(sessionMatch[1]));
+      await opts.security.revokeSessionById('owner',s.restaurantId,sessionId);
+      if(opts.push)await opts.push.revokeSessionFamily(sessionId);
       return json({ ok: true });
     }
     if (path === 'state' && method === 'GET')

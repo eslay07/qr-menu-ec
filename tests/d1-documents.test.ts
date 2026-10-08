@@ -155,7 +155,7 @@ test('D1 push delivers through FCM contract, preferences gate delivery, tokens s
   const security=new AuthSecurity({DB:sql,DATA_PROVIDER:'d1-documents',DATA_ENCRYPTION_KEY:Buffer.alloc(32,8).toString('base64')});
   await db.commit([{path:`restaurants/${rid}`,data:{access:{active:true}}},{path:`restaurants/${rid}/private/auth`,data:{sessionEpoch:1}}]);
   const push=new FirestorePush(db,rid,security),token='fake-test-token-not-a-real-phone';
-  await push.register({token,platform:'android'},1,'test-session');
+  await push.register({token,platform:'android'},1,(await security.createSession('owner',rid)).csrfToken);
   assert.ok(!JSON.stringify((await db.list(`restaurants/${rid}/pushDevices`)).documents).includes(token));
   let sends=0;
   const sender=new FcmSender('demo-qr-menu-ec',async()=>'test',async()=>{sends++;return Response.json({name:'test'});});
@@ -217,4 +217,47 @@ test('workers.dev provisioning reserves ownership before upload and never overwr
  };
  try {assert.equal(await domains.provisionFree(rid,'Mesa','https://example.test'),'https://mesa-2.testing.workers.dev/menu');assert.deepEqual(uploads,['mesa-2']);assert.equal((await db.get('hostnames/mesa-2.testing.workers.dev'))?.data.status,'active');}
  finally{globalThis.fetch=original;sqlite.close();}
+});
+
+void test('order API rejects publication changed between validation and atomic commit without orphan order or operation, then preserves original retries',async()=>{
+ const {db,sqlite}=fixture(),rid=crypto.randomUUID(),orders=new FirestoreOrderStore(db),{handleApi}=await import('../lib/api');
+ const catalog={...structuredClone(blankCatalog),name:'Ficticio concurrente',dishes:[{id:'dish',name:'Ficticio',description:'',categoryId:'principales',priceCents:500,available:true,image:'',modifierGroups:[]}]};
+ const state:State={schemaVersion:1,restaurantId:rid,ownerId:'',draft:structuredClone(catalog),settings:{webUrl:'',ordersEnabled:true},published:{version:1,at:new Date().toISOString(),catalog},license:null,password:{salt:'',hash:''},recoveryHash:'',sessionEpoch:1,failures:{count:0,until:0},createdAt:new Date().toISOString(),access:{active:true,features:['orders'],maxDishes:40}};
+ await db.commit([{path:'restaurants/'+rid,data:{published:{version:1},publishedCatalogId:'v1'},exists:false}]);
+ const original=db.commit.bind(db);let raced=false;
+ db.commit=async(writes)=>{if(!raced && writes.some(w=>w.path.includes('/orderOperations/'))){raced=true;await original([{path:'restaurants/'+rid,data:{published:{version:2},publishedCatalogId:'v2',publishedPriceCents:1000}}]);}return original(writes);};
+ const input={operationKey:crypto.randomUUID(),menuVersion:1,alias:'Ficticio',lines:[{dishId:'dish',quantity:1,selections:[],note:''}],expectedTotalCents:500};
+ const request=(payload:unknown)=>handleApi(new Request('https://example.test/api/v1/orders',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(payload)}),{async read(){return {revision:1,state};},async readMenu(){return {revision:1,state};},async commit(){throw Error('Orders never save catalog');},async mediaGet(){return null;},async mediaPut(){}},{publicKey:'',setupToken:'',runtime:'cloud',ownerAccess:true,grantedFeatures:['orders'],orderStore:orders});
+ try{
+   const rejected=await request(input);assert.equal(rejected.status,409);assert.match((await rejected.json() as any).error,/La carta cambió/);assert.equal((await db.all(`restaurants/${rid}/orders`)).length,0);assert.equal((await db.all(`restaurants/${rid}/orderOperations`)).length,0);assert.equal((await db.all(`restaurants/${rid}/notifications`)).length,0);
+   state.published!.version=2;state.published!.catalog.dishes[0].priceCents=1000;const acceptedInput={...input,menuVersion:2,expectedTotalCents:1000};const accepted=await request(acceptedInput);assert.equal(accepted.status,201);const acceptedBody=await accepted.json() as any;
+   state.published!.version=3;state.published!.catalog.dishes[0].priceCents=1500;await original([{path:'restaurants/'+rid,data:{published:{version:3},publishedCatalogId:'v3'}}]);
+   const retry=await request(acceptedInput);assert.equal(retry.status,201);assert.equal((await retry.json() as any).order.id,acceptedBody.order.id);assert.equal((await db.all(`restaurants/${rid}/orders`)).length,1);
+   const operation=(await orders.operation(rid,input.operationKey))!;
+   operation.order.publicExpiresAt=new Date(Date.now()-1000).toISOString();
+   await original([{path:'restaurants/'+rid+'/orderOperations/'+input.operationKey,data:operation}]);
+   const expired=await request(acceptedInput);assert.equal(expired.status,410);
+   const expiredBody=await expired.json() as any;assert.equal(expiredBody.order,undefined);assert.equal(expiredBody.publicUrl,undefined);
+   assert.equal((await db.all('restaurants/'+rid+'/orders')).length,1);assert.ok(await orders.operation(rid,input.operationKey));
+ }finally{sqlite.close();}
+});
+
+void test('platform hostnames use atomic numeric collisions and remain pending until routing is verified',async()=>{
+ const {db,sql,sqlite}=fixture(),{DomainService}=await import('../lib/domains');const domains=new DomainService({DB:sql,DATA_PROVIDER:'d1-documents',PLATFORM_MENU_DOMAIN:'menus.test'});
+ const a=crypto.randomUUID(),b=crypto.randomUUID();
+ try{
+  const urls=await Promise.all([domains.provisionFree(a,'Café Ñaña','https://example.test'),domains.provisionFree(b,'Café Ñaña','https://example.test')]);assert.deepEqual(new Set(urls),new Set(['https://cafe-nana.menus.test/menu','https://cafe-nana-2.menus.test/menu']));
+  const hosts=await db.all('hostnames');assert.equal(hosts.length,2);assert.equal(hosts.every(h=>h.data.status==='pending_route'),true);assert.equal(new Set(hosts.map(h=>h.data.restaurantId)).size,2);
+ }finally{sqlite.close();}
+});
+
+void test('distinct concurrent operation keys both commit against an unchanged publication despite root CAS contention',async()=>{
+ const {db,sqlite}=fixture(),rid=crypto.randomUUID(),orders=new FirestoreOrderStore(db);
+ await db.commit([{path:'restaurants/'+rid,data:{published:{version:1},access:{active:true,features:['orders']}},exists:false},{path:'restaurants/'+rid+'/settings/general',data:{ordersEnabled:true},exists:false}]);
+ const order:OrderRecord={id:crypto.randomUUID(),restaurantId:rid,number:'FICTICIO concurrente',status:'confirmed',demo:true,alias:'Ensayo',restaurantName:'Ficticio',menuVersion:1,currency:'USD',totalCents:500,createdAt:new Date().toISOString(),publicExpiresAt:new Date(Date.now()+3600000).toISOString(),cancelledAt:null,lines:[{id:'line',dishId:'dish',dishName:'Ficticio',quantity:1,basePriceCents:500,unitPriceCents:500,totalCents:500,note:'',options:[]}]};
+ const second={...order,id:crypto.randomUUID()};
+ try{
+  const outcomes=await Promise.all([orders.createOnce(order,'hash-a',{key:crypto.randomUUID(),payloadHash:'same',token:'token-a',order},1),orders.createOnce(second,'hash-b',{key:crypto.randomUUID(),payloadHash:'same',token:'token-b',order:second},1)]);
+  assert.notEqual(outcomes[0].order.id,outcomes[1].order.id);assert.equal((await db.all(`restaurants/${rid}/orders`)).length,2);assert.equal((await db.all(`restaurants/${rid}/orderOperations`)).length,2);
+ }finally{sqlite.close();}
 });
