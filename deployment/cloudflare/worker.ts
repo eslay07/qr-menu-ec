@@ -102,6 +102,13 @@ async function routeRequest(request: Request, env: Env, context: ExecutionContex
     url.pathname = url.pathname.slice(0, -1);
     return Response.redirect(url.toString(), 308);
   }
+  if (['GET', 'HEAD'].includes(request.method) && url.pathname === '/downloads/android-release.json') {
+    const response = await env.ASSETS.fetch(request);
+    const headers = new Headers(response.headers);
+    headers.set('Cache-Control', 'no-store');
+    headers.set('X-Content-Type-Options', 'nosniff');
+    return new Response(response.body, { status: response.status, headers });
+  }
   // Static downloads and login shells do not require a database lookup.
   if (['GET', 'HEAD'].includes(request.method) && (url.pathname.startsWith('/assets/') || url.pathname.startsWith('/downloads/') || url.pathname === '/firebase-messaging-sw.js')) return env.ASSETS.fetch(request);
   if (request.method === 'GET' && ['/owner', '/creator', '/demo'].includes(url.pathname)) {

@@ -1,6 +1,6 @@
 plugins { id("com.android.application"); id("org.jetbrains.kotlin.android") }
 android { namespace="ec.qrmenu.app"; compileSdk=35
- defaultConfig { applicationId="ec.qrmenu.app"; minSdk=29; targetSdk=35; versionCode=14; versionName="0.8.3"
+ defaultConfig { applicationId="ec.qrmenu.app"; minSdk=29; targetSdk=35; versionCode=15; versionName="0.8.4"
   buildConfigField("String", "PLATFORM_HOST", "\"qr-menu-ec.consola.workers.dev\"")
   manifestPlaceholders["appLabel"] = "QR Menu EC"
  }
@@ -21,6 +21,8 @@ android { namespace="ec.qrmenu.app"; compileSdk=35
  }
 }
 dependencies {
+ testImplementation("junit:junit:4.13.2")
+ implementation("androidx.core:core:1.15.0")
  implementation("com.google.firebase:firebase-messaging:25.1.3")
  implementation("androidx.webkit:webkit:1.12.1")
 }

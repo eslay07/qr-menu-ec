@@ -5,6 +5,7 @@ import { join, relative, resolve } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import { cf } from './d1-transition-operator.mjs';
 import { assetDescriptor, assetPart, assetMime } from './release-assets.mjs';
+import { checkedAndroidRelease } from './android-release.mjs';
 
 const output = 'work/product-release';
 const base = '/workers/scripts/qr-menu-ec';
@@ -48,8 +49,17 @@ if (mode === '--stage') {
   if (process.env.QR_MENU_RELEASE_APK) {
     const apk = await readFile(resolve(process.env.QR_MENU_RELEASE_APK));
     if (!process.env.QR_MENU_RELEASE_APK_SHA256 || hash(apk) !== process.env.QR_MENU_RELEASE_APK_SHA256) throw Error('New signed APK checksum not verified.');
+    if (!process.env.QR_MENU_RELEASE_APK_METADATA) throw Error('New APK requires update metadata.');
+    const release = checkedAndroidRelease(JSON.parse(await readFile(resolve(process.env.QR_MENU_RELEASE_APK_METADATA), 'utf8')), apk);
     assets.set('/downloads/qr-menu-ec.apk', apk);
     assets.set('/downloads/SHA256SUMS.txt', Buffer.from(`${hash(apk)}  qr-menu-ec.apk\n`));
+    assets.set('/downloads/android-release.json', Buffer.from(JSON.stringify(release)));
+  } else {
+    const response = await fetch(origin + '/downloads/android-release.json', { signal: AbortSignal.timeout(15000) });
+    if (response.ok && response.headers.get('content-type')?.startsWith('application/json')) {
+      const release = checkedAndroidRelease(await response.json(), assets.get('/downloads/qr-menu-ec.apk'));
+      assets.set('/downloads/android-release.json', Buffer.from(JSON.stringify(release)));
+    }
   }
   const apkHash = hash(assets.get('/downloads/qr-menu-ec.apk'));
   if (!assets.get('/downloads/SHA256SUMS.txt').toString().includes(apkHash)) throw Error('Distribution checksum mismatch.');

@@ -29,6 +29,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 
 class OwnerActivity : Activity() {
+    private val updater by lazy { OwnerUpdater(this, platformHost) { !isFinishing && !isDestroyed && !awaitingUnlock && lockScreen.visibility == View.GONE } }
     private var pushBridge: OwnerPushBridge? = null
     private var printBridge: OwnerPrintBridge? = null
     private var backCallback: OnBackInvokedCallback? = null
@@ -160,6 +161,8 @@ class OwnerActivity : Activity() {
         awaitingUnlock = false
         prompting = false
         lockScreen.visibility = View.GONE
+        updater.check()
+        updater.installPending()
         if (pendingNotification != null) { firstLoad = false; webView.loadUrl(pendingNotification!!); pendingNotification = null }
         else if (firstLoad) { firstLoad = false; webView.loadUrl(ownerUrl) }
     }
@@ -222,6 +225,7 @@ class OwnerActivity : Activity() {
     }
 
     override fun onStop() {
+        updater.hide()
         super.onStop()
         if (preferences.getBoolean("entered", false) && !awaitingUnlock) {
             lastBackground = System.currentTimeMillis()
@@ -231,6 +235,7 @@ class OwnerActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
+        if (::lockScreen.isInitialized && lockScreen.visibility == View.GONE) { updater.check(); updater.installPending() }
         if (requestUnlockOnResume && !prompting) {
             requestUnlockOnResume = false
             unlock()
@@ -284,6 +289,7 @@ class OwnerActivity : Activity() {
     override fun onDestroy() {
         if (Build.VERSION.SDK_INT >= 33) backCallback?.let { onBackInvokedDispatcher.unregisterOnBackInvokedCallback(it) }
         backCallback = null
+        updater.destroy()
         biometricCancellation?.cancel()
         fileCallback?.onReceiveValue(null)
         fileCallback = null
