@@ -23,3 +23,5 @@ Conserva respaldos cifrados fuera de Git. El flujo existente `production-backup.
 Para revertir una entrega compatible, comprueba la versión activa y activa la versión anterior inventariada mediante el procedimiento Cloudflare del proyecto, conservando las escrituras posteriores. No importes un SQL antiguo sobre producción. Si el esquema o las escrituras son incompatibles, detén mutaciones y concilia antes de restaurar. Conserva las claves DPAPI y de cifrado de aplicación; no las publiques ni regeneres.
 
 Al realizar una aceptación, registra URL, commit, versión realmente servida, resultados y limpieza de los datos ficticios. Las capturas locales, la emulación móvil y el zoom CSS no sustituyen la comprobación en producción, el zoom real del navegador ni un teléfono físico.
+
+El editor agrupa ajustes en secciones desplegables. Atrás vuelve a la sección anterior; cerrar secciones conserva lo escrito. Si aparece un aviso de cambios remotos, usa **Recargar app**: los cambios locales sin guardar requieren confirmación antes de descartarse. Consulta [la actualización del editor](owner-editor-update-2026-10-08.md).

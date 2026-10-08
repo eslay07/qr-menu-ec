@@ -20,3 +20,9 @@ test('quota errors produce a safe retryable 503, never an unhandled 500 or secre
   assert.doesNotMatch(body, /RESOURCE_EXHAUSTED|Firestore|private_key/);
   assert.equal(response.headers.get('Cache-Control'), 'no-store');
 });
+
+void test('Android update metadata is fresh and available without private database queries', async () => {
+ const data=JSON.stringify({versionCode:15});
+ const env={DB:{prepare(){throw Error('Update metadata must not query DB');}},ASSETS:{fetch:async()=>new Response(data,{headers:{'Content-Type':'application/json','Cache-Control':'public,max-age=86400'}})}} as unknown as Parameters<typeof worker.fetch>[1];
+ for(const method of ['GET','HEAD']){const response=await worker.fetch(new Request('https://qr-menu-ec.consola.workers.dev/downloads/android-release.json',{method}),env,context);assert.equal(response.status,200);assert.equal(response.headers.get('Cache-Control'),'no-store');assert.equal(response.headers.get('Content-Type'),'application/json');assert.equal(response.headers.get('X-Content-Type-Options'),'nosniff');}
+});

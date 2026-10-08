@@ -1,0 +1,14 @@
+{
+  "versionName": "0.8.3",
+  "versionCode": 14,
+  "package": "ec.qrmenu.app",
+  "apk": "outputs/QR-Menu-EC.apk",
+  "sha256": "05471AC045EA39010658521E69F45FEC09571EC896BFCE069B8FDCB3C6D8596E",
+  "certificateSha256": "0e76175d89b42ca667d1557fe1df8d47f44a2c5e79b4d9d570a863bf52d83b6c",
+  "sameSignerAsPrevious": true,
+  "signature": "v3 verified",
+  "build": "assembleRelease and lintRelease successful",
+  "device": "adb inventory empty; no physical validation",
+  "backContract": "window.qrMenuHandleBack(): boolean; true consumes modal or tab history, false root",
+  "retry": "Initial JVM memory allocation failure; successful retry max-workers1 heap768MB Kotlin in-process"
+}

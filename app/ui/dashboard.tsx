@@ -43,6 +43,7 @@ import { revealIssue } from './reveal-issue';
 import RestaurantPreferencesPanel from './restaurant-preferences';
 import OwnerNotifications from './owner-notifications';
 import ContactEditor from './contact-editor';
+import EditorSection, {focusEditorField} from './editor-section';
 import { AppearanceEditor, CategoriesEditor, validateAppearance } from './catalog-editors';
 
 type PanelState = {
@@ -104,6 +105,53 @@ export default function Dashboard() {
   const settingsDirty =
     !!state && JSON.stringify(settings) !== JSON.stringify(state.settings);
   const pendingRef = useRef(false);
+  const [externalChange, setExternalChange] = useState(false);
+  const stateRef = useRef(state);
+  const busyRef = useRef(busy);
+  useEffect(() => { stateRef.current = state; busyRef.current = busy; }, [state, busy]);
+  function navigateTab(next: string) {
+    if (next === tab) return;
+    history.pushState({ ...history.state, ownerTab: next, ownerDepth: (history.state?.ownerDepth || 0) + 1 }, '', location.href);
+    setTab(next);
+  }
+  useEffect(() => {
+    history.replaceState({ ...history.state, ownerTab: 'Carta', ownerDepth: 0 }, '', location.href);
+    const back = (event: PopStateEvent) => setTab(event.state?.ownerTab || 'Carta');
+    window.addEventListener('popstate', back);
+    return () => window.removeEventListener('popstate', back);
+  }, []);
+  useEffect(() => {
+    const bridge = window as Window & { qrMenuHandleBack?: () => boolean };
+    bridge.qrMenuHandleBack = () => {
+      if (editing || sampleConfirm) {
+        if (!busy && !photoBusy) { setEditing(null); setSampleConfirm(false); }
+        return true;
+      }
+      if (history.state?.ownerDepth > 0) { history.back(); return true; }
+      if (tab !== 'Carta') { setTab('Carta'); return true; }
+      return false;
+    };
+    return () => { delete bridge.qrMenuHandleBack; };
+  }, [editing, sampleConfirm, busy, photoBusy, tab]);
+  useEffect(() => {
+    let checking = false;
+    const check = async () => {
+      if (checking || busyRef.current || !stateRef.current || document.visibilityState !== 'visible') return;
+      checking = true;
+      const baseline = stateRef.current;
+      try {
+        const latest = await api('editor-version');
+        if (stateRef.current !== baseline || busyRef.current) return;
+        if (latest.revision !== baseline.revision || JSON.stringify(latest.features) !== JSON.stringify(baseline.features) || JSON.stringify(latest.entitlements) !== JSON.stringify(baseline.entitlements)) setExternalChange(true);
+      } catch (e) {
+        if ((e as Error & {status?:number}).status === 401) setExternalChange(true);
+      } finally { checking = false; }
+    };
+    const timer = window.setInterval(() => { void check(); }, 30_000);
+    window.addEventListener('focus', check);
+    document.addEventListener('visibilitychange', check);
+    return () => { clearInterval(timer); window.removeEventListener('focus', check); document.removeEventListener('visibilitychange', check); };
+  }, []);
   useDialogBehavior(!!editing || sampleConfirm, () => { if (!photoBusy && !busy) { setEditing(null); setSampleConfirm(false); } });
   pendingRef.current = dirty || settingsDirty;
   useEffect(() => {
@@ -157,6 +205,7 @@ export default function Dashboard() {
       await fn();
     } catch (e) {
       setError((e as Error).message);
+      if ((e as Error & {status?:number}).status === 409 || (e as Error).message.includes('Recarga el editor')) setExternalChange(true);
       revealIssue('.modal[role="dialog"] .notice.error, .feedback-toast[role="alert"]');
     } finally {
       setBusy(false);
@@ -180,8 +229,8 @@ export default function Dashboard() {
   }
   async function publish() {
     if (!publishNameValid(draft, !!state?.published)) {
-      setTab('Ajustes');
-      setTimeout(() => document.getElementById('restaurant-name')?.focus(), 0);
+      navigateTab('Ajustes');
+      setTimeout(() => focusEditorField('restaurant-name'), 0);
       throw Error('Agrega el nombre del restaurante antes de publicar el menú.');
     }
     if (dirty) await saveDraft();
@@ -361,7 +410,7 @@ export default function Dashboard() {
               key={item}
               aria-label={item}
               className={tab === item ? 'active' : ''}
-              onClick={() => setTab(item)}
+              onClick={() => navigateTab(item)}
             >
               {item === 'Carta' ? (
                 <Utensils />
@@ -421,6 +470,7 @@ export default function Dashboard() {
             <h1>{tab}</h1>
           </div>
         </div>
+        {externalChange && <div className="notice warning" role="alert"><p>Hay cambios en otro dispositivo o realizados por el creador. Por favor, recarga la app para actualizar el editor.</p><button className="btn primary" disabled={busy} onClick={() => { if (!pendingRef.current || window.confirm('Hay cambios sin guardar. Recargar descartará estos cambios locales. ¿Quieres recargar?')) location.reload(); }}>Recargar app</button></div>}
         {error && (
           <div className="notice error feedback-toast" role="alert">
             {error}
@@ -748,8 +798,7 @@ export default function Dashboard() {
           ))}
 
         {tab === 'Ajustes' && (
-          <section className="card settings-section">
-            <h2>Identidad del restaurante</h2>
+          <EditorSection id="editor-identity" title="Identidad del restaurante" description="Nombre, descripción y logotipo de tu carta">
             <div className="form-grid">
               <label>
                 Nombre
@@ -795,10 +844,10 @@ export default function Dashboard() {
             >
               {busy ? 'Guardando…' : dirty ? 'Guardar identidad' : 'Guardado ✓'}
             </button>
-          </section>
+          </EditorSection>
         )}
 
-        {tab === 'Ajustes' && <section className="card settings-section"><h2>Presentación</h2><div className="form-grid"><label>Plantilla<select value={draft.template || 'cards'} onChange={e=>setDraft({...draft,template:e.target.value as 'list'|'cards'|'compact'})}><option value="list">Lista</option><option value="cards">Tarjetas</option><option value="compact">Compacta</option></select></label><label>Tamaño del texto<select value={draft.textSize || 'normal'} onChange={e=>setDraft({...draft,textSize:e.target.value as 'normal'|'large'})}><option value="normal">Normal</option><option value="large">Ampliado</option></select></label></div><a className="btn" href={`${base}/preview`} target="_blank" rel="noopener noreferrer">Vista previa guardada del borrador</a></section>}
+        {tab === 'Ajustes' && <EditorSection id="editor-presentation" title="Presentación" description="Plantilla, tamaño del texto y vista previa"><div className="form-grid"><label>Plantilla<select value={draft.template || 'cards'} onChange={e=>setDraft({...draft,template:e.target.value as 'list'|'cards'|'compact'})}><option value="list">Lista</option><option value="cards">Tarjetas</option><option value="compact">Compacta</option></select></label><label>Tamaño del texto<select value={draft.textSize || 'normal'} onChange={e=>setDraft({...draft,textSize:e.target.value as 'normal'|'large'})}><option value="normal">Normal</option><option value="large">Ampliado</option></select></label></div><a className="btn" href={`${base}/preview`} target="_blank" rel="noopener noreferrer">Vista previa guardada del borrador</a></EditorSection>}
         {tab === 'Ajustes' && <ContactEditor draft={draft} setDraft={setDraft} />}
         {tab === 'Ajustes' && <AppearanceEditor draft={draft} saved={state.draft} setDraft={setDraft} />}
         {tab === 'Ajustes' && <div className="save-bar"><span>{dirty?'Cambios públicos sin guardar':'Borrador guardado'}<small>Guardar conserva el borrador. Publicar actualiza la carta pública.</small></span><button className="btn primary" disabled={!dirty||busy} onClick={()=>run(saveDraft)}>{busy?'Guardando…':'Guardar borrador'}</button></div>}
@@ -806,11 +855,11 @@ export default function Dashboard() {
 
 
         {tab === 'Ajustes' && (
-          <SecuritySettings busy={busy} run={run} role={state.role} />
+          <EditorSection id="editor-security" title="Seguridad y sesiones" description="Acceso, contraseña y dispositivos recordados"><SecuritySettings busy={busy} run={run} role={state.role} /></EditorSection>
         )}
 
         {tab === 'Ajustes' && (
-          <section className="onboard-grid">
+          <EditorSection id="editor-backups" title="Respaldos" description="Descargar una copia y restaurar el borrador"><section className="onboard-grid">
             <article className="card">
               <h2>Descargar respaldo</h2>
               <p className="muted">
@@ -858,7 +907,7 @@ export default function Dashboard() {
                 />
               </label>
             </article>
-          </section>
+          </section></EditorSection>
         )}
       </main>
 

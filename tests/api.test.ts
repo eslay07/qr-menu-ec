@@ -14,6 +14,32 @@ const publicKey = Buffer.from(
   pair.publicKey.export({ type: 'spki', format: 'der' }).subarray(-32),
 ).toString('base64');
 
+void test('editor version is private, minimal and follows catalog and permission changes without crossing restaurants', async () => {
+  const anonymous = harness();
+  assert.equal((await anonymous.call('editor-version')).status, 404, 'an unconfigured restaurant is not exposed');
+  const first = await configured();
+  const second = await configured();
+  const baseline = await first.h.call('editor-version');
+  assert.equal(baseline.status, 200);
+  assert.match(baseline.headers.get('cache-control') || '', /no-store/);
+  assert.deepEqual(Object.keys(baseline.body).sort(), ['entitlements', 'features', 'revision']);
+  assert.equal(baseline.body.revision, first.state.revision);
+  const secondVersion = await second.h.call('editor-version');
+  const secondCookie = second.h.sessionCookie();
+  second.h.useCookie(first.h.sessionCookie());
+  assert.equal((await second.h.call('editor-version')).status, 401, 'a session of another restaurant cannot read its editor version');
+  second.h.useCookie(secondCookie);
+  const changedDraft = { ...first.state.draft, description: 'Cambio externo QA FICTICIO' };
+  assert.equal((await first.h.call('draft', 'PUT', { revision: first.state.revision, catalog: changedDraft })).status, 200);
+  assert.equal((await first.h.call('editor-version')).body.revision, first.state.revision + 1);
+  assert.deepEqual((await second.h.call('editor-version')).body, secondVersion.body);
+  first.h.setPlan('basic');
+  assert.equal((await first.h.call('editor-version')).body.entitlements.push, false);
+  assert.equal((await first.h.call('editor-version', 'POST', {})).status, 404);
+  await first.h.call('logout', 'POST', {});
+  assert.equal((await first.h.call('editor-version')).status, 401);
+});
+
 test('owner plan gates are enforced on the server without blocking public basic ordering',async()=>{
  const {h}=await configured();h.setPlan('basic');
  assert.equal((await h.call('reports/orders')).status,403);
@@ -87,6 +113,8 @@ function harness(features: Array<'orders' | 'promotions'> = ['orders']) {
   };
   let cookie = '';
   return {
+    sessionCookie() { return cookie; },
+    useCookie(value: string) { cookie = value; },
     setCanonicalUrl(value: string | undefined) { canonicalUrl = value; },
     setPlan(plan:'basic'|'medium'|'premium') { if(!data)throw Error('Create first');data.state.access={...data.state.access,active:true,plan}; },
     seedOrder(order: OrderRecord) { orders.set(order.id, { order: structuredClone(order), hash: `fixture-${order.id}` }); },

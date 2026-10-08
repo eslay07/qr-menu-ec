@@ -843,6 +843,8 @@ export async function handleApi(
       if(opts.push)await opts.push.revokeSessionFamily(sessionId);
       return json({ ok: true });
     }
+    if (path === 'editor-version' && method === 'GET')
+      return json({ revision: stored.revision, features, entitlements: role === 'creator' ? entitlements({active:true,plan:'premium'}) : entitlements(s.access) });
     if (path === 'state' && method === 'GET')
       return json({ ...publicState(s, stored.revision, role, features), businessReady: !!opts.preferences });
     if (path === 'settings/notifications' && opts.preferences) {

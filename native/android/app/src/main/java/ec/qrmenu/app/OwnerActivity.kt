@@ -8,6 +8,8 @@ import android.hardware.biometrics.BiometricPrompt
 import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Bundle
+import android.window.OnBackInvokedCallback
+import android.window.OnBackInvokedDispatcher
 import android.os.Build
 import android.os.CancellationSignal
 import android.graphics.Color
@@ -27,8 +29,11 @@ import android.widget.LinearLayout
 import android.widget.TextView
 
 class OwnerActivity : Activity() {
+    private val updater by lazy { OwnerUpdater(this, platformHost) { !isFinishing && !isDestroyed && !awaitingUnlock && lockScreen.visibility == View.GONE } }
     private var pushBridge: OwnerPushBridge? = null
     private var printBridge: OwnerPrintBridge? = null
+    private var backCallback: OnBackInvokedCallback? = null
+    private var handlingBack = false
     private lateinit var webView: WebView
     private var fileCallback: ValueCallback<Array<Uri>>? = null
     private val fileRequest = 701
@@ -61,6 +66,11 @@ class OwnerActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (Build.VERSION.SDK_INT >= 33) {
+            backCallback = OnBackInvokedCallback { handleBack() }.also {
+                onBackInvokedDispatcher.registerOnBackInvokedCallback(OnBackInvokedDispatcher.PRIORITY_DEFAULT, it)
+            }
+        }
         pendingNotification = notificationUrl(intent)
         val progress = ProgressBar(this).apply { visibility = View.GONE }
         webView = WebView(this).apply {
@@ -151,6 +161,8 @@ class OwnerActivity : Activity() {
         awaitingUnlock = false
         prompting = false
         lockScreen.visibility = View.GONE
+        updater.check()
+        updater.installPending()
         if (pendingNotification != null) { firstLoad = false; webView.loadUrl(pendingNotification!!); pendingNotification = null }
         else if (firstLoad) { firstLoad = false; webView.loadUrl(ownerUrl) }
     }
@@ -213,6 +225,7 @@ class OwnerActivity : Activity() {
     }
 
     override fun onStop() {
+        updater.hide()
         super.onStop()
         if (preferences.getBoolean("entered", false) && !awaitingUnlock) {
             lastBackground = System.currentTimeMillis()
@@ -222,6 +235,7 @@ class OwnerActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
+        if (::lockScreen.isInitialized && lockScreen.visibility == View.GONE) { updater.check(); updater.installPending() }
         if (requestUnlockOnResume && !prompting) {
             requestUnlockOnResume = false
             unlock()
@@ -252,9 +266,30 @@ class OwnerActivity : Activity() {
     }
 
     @Deprecated("Deprecated in Android")
-    override fun onBackPressed() { if (awaitingUnlock) finish() else if (webView.canGoBack()) webView.goBack() else super.onBackPressed() }
+    override fun onBackPressed() { handleBack() }
+
+    private fun handleBack() {
+        if (awaitingUnlock || lockScreen.visibility != View.GONE) { finish(); return }
+        if (handlingBack || isFinishing || isDestroyed) return
+        val uri = Uri.parse(webView.url ?: "")
+        if (uri.scheme != "https" || uri.host != platformHost) { fallbackBack(); return }
+        handlingBack = true
+        // The page consumes modal closure or a React history step synchronously.
+        // Never invoke the page while the local protection screen is visible.
+        webView.evaluateJavascript("(function(){return typeof window.qrMenuHandleBack==='function' && window.qrMenuHandleBack()===true;})()") { handled ->
+            handlingBack = false
+            if (!isFinishing && !isDestroyed && !awaitingUnlock && lockScreen.visibility == View.GONE && handled != "true") fallbackBack()
+        }
+    }
+
+    private fun fallbackBack() {
+        if (webView.canGoBack()) webView.goBack() else finish()
+    }
 
     override fun onDestroy() {
+        if (Build.VERSION.SDK_INT >= 33) backCallback?.let { onBackInvokedDispatcher.unregisterOnBackInvokedCallback(it) }
+        backCallback = null
+        updater.destroy()
         biometricCancellation?.cancel()
         fileCallback?.onReceiveValue(null)
         fileCallback = null
