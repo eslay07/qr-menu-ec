@@ -10,6 +10,10 @@ import type { Store } from '../lib/store';
 import { digest } from '../lib/security';
 const origin='https://race-auth.test';
 const cookie=(value:string)=>value.split(';')[0];
+function originalCommit() {
+ // Keep the pre-mock implementation and require an explicit receiver for calls.
+ return Object.getOwnPropertyDescriptor(D1DocumentStore.prototype, 'commit')!.value as (this: D1DocumentStore, writes: Parameters<D1DocumentStore['commit']>[0]) => ReturnType<D1DocumentStore['commit']>;
+}
 async function setup(){
  const fixture=createD1Fixture(),rid=crypto.randomUUID(),env={DB:fixture.sql,DATA_PROVIDER:'d1-documents'} as CentralEnv;
  const security=new AuthSecurity(env),first=await security.createSession('owner',rid),device=await security.createDevice(rid,first.sessionHash);
@@ -20,8 +24,8 @@ async function setup(){
  const load=()=>({readSession:async()=>({revision:1,state:{restaurantId:rid,access:{active:true}}})}) as unknown as Store;
  return {...fixture,rid,env,security,first,device,other,otherDevice,request,load};
 }
-for(const action of ['revoke','logout','forget-device'] as const)test(`renewal cannot resurrect after concurrent ${action} between rotate and bind`,async t=>{
- const f=await setup();const original=D1DocumentStore.prototype.commit;let injected=false;
+for(const action of ['revoke','logout','forget-device'] as const)void test(`renewal cannot resurrect after concurrent ${action} between rotate and bind`,async t=>{
+ const f=await setup();const original=originalCommit();let injected=false;
  t.mock.method(D1DocumentStore.prototype,'commit',async function(this:D1DocumentStore,writes:Parameters<D1DocumentStore['commit']>[0]){
   await original.call(this,writes);
   if(!injected && writes.some(w=>w.path.includes('/deviceGrants/')&&w.data?.revokedAt)&&writes.some(w=>w.path.includes('/deviceGrants/')&&w.data?.revokedAt===null)){
@@ -42,8 +46,8 @@ for(const action of ['revoke','logout','forget-device'] as const)test(`renewal c
   assert.ok(await f.security.device(new Request(origin,{headers:{cookie:cookie(f.otherDevice.cookie)}})));
  }finally{f.sqlite.close();}
 });
-test('revocation while bind CAS is pending wins and no orphan remains',async t=>{
- const f=await setup(),original=D1DocumentStore.prototype.commit;let injected=false;
+void test('revocation while bind CAS is pending wins and no orphan remains',async t=>{
+ const f=await setup(),original=originalCommit();let injected=false;
  t.mock.method(D1DocumentStore.prototype,'commit',async function(this:D1DocumentStore,writes:Parameters<D1DocumentStore['commit']>[0]){
   if(!injected&&writes.some(w=>w.path.includes('/deviceGrants/')&&w.data?.sessionHash!==f.first.sessionHash&&w.data?.familySessionHash===f.first.sessionHash)){
    injected=true;await f.security.revokeSessionById('owner',f.rid,f.first.sessionHash);
@@ -53,8 +57,8 @@ test('revocation while bind CAS is pending wins and no orphan remains',async t=>
  try{const response=await handleOwnerDevice(f.request(),f.env,f.load);assert.ok(injected);assert.equal(response.status,401);assert.equal((await f.security.listSessions('owner',f.rid)).length,1);}
  finally{f.sqlite.close();}
 });
-test('revoking an original session after replacement was linked invalidates the replacement',async t=>{
- const f=await setup(),original=D1DocumentStore.prototype.commit;let injected=false;
+void test('revoking an original session after replacement was linked invalidates the replacement',async t=>{
+ const f=await setup(),original=originalCommit();let injected=false;
  t.mock.method(D1DocumentStore.prototype,'commit',async function(this:D1DocumentStore,writes:Parameters<D1DocumentStore['commit']>[0]){
   await original.call(this,writes);
   if(!injected&&writes.some(w=>w.path.includes('/deviceGrants/')&&w.data?.sessionHash!==f.first.sessionHash&&w.data?.familySessionHash===f.first.sessionHash)){
@@ -64,11 +68,11 @@ test('revoking an original session after replacement was linked invalidates the 
  try{const response=await handleOwnerDevice(f.request(),f.env,f.load);assert.ok(injected);assert.equal(response.status,401);assert.equal((await f.security.listSessions('owner',f.rid)).length,1);}
  finally{f.sqlite.close();}
 });
-test('concurrent refresh has one winner and cleanup preserves idle-expired family root',async()=>{
+void test('concurrent refresh has one winner and cleanup preserves idle-expired family root',async()=>{
  const f=await setup();
  try{
   const responses=await Promise.all([handleOwnerDevice(f.request(),f.env,f.load),handleOwnerDevice(f.request(),f.env,f.load)]);
-  assert.deepEqual(responses.map(r=>r.status).sort(),[200,401]);
+  assert.deepEqual(responses.map(r=>r.status).sort((a,b)=>a-b),[200,401]);
   const response=responses.find(r=>r.status===200)!;
   const sessionCookie=response.headers.getSetCookie().find(value=>value.startsWith('__Host-qrmenu_owner='))!;
   const deviceCookie=response.headers.getSetCookie().find(value=>value.startsWith('__Host-qrmenu_device='))!;

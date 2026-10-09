@@ -64,13 +64,28 @@ try {
   const reload = page.getByRole('button', { name: 'Recargar app', exact: true });
   await expect(reload).toBeVisible();
   const beforeReads = reads;
-  page.once('dialog', dialog => void dialog.dismiss());
+  page.on('dialog', dialog => { throw Error('Unexpected browser dialog: '+dialog.message()); });
+  const reloadDialog = page.getByRole('dialog', { name: '¿Recargar y descartar cambios?' });
   await reload.click();
+  await expect(reloadDialog).toBeVisible();
+  await reloadDialog.getByRole('button', { name: 'Cancelar', exact: true }).click();
+  await expect(reloadDialog).toHaveCount(0);
+  await expect(reload).toBeFocused();
+  await reload.click();
+  await expect(reloadDialog).toBeVisible();
+  if (await handleNativeBack() !== true) throw Error('Native back must close reload dialog first');
+  await expect(reloadDialog).toHaveCount(0);
+  if (await handleNativeBack() !== false) throw Error('Reload cancellation must preserve owner root');
+  await reload.click();
+  await expect(reloadDialog).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(reloadDialog).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Guardar borrador', exact: true })).toBeEnabled();
   if (reads !== beforeReads) throw Error('Canceling reload unexpectedly read and replaced draft');
   await page.screenshot({ path: 'outputs/owner-navigation-qa/external-change-draft-preserved.png', fullPage: false });
-  page.once('dialog', dialog => void dialog.accept());
   await reload.click();
+  await expect(reloadDialog).toBeVisible();
+  await reloadDialog.getByRole('button', { name: 'Sí, recargar y descartar', exact: true }).click();
   await page.getByRole('button', { name: 'Añadir plato', exact: true }).waitFor();
   await expect(page.getByRole('button', { name: 'Guardar borrador', exact: true })).toHaveCount(0);
   if (reads <= beforeReads) throw Error('Accepted reload failed to fetch current state');
@@ -81,8 +96,9 @@ try {
   await expect(page.getByRole('button', { name: 'Guardar borrador', exact: true })).toBeEnabled();
   await page.screenshot({ path: 'outputs/owner-navigation-qa/conflict-draft-preserved.png', fullPage: false });
   // A creator change to permissions is detected even without a revision change.
-  page.once('dialog', dialog => void dialog.accept());
   await reload.click();
+  await expect(reloadDialog).toBeVisible();
+  await reloadDialog.getByRole('button', { name: 'Sí, recargar y descartar', exact: true }).click();
   await page.getByRole('button', { name: 'Añadir plato', exact: true }).waitFor();
   features = ['orders']; permissions = entitlements({ active: true, plan: 'basic' });
   await page.evaluate(() => window.dispatchEvent(new Event('focus')));
@@ -92,6 +108,6 @@ try {
   revision++;
   await page.clock.fastForward(31_000);
   await expect(reload).toBeVisible();
-  await writeFile('outputs/owner-navigation-qa/result.json', JSON.stringify({ checkedAt: new Date().toISOString(), passed: ['settings-disclosures', 'back-two-tabs', 'native-back-root-false', 'native-back-nested-tab-true', 'native-back-editor-dialog-consumed', 'external-revision-focus', 'cancel-reload-preserves-draft', 'accept-reload-fetches-state', '409-preserves-draft', 'creator-features-and-entitlements-change', '30-second-poll-with-browser-clock'], limitation: 'Chromium localhost mocked APIs and virtual timer; native callback contract only, no physical Android or production authentication' }, null, 2));
+  await writeFile('outputs/owner-navigation-qa/result.json', JSON.stringify({ checkedAt: new Date().toISOString(), passed: ['settings-disclosures', 'back-two-tabs', 'native-back-root-false', 'native-back-nested-tab-true', 'native-back-editor-dialog-consumed', 'external-revision-focus', 'cancel-reload-preserves-draft', 'reload-dialog-focus-restored', 'native-back-reload-dialog-consumed', 'escape-reload-dialog-preserves-draft', 'no-native-browser-dialog', 'accept-reload-fetches-state', '409-preserves-draft', 'creator-features-and-entitlements-change', '30-second-poll-with-browser-clock'], limitation: 'Chromium localhost mocked APIs and virtual timer; native callback contract only, no physical Android or production authentication' }, null, 2));
   console.log('Owner navigation and external change QA passed');
 } finally { await browser.close(); }

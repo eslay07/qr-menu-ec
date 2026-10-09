@@ -75,6 +75,7 @@ export default function Dashboard() {
   const [photoBusy, setPhotoBusy] = useState(false);
   const [editorError, setEditorError] = useState('');
   const [sampleConfirm, setSampleConfirm] = useState(false);
+  const [reloadConfirm, setReloadConfirm] = useState(false);
   const [visibleDishes, setVisibleDishes] = useState(30);
   useEffect(() => {
     if (new URLSearchParams(location.search).has('notification')) setTab('Notificaciones');
@@ -123,6 +124,7 @@ export default function Dashboard() {
   useEffect(() => {
     const bridge = window as Window & { qrMenuHandleBack?: () => boolean };
     bridge.qrMenuHandleBack = () => {
+      if (reloadConfirm) { setReloadConfirm(false); return true; }
       if (editing || sampleConfirm) {
         if (!busy && !photoBusy) { setEditing(null); setSampleConfirm(false); }
         return true;
@@ -132,7 +134,7 @@ export default function Dashboard() {
       return false;
     };
     return () => { delete bridge.qrMenuHandleBack; };
-  }, [editing, sampleConfirm, busy, photoBusy, tab]);
+  }, [editing, sampleConfirm, reloadConfirm, busy, photoBusy, tab]);
   useEffect(() => {
     let checking = false;
     const check = async () => {
@@ -152,7 +154,7 @@ export default function Dashboard() {
     document.addEventListener('visibilitychange', check);
     return () => { clearInterval(timer); window.removeEventListener('focus', check); document.removeEventListener('visibilitychange', check); };
   }, []);
-  useDialogBehavior(!!editing || sampleConfirm, () => { if (!photoBusy && !busy) { setEditing(null); setSampleConfirm(false); } });
+  useDialogBehavior(!!editing || sampleConfirm || reloadConfirm, () => { if (reloadConfirm) { setReloadConfirm(false); return; } if (!photoBusy && !busy) { setEditing(null); setSampleConfirm(false); } });
   pendingRef.current = dirty || settingsDirty;
   useEffect(() => {
     if (!message) return;
@@ -247,16 +249,12 @@ export default function Dashboard() {
     const append = new URLSearchParams(query).has('cursor');
     setReportData((current: any) => append && current ? { ...value, orders: [...current.orders, ...value.orders.filter((order: any) => !current.orders.some((previous: any) => previous.id === order.id))] } : value);
   }
+  const panelReady = !!state;
+  const canReadOrders = !!state?.features.includes('orders') && state?.entitlements?.reports !== false;
   useEffect(() => {
-    if (state && tab === 'Compartir')
-      loadDomains().catch((e) => setError(e.message));
-    if (
-      state &&
-      tab === 'Pedidos' &&
-      state.features.includes('orders') && state.entitlements?.reports!==false
-    )
-      loadReports().catch((e) => setError(e.message));
-  }, [tab, !!state]);
+    if (panelReady && tab === 'Compartir') loadDomains().catch((e) => setError(e.message));
+    if (panelReady && tab === 'Pedidos' && canReadOrders) loadReports().catch((e) => setError(e.message));
+  }, [tab, panelReady, canReadOrders]);
   useEffect(() => {
     if (
       tab !== 'Compartir' ||
@@ -470,7 +468,7 @@ export default function Dashboard() {
             <h1>{tab}</h1>
           </div>
         </div>
-        {externalChange && <div className="notice warning" role="alert"><p>Hay cambios en otro dispositivo o realizados por el creador. Por favor, recarga la app para actualizar el editor.</p><button className="btn primary" disabled={busy} onClick={() => { if (!pendingRef.current || window.confirm('Hay cambios sin guardar. Recargar descartará estos cambios locales. ¿Quieres recargar?')) location.reload(); }}>Recargar app</button></div>}
+        {externalChange && <div className="notice warning" role="alert"><p>Hay cambios en otro dispositivo o realizados por el creador. Por favor, recarga la app para actualizar el editor.</p><button className="btn primary" disabled={busy} onClick={() => { if (pendingRef.current) setReloadConfirm(true); else location.reload(); }}>Recargar app</button></div>}
         {error && (
           <div className="notice error feedback-toast" role="alert">
             {error}
@@ -911,6 +909,12 @@ export default function Dashboard() {
         )}
       </main>
 
+      {reloadConfirm && <div className="modal-backdrop" role="presentation"><section className="modal" role="dialog" aria-modal="true" aria-labelledby="reload-title" aria-describedby="reload-description">
+        <div className="section-title"><h2 id="reload-title">¿Recargar y descartar cambios?</h2></div>
+        <p id="reload-description">Hay cambios sin guardar. Recargar descartará estos cambios locales y abrirá la versión guardada más reciente. El menú publicado no cambiará.</p>
+        <div className="actions"><button type="button" className="btn" onClick={() => setReloadConfirm(false)}>Cancelar</button>
+          <button type="button" className="btn danger" onClick={() => location.reload()}>Sí, recargar y descartar</button></div>
+      </section></div>}
       {sampleConfirm && <div className="modal-backdrop" role="presentation"><section className="modal" role="dialog" aria-modal="true" aria-labelledby="sample-title">
         <div className="section-title"><h2 id="sample-title">Reemplazar borrador con ejemplos</h2><button className="close-button" disabled={busy} onClick={() => setSampleConfirm(false)}>× Cerrar</button></div>
         <p>Esto reemplazará todos los platos, categorías y promociones de tu borrador. El menú publicado no cambiará hasta que pulses Publicar.</p>
