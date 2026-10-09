@@ -57,3 +57,5 @@ Respuesta visual (evento → oportunidad de presentación):
 | 40 / search | 20 | 43 [36–74] | 35 [22–157] |
 | 40 / category | 20 | 89 [64–126] | 66 [47–151] |
 | 40 / cart-add | 20 | 83 [24–123] | 66 [37–154] |
+
+Limitaciones adicionales: consulta de pedidos incluye una espera fija de 200 ms del controlador y no constituye latencia de la consulta. Las interacciones visuales usan datos sin fotografías y, con 40 platos, la primera ventana de 30 tarjetas. Los JSON de cargas llevan una corrección explícita de la descripción obsoleta de usableMs; no se cambiaron muestras, fechas de medición ni cifras.

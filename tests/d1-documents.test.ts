@@ -211,6 +211,7 @@ void test('workers.dev provisioning reserves ownership before upload and never o
  const original=globalThis.fetch,uploads:string[]=[];
  globalThis.fetch=async(url,init)=>{
    const requestUrl=typeof url==='string'?url:url instanceof URL?url.href:url.url;
+   if(requestUrl.endsWith('/settings'))return Response.json({success:true,result:{bindings:[{type:'service',name:'CORE',service:'qr-menu-ec',environment:'production'}]}});
    if(requestUrl==='https://mesa-2.testing.workers.dev/owner')return new Response('<html>Owner</html>',{headers:{'content-type':'text/html'}});
    if(requestUrl.endsWith('/subdomain')){assert.equal(init?.method,'POST');assert.equal(typeof init.body,'string');assert.deepEqual(JSON.parse(init.body as string),{enabled:true,previews_enabled:false});return Response.json({success:true});}
    const service=requestUrl.split('/').at(-1)!;
@@ -225,17 +226,24 @@ void test('workers.dev provisioning reserves ownership before upload and never o
 void test('workers.dev never marks an unverified TLS route active',async()=>{
  const {db,sql,sqlite}=fixture(),{DomainService}=await import('../lib/domains'),rid=crypto.randomUUID();
  const domains=new DomainService({DB:sql,DATA_PROVIDER:'d1-documents',CLOUDFLARE_ACCOUNT_ID:'test-account',CLOUDFLARE_API_TOKEN:'fictitious-token',CLOUDFLARE_WORKERS_SUBDOMAIN:'testing'});
- const original=globalThis.fetch;let probes=0;
+ const original=globalThis.fetch;let probes=0,uploads=0,ready=false,expectedCore=true;
  globalThis.fetch=async(url,init)=>{
   const target=typeof url==='string'?url:url instanceof URL?url.href:url.url;
-  if(target==='https://falla.testing.workers.dev/owner'){probes++;return new Response('Not ready',{status:404});}
+  if(target.endsWith('/settings'))return Response.json({success:true,result:{bindings:[{type:'service',name:'CORE',service:expectedCore?'qr-menu-ec':'another-worker'}]}});
+  if(target==='https://falla.testing.workers.dev/owner'){probes++;return ready?new Response('<html>Owner</html>',{headers:{'content-type':'text/html'}}):new Response('Not ready',{status:404});}
+  if(init?.method==='PUT')uploads++;
   if(init?.method==='PUT'||init?.method==='POST')return Response.json({success:true});
   return new Response('{}',{status:404});
  };
  try{
   await assert.rejects(domains.provisionFree(rid,'Falla','https://example.test'),/verificación HTTPS/);
   assert.equal(probes,3);assert.equal((await db.get('hostnames/falla.testing.workers.dev'))?.data.status,'error');
-  await assert.rejects(domains.provisionFree(rid,'Falla','https://example.test'),/pendiente de verificación/);
+  expectedCore=false;
+  await assert.rejects(domains.provisionFree(rid,'Otro nombre','https://example.test'),/CORE verificada/);
+  assert.equal(uploads,1);assert.equal((await db.get('hostnames/falla.testing.workers.dev'))?.data.status,'error');
+  expectedCore=true;ready=true;
+  assert.equal(await domains.provisionFree(rid,'Otro nombre','https://example.test'),'https://falla.testing.workers.dev/menu');
+  assert.equal(uploads,1);assert.equal((await db.get('hostnames/falla.testing.workers.dev'))?.data.status,'active');
  }finally{globalThis.fetch=original;sqlite.close();}
 });
 
