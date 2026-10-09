@@ -1,0 +1,8 @@
+{
+  "checkedAt": "2026-10-09T03:01:44.551Z",
+  "versionName": "0.8.4",
+  "versionCode": 15,
+  "installedApkSha256": "c7b532dd4e3df322b866c44761e23acd970b7c5641583dc456bb0b4146883a95",
+  "matchesDeployedApk": true,
+  "method": "read-only adb package metadata and extraction"
+}

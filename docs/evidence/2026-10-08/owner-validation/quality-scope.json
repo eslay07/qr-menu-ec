@@ -1,0 +1,38 @@
+{
+  "checkedAt": "2026-10-09T03:26:24.9052104Z",
+  "lint": {
+    "errors": 406,
+    "warnings": 5,
+    "baselineErrors": 420,
+    "newDiagnosticsMultiset": 0,
+    "rawLog": "outputs/quality-lint-fresh-2026-10-08.txt",
+    "baselineLog": "outputs/lint-head-baseline-all.txt",
+    "correction": "Prior captured pipeline reported stale diagnostics inconsistent with unchanged Git trees and targeted fresh lint. Fresh direct root-cwd npm run lint confirms406errors5warnings0new; prior file retained as superseded evidence."
+  },
+  "scopedTests": {
+    "command": "node --import tsx --test --test-concurrency=1 tests/api.test.ts tests/d1-documents.test.ts tests/menu-design.test.ts",
+    "passed": 35,
+    "failed": 0,
+    "skipped": 0,
+    "durationMs": 27036.7292,
+    "exitCode": 0,
+    "evidence": "Tool exec session23262 captured stdout; this receipt is a summary, not a persisted raw log"
+  },
+  "types": {
+    "command": "npm run check",
+    "exitCode": 0,
+    "session": 63732
+  },
+  "build": {
+    "command": "npm run build:worker",
+    "exitCode": 0,
+    "entry": "index-BT0Z4pwv.js",
+    "session": 31496
+  },
+  "browserQA": {
+    "passed": 15,
+    "receipt": "outputs/owner-navigation-qa/result.json",
+    "session": 21871,
+    "scope": "Chromium localhost mock APIs; no physical Android or production authentication"
+  }
+}

@@ -8,6 +8,8 @@ El panel permite crear, renombrar, ordenar y eliminar categorías con reasignaci
 
 La carta muestra información pública aceptada, horarios de Ecuador y un carrito que cuenta unidades. La solicitud de WhatsApp revalida importes y no registra un pedido ni envía mensajes. La confirmación interna conserva una identidad de operación para evitar duplicados en reintentos. Los permisos y límites se comprueban en servidor.
 
+Aceptación más reciente: [producción, APK físico y pendientes](docs/owner-validation-2026-10-08.md).
+
 Entrega vigente: [informe de producción del 08-10-2026](docs/product-release-2026-10-08.md), [mediciones reproducibles](docs/performance-release-2026-10-08.md) y [guía de incorporación](docs/restaurant-onboarding.md). El informe distingue producción, emulación, Android y limitaciones pendientes.
 
 ## Desarrollo

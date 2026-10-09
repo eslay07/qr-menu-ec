@@ -1,0 +1,17 @@
+{
+  "checkedAt": "2026-10-09T03:46:22.594Z",
+  "versionId": "fb6cb9e4-53af-45f1-baa6-c2148988cce7",
+  "productionBrowser": true,
+  "checks": [
+    "normal fictitious owner login",
+    "external saved revision notice",
+    "cancel preserves local draft",
+    "confirm loads latest saved draft",
+    "session retained",
+    "fictitious temporary draft cleaned",
+    "publication 13 unchanged"
+  ],
+  "physicalNavigationPerformed": false,
+  "physicalApkBytesVerified": true,
+  "nativeZoom200Verified": false
+}

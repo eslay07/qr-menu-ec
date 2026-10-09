@@ -1,0 +1,20 @@
+{
+  "checkedAt": "2026-10-09T03:28:30.926Z",
+  "versionId": "fb6cb9e4-53af-45f1-baa6-c2148988cce7",
+  "traffic": 100,
+  "origin": "https://qr-menu-ec.consola.workers.dev",
+  "status": 200,
+  "sourceCommit": "f038ae04fe24eeabe0764132f73409e6ab881763",
+  "servedAssets": [
+    {
+      "path": "/assets/index-BT0Z4pwv.js",
+      "sha256": "e211fc4588524b170984f0ed97664d2ee08dfbd7bdf7d0c6f72aa9a48c1b1d32"
+    },
+    {
+      "path": "/assets/index-BfGUEhia.css",
+      "sha256": "cede76ef7bae654352415e25d9660424f98f1aee154a0139042d5e5e2c19edc3"
+    }
+  ],
+  "privateStatus": 401,
+  "htmlReads": 2
+}

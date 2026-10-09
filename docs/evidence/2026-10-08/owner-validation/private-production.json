@@ -1,0 +1,30 @@
+{
+  "checkedAt": "2026-10-09T03:38:27.641Z",
+  "checks": [
+    {
+      "endpoint": "state",
+      "status": 401,
+      "cache": "no-store"
+    },
+    {
+      "endpoint": "orders",
+      "status": 401,
+      "cache": "no-store"
+    },
+    {
+      "endpoint": "sessions",
+      "status": 401,
+      "cache": "no-store"
+    },
+    {
+      "endpoint": "backups",
+      "status": 401,
+      "cache": "no-store"
+    },
+    {
+      "endpoint": "notifications",
+      "status": 401,
+      "cache": "no-store"
+    }
+  ]
+}
