@@ -27,6 +27,9 @@ import android.widget.Toast
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
 
 class OwnerActivity : Activity() {
     private val updater by lazy { OwnerUpdater(this, platformHost) { !isFinishing && !isDestroyed && !awaitingUnlock && lockScreen.visibility == View.GONE } }
@@ -144,11 +147,23 @@ class OwnerActivity : Activity() {
                 setOnClickListener { unlock() }
             })
         }
-        setContentView(FrameLayout(this).apply {
+        val root = FrameLayout(this).apply {
+            setBackgroundColor(Color.WHITE)
             addView(webView, FrameLayout.LayoutParams(-1, -1))
             addView(progress, FrameLayout.LayoutParams(-2, -2, android.view.Gravity.CENTER))
             addView(lockScreen, FrameLayout.LayoutParams(-1, -1))
-        })
+        }
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        setContentView(root)
+        WindowCompat.getInsetsController(window, root).apply { isAppearanceLightStatusBars = true; isAppearanceLightNavigationBars = true }
+        ViewCompat.setOnApplyWindowInsetsListener(root) { view, insets ->
+            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            val cutout = insets.getInsets(WindowInsetsCompat.Type.displayCutout())
+            val safe = safeArea(SafeArea(bars.left, bars.top, bars.right, bars.bottom), SafeArea(cutout.left, cutout.top, cutout.right, cutout.bottom), insets.getInsets(WindowInsetsCompat.Type.ime()).bottom)
+            view.setPadding(safe.left, safe.top, safe.right, safe.bottom)
+            insets
+        }
+        ViewCompat.requestApplyInsets(root)
         // A cold start must not launch authentication before the Activity is
         // resumed. Keep the opaque lock screen visible while Android starts.
         if (preferences.getBoolean("entered", false)) {
@@ -225,6 +240,7 @@ class OwnerActivity : Activity() {
     }
 
     override fun onStop() {
+        updater.background()
         updater.hide()
         super.onStop()
         if (preferences.getBoolean("entered", false) && !awaitingUnlock) {
