@@ -1,3 +1,4 @@
+import { scalarText } from './scalar-text';
 import {
   CreateOrderInput,
   activePromotion,
@@ -342,14 +343,14 @@ export class D1OrderStore implements OrderStore {
       number: String(value.number),
       status: value.status as 'confirmed' | 'cancelled',
       demo: Number(value.demo) === 1,
-      alias: String(value.alias || ''),
+      alias: scalarText(value.alias || ''),
       restaurantName: String(value.restaurant_name),
       menuVersion: Number(value.menu_version),
       currency: 'USD',
       totalCents: Number(value.total_cents),
       createdAt: String(value.created_at),
       publicExpiresAt: String(value.public_expires_at),
-      cancelledAt: value.cancelled_at ? String(value.cancelled_at) : null,
+      cancelledAt: value.cancelled_at ? scalarText(value.cancelled_at) : null,
       lines: JSON.parse(String(value.snapshot)) as OrderLineSnapshot[],
     };
   }

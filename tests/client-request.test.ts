@@ -21,8 +21,8 @@ void test('failed reads can retry and mutations are never deduplicated', async (
   let calls = 0;
   globalThis.fetch = async () => { calls++; return calls === 1 ? Response.json({error:'Temporal'}, {status:503}) : Response.json({ok:true}); };
   try {
-    await assert.rejects(api('state'), /Temporal/);
-    assert.equal((await api('state')).ok, true);
+    await assert.rejects(api('fixture-read'), /Temporal/);
+    assert.equal((await api('fixture-read') as { ok: boolean }).ok, true);
     await Promise.all([api('draft', 'PUT', {}), api('draft', 'PUT', {})]);
     assert.equal(calls, 4);
   } finally { globalThis.fetch = transport; }

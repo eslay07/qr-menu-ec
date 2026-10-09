@@ -1,3 +1,4 @@
+import { requestUrl, jsonRequestBody } from './http-fixture';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { generateKeyPairSync } from 'node:crypto';
@@ -7,27 +8,27 @@ import { encryptSensitive, passwordHash, randomToken } from '../lib/security';
 import type { State } from '../lib/store';
 
 const key = btoa(String.fromCharCode(...new Uint8Array(32).fill(9)));
-test('Firebase transport preserves the Workers global receiver', async () => {
+void test('Firebase transport preserves the Workers global receiver', async () => {
   const { env } = environment();
   const calls: string[] = [];
   const transport = async function(this: unknown, input: RequestInfo | URL) {
     assert.equal(this, globalThis, 'Workers fetch requires its global receiver');
-    calls.push(String(input));
+    calls.push(requestUrl(input));
     return Response.json({ localId: 'owner:test', idToken: 'test-token' });
   } as typeof fetch;
   const provider = new FirebaseAuthProvider(env, transport);
   assert.equal(await provider.signIn('owner@example.test', 'test-only', 'owner:test'), 'test-token');
   assert.equal(calls.length, 1);
 });
-test('Firebase OAuth and administrative lookup preserve the Workers global receiver', async () => {
+void test('Firebase OAuth and administrative lookup preserve the Workers global receiver', async () => {
   const { env } = environment();
   const pair = generateKeyPairSync('rsa', { modulusLength: 2048 });
   env.FIREBASE_SERVICE_ACCOUNT = JSON.stringify({ project_id: 'demo-auth', client_email: 'test@demo-auth.iam.gserviceaccount.com', private_key: pair.privateKey.export({ type: 'pkcs8', format: 'pem' }) });
   const calls: string[] = [];
   const transport = async function(this: unknown, input: RequestInfo | URL) {
     assert.equal(this, globalThis);
-    calls.push(String(input));
-    return Response.json(new URL(String(input)).hostname === 'oauth2.googleapis.com' ? { access_token: 'test-token', expires_in: 3600 } : { users: [] });
+    calls.push(requestUrl(input));
+    return Response.json(new URL(requestUrl(input)).hostname === 'oauth2.googleapis.com' ? { access_token: 'test-token', expires_in: 3600 } : { users: [] });
   } as typeof fetch;
   assert.equal(await new FirebaseAuthProvider(env, transport).lookup('test-user'), null);
   assert.equal(calls.length, 2);
@@ -56,13 +57,13 @@ async function credentials(migrated = false) {
   } satisfies Pick<State, 'password' | 'security'>;
 }
 
-test('Firebase mode fails closed with absent credentials or a different project', () => {
+void test('Firebase mode fails closed with absent credentials or a different project', () => {
   const { env } = environment();
   assert.throws(() => new AuthSecurity({ ...env, FIREBASE_SERVICE_ACCOUNT: undefined }));
   assert.throws(() => new AuthSecurity({ ...env, FIREBASE_PROJECT_ID: 'other-project' }));
 });
 
-test('legacy password migrates once and removes its local verifier', async (t) => {
+void test('legacy password migrates once and removes its local verifier', async (t) => {
   const { env } = environment();
   const security = new AuthSecurity(env);
   const state = await credentials();
@@ -78,13 +79,13 @@ test('legacy password migrates once and removes its local verifier', async (t) =
   assert.equal(signIn.mock.callCount(), 2);
 });
 
-test('wrong legacy password never creates a Firebase account', async (t) => {
+void test('wrong legacy password never creates a Firebase account', async (t) => {
   const create = t.mock.method(FirebaseAuthProvider.prototype, 'createUser', async () => {});
   assert.equal(await new AuthSecurity(environment().env).authenticatePassword(await credentials(), 'owner', 'restaurant-a', 'incorrecta'), false);
   assert.equal(create.mock.callCount(), 0);
 });
 
-test('creator without email migrates with server recovery address and preserves TOTP', async (t) => {
+void test('creator without email migrates with server recovery address and preserves TOTP', async (t) => {
   const { env } = environment();
   env.CREATOR_RECOVERY_EMAIL = 'Creator@example.test';
   const state: Pick<State, 'password' | 'security'> = await credentials();
@@ -104,7 +105,7 @@ test('creator without email migrates with server recovery address and preserves 
   assert.ok((await security.passwordChallengePayload('creator', null)).firebaseIdTokenCiphertext);
 });
 
-test('recovery-email bootstrap is forbidden for owners and migrated creators', async () => {
+void test('recovery-email bootstrap is forbidden for owners and migrated creators', async () => {
   const { env } = environment();
   env.CREATOR_RECOVERY_EMAIL = 'creator@example.test';
   const state: Pick<State, 'password' | 'security'> = await credentials();
@@ -115,7 +116,7 @@ test('recovery-email bootstrap is forbidden for owners and migrated creators', a
   await assert.rejects(security.authenticatePassword(state, 'creator', null, 'Correcta-123456'), {code:'EMAIL_REQUIRED'});
 });
 
-test('creator email bootstrap fails closed and preserves state on provider errors', async (t) => {
+void test('creator email bootstrap fails closed and preserves state on provider errors', async (t) => {
   const { env } = environment();
   const state: Pick<State, 'password' | 'security'> = await credentials();
   state.security = { totpCiphertext: 'preserved' };
@@ -127,7 +128,7 @@ test('creator email bootstrap fails closed and preserves state on provider error
   assert.deepEqual(state, before);
 });
 
-test('migrated login has no PBKDF fallback on bad credentials or provider outage', async (t) => {
+void test('migrated login has no PBKDF fallback on bad credentials or provider outage', async (t) => {
   const state = await credentials(true);
   const security = new AuthSecurity(environment().env);
   const signIn = t.mock.method(FirebaseAuthProvider.prototype, 'signIn', async () => { throw new FirebaseAuthFailure('INVALID_LOGIN_CREDENTIALS'); });
@@ -136,7 +137,7 @@ test('migrated login has no PBKDF fallback on bad credentials or provider outage
   await assert.rejects(security.authenticatePassword(state, 'owner', 'restaurant-a', 'Correcta-123456'));
 });
 
-test('TOTP challenge carries only an encrypted Firebase token and requires explicit resume', async (t) => {
+void test('TOTP challenge carries only an encrypted Firebase token and requires explicit resume', async (t) => {
   const { env } = environment();
   const firstRequest = new AuthSecurity(env);
   const state = await credentials();
@@ -158,7 +159,7 @@ test('TOTP challenge carries only an encrypted Firebase token and requires expli
   await assert.rejects(nextRequest.createSession('creator', null));
 });
 
-test('Firebase sessions reject forged cookies before consulting D1 grants', async (t) => {
+void test('Firebase sessions reject forged cookies before consulting D1 grants', async (t) => {
   const { env, queries } = environment();
   t.mock.method(FirebaseAuthProvider.prototype, 'verifySession', async () => false);
   const request = new Request('https://menu.test/api/creator/session', { headers: { cookie: '__Host-qrmenu_creator=forged' } });
@@ -166,7 +167,7 @@ test('Firebase sessions reject forged cookies before consulting D1 grants', asyn
   assert.equal(queries.length, 0);
 });
 
-test('session signing errors do not create an authorized grant', async (t) => {
+void test('session signing errors do not create an authorized grant', async (t) => {
   const { env, queries } = environment();
   const security = new AuthSecurity(env);
   t.mock.method(FirebaseAuthProvider.prototype, 'signIn', async () => 'id-token');
@@ -176,15 +177,15 @@ test('session signing errors do not create an authorized grant', async (t) => {
   assert.equal(queries.length, 0);
 });
 
-test('Firebase public sign-in rejects a UID belonging to another restaurant', async () => {
+void test('Firebase public sign-in rejects a UID belonging to another restaurant', async () => {
   const provider = new FirebaseAuthProvider(environment().env, async () => Response.json({ localId: 'owner:other', idToken: 'token' }));
   await assert.rejects(provider.signIn('owner@example.test', 'password', 'owner:restaurant-a'), (error: unknown) => error instanceof FirebaseAuthFailure && error.code === 'ACCOUNT_MISMATCH');
 });
 
-test('Firebase recovery uses its hosted email service and refuses another account', async () => {
-  const calls: { url: string; body: any }[] = [];
+void test('Firebase recovery uses its hosted email service and refuses another account', async () => {
+  const calls: { url: string; body: {requestType:string;email:string} }[] = [];
   const provider = new FirebaseAuthProvider(environment().env, async (url, init) => {
-    calls.push({ url: String(url), body: JSON.parse(String(init?.body || '{}')) });
+    calls.push({ url: requestUrl(url), body: jsonRequestBody<{requestType:string;email:string}>(init?.body) });
     return Response.json({ email: 'owner@example.test' });
   });
   provider.lookup = async uid => ({ localId: uid, email: 'owner@example.test', validSince: '0' });
@@ -196,7 +197,7 @@ test('Firebase recovery uses its hosted email service and refuses another accoun
   assert.equal(calls.length, 1);
 });
 
-test('Firebase password reset invalidates older remembered devices', async () => {
+void test('Firebase password reset invalidates older remembered devices', async () => {
   const provider = new FirebaseAuthProvider(environment().env);
   provider.lookup = async uid => ({ localId: uid, validSince: '1760000000' });
   assert.equal(await provider.rememberedDeviceValid('owner:restaurant-a', new Date(1759999999_000).toISOString()), false);

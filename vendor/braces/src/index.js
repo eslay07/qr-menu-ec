@@ -1,15 +1,13 @@
-'use strict';
-
-const stringify = require('./lib/stringify');
-const compile = require('./lib/compile');
-const expand = require('./lib/expand');
-const parse = require('./lib/parse');
+import stringify from './lib/stringify.js';
+import compile from './lib/compile.js';
+import expand from './lib/expand.js';
+import parse from './lib/parse.js';
 
 /**
  * Expand the given pattern or create a regex-compatible string.
  *
  * ```js
- * const braces = require('braces');
+ * import braces from 'braces';
  * console.log(braces('{a,b,c}', { compile: true })); //=> ['(a|b|c)']
  * console.log(braces('{a,b,c}')); //=> ['a', 'b', 'c']
  * ```
@@ -61,7 +59,7 @@ braces.parse = (input, options = {}) => parse(input, options);
  * Creates a braces string from an AST, or an AST node.
  *
  * ```js
- * const braces = require('braces');
+ * import braces from 'braces';
  * let ast = braces.parse('foo/{a,b}/bar');
  * console.log(stringify(ast.nodes[2])); //=> '{a,b}'
  * ```
@@ -83,7 +81,7 @@ braces.stringify = (input, options = {}) => {
  * This method is called by the main [braces](#braces) function by default.
  *
  * ```js
- * const braces = require('braces');
+ * import braces from 'braces';
  * console.log(braces.compile('a/{b,c}/d'));
  * //=> ['a/(b|c)/d']
  * ```
@@ -107,7 +105,7 @@ braces.compile = (input, options = {}) => {
  * and advantages of using [.compile](#compile) instead.
  *
  * ```js
- * const braces = require('braces');
+ * import braces from 'braces';
  * console.log(braces.expand('a/{b,c}/d'));
  * //=> ['a/b/d', 'a/c/d'];
  * ```
@@ -143,7 +141,7 @@ braces.expand = (input, options = {}) => {
  * This method is called by the main [braces](#braces) function.
  *
  * ```js
- * const braces = require('braces');
+ * import braces from 'braces';
  * console.log(braces.create('user-{200..300}/project-{a,b,c}-{1..10}'))
  * //=> 'user-(20[0-9]|2[1-9][0-9]|300)/project-(a|b|c)-([1-9]|10)'
  * ```
@@ -167,4 +165,4 @@ braces.create = (input, options = {}) => {
  * Expose "braces"
  */
 
-module.exports = braces;
+export default braces;

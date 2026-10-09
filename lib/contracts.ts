@@ -96,8 +96,8 @@ export const Promotion = z
     badge: singleLine(30),
     image: Asset,
     promotionalPriceCents: z.number().int().min(0).max(9_999_999).nullable(),
-    startsAt: z.string().datetime().nullable(),
-    endsAt: z.string().datetime().nullable(),
+    startsAt: z.string().check(z.iso.datetime()).nullable(),
+    endsAt: z.string().check(z.iso.datetime()).nullable(),
     enabled: z.boolean(),
   })
   .strict()
@@ -240,7 +240,7 @@ export const Settings = z.object({
     z.literal(''),
     z
       .string()
-      .url()
+      .check(z.url())
       .refine((value) => {
         const url = new URL(value);
         return url.protocol === 'https:' && !url.username && !url.password;
@@ -263,7 +263,7 @@ export const LicensePayload = z.object({
   restaurantId: id,
   licenseId: id,
   modes: z.array(Mode).min(1).max(4),
-  issuedAt: z.string().datetime(),
+  issuedAt: z.string().check(z.iso.datetime()),
   customer: z.string().min(1).max(120),
 });
 export type LicensePayload = z.infer<typeof LicensePayload>;
@@ -276,13 +276,13 @@ export type License = z.infer<typeof License>;
 export const Backup = z.object({
   schemaVersion: z.union([z.literal(1), z.literal(2)]),
   sourceId: id,
-  exportedAt: z.string().datetime(),
+  exportedAt: z.string().check(z.iso.datetime()),
   draft: Catalog,
   settings: Settings,
   media: z
     .array(
       z.object({
-        id: z.string().uuid(),
+        id: z.string().check(z.uuid()),
         type: z.enum(['image/jpeg', 'image/png', 'image/webp']),
         data: z.string().max(1_500_000),
       }),

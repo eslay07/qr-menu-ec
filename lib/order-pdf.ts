@@ -9,7 +9,7 @@ import { type OrderRecord } from './orders';
 
 const usd = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 const safe = (value: string) =>
-  value.normalize('NFC').replace(/[\u0000-\u001f\u007f-\u009f]/g, ' ');
+  Array.from(value.normalize('NFC')).map(char => { const code = char.charCodeAt(0); return code <= 31 || (code >= 127 && code <= 159) ? ' ' : char; }).join('');
 
 function wrap(text: string, font: PDFFont, size: number, width: number) {
   const words = safe(text).split(/\s+/).filter(Boolean),

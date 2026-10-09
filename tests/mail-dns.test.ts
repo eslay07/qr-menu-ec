@@ -12,22 +12,22 @@ const dns = {
   resolveMx: async () => [{ exchange: 'feedback.example.net.', priority: 10 }],
 };
 
-test('mail DNS joins TXT chunks and compares exact provider records without sending mail', async () => {
+void test('mail DNS joins TXT chunks and compares exact provider records without sending mail', async () => {
   const result = await verifyMailDns(manifest, dns);
   assert.equal(result.ok, true);
   assert.equal(JSON.stringify(result).includes('public-test-key'), false);
 });
-test('mail DNS fails closed on duplicate SPF, mismatch and unavailable DNS', async () => {
+void test('mail DNS fails closed on duplicate SPF, mismatch and unavailable DNS', async () => {
   assert.equal((await verifyMailDns(manifest, { ...dns, resolveTxt: async () => [['v=spf1 include:amazonses.com ~all'], ['v=spf1 -all']] })).ok, false);
   assert.equal((await verifyMailDns(manifest, { ...dns, resolveTxt: async () => [['wrong']] })).ok, false);
   assert.equal((await verifyMailDns(manifest, { ...dns, resolveTxt: async () => { throw Object.assign(new Error('Unavailable'), { code: 'ETIMEOUT' }); } })).ok, false);
 });
-test('mail DNS rejects missing DKIM and unrelated hostnames before any lookup', () => {
+void test('mail DNS rejects missing DKIM and unrelated hostnames before any lookup', () => {
   assert.throws(() => parseManifest({ ...manifest, records: [manifest.records[0]] }));
   assert.throws(() => parseManifest({ ...manifest, records: [manifest.records[0], { ...manifest.records[1], name: 'resend._domainkey.other.com' }] }));
   assert.throws(() => parseManifest({ ...manifest, apiKey: 'not-allowed' }));
 });
-test('mail DNS supports provider CNAME DKIM and exact MX priority', async () => {
+void test('mail DNS supports provider CNAME DKIM and exact MX priority', async () => {
   const input = { ...manifest, records: [manifest.records[0], { ...manifest.records[1], type: 'CNAME', value: 'target.example.net' }, { purpose: 'mx', type: 'MX', name: 'send.example.com', value: 'feedback.example.net', priority: 10 }] };
   assert.equal((await verifyMailDns(input, dns)).ok, true);
   assert.equal((await verifyMailDns(input, { ...dns, resolveMx: async () => [{ exchange: 'feedback.example.net', priority: 20 }] })).ok, false);

@@ -1,6 +1,7 @@
+import { requestUrl } from './http-fixture';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { DatabaseSync } from 'node:sqlite';
+import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
 import { readFileSync } from 'node:fs';
 import { handleOwnerAuth, handleOwnerDevice } from '../lib/owner-auth';
 import { handleCreatorApi, type CentralEnv } from '../lib/central-api';
@@ -27,9 +28,9 @@ function database() {
     catch (error) { sql.exec('ROLLBACK'); throw error; }
   }, prepare(query: string) {
     const stmt = sql.prepare(query);
-    let args: any[] = [];
+    let args: SQLInputValue[] = [];
     const result = {
-      bind(...values: any[]) { args = values; return result; },
+      bind(...values: SQLInputValue[]) { args = values; return result; },
       async first() { return stmt.get(...args) || null; },
       async all() { return { results: stmt.all(...args) }; },
       async run() { const r = stmt.run(...args); return { meta: { changes: Number(r.changes) } }; },
@@ -39,7 +40,7 @@ function database() {
   return { sql, db };
 }
 
-test('failed mail retries idempotently, stores encrypted retry data and supports audited manual resend', async t => {
+void test('failed mail retries idempotently, stores encrypted retry data and supports audited manual resend', async t => {
   const { sql, db } = database();
   const env = { DB: db, RESEND_API_KEY: 'test-only', EMAIL_FROM: 'test@example.test', DATA_ENCRYPTION_KEY: Buffer.alloc(32, 9).toString('base64') } as CentralEnv;
   const security = new AuthSecurity(env);
@@ -68,7 +69,7 @@ test('failed mail retries idempotently, stores encrypted retry data and supports
   } finally { sql.close(); }
 });
 
-test('device refresh accepts the generated CSRF token and rejects a forged token', async () => {
+void test('device refresh accepts the generated CSRF token and rejects a forged token', async () => {
   const { sql, db } = database();
   const env = { DB: db } as CentralEnv;
   const security = new AuthSecurity(env);
@@ -88,7 +89,7 @@ test('device refresh accepts the generated CSRF token and rejects a forged token
   } finally { sql.close(); }
 });
 
-test('creator Firebase login cannot issue a session before TOTP and cannot replay a challenge', async (t) => {
+void test('creator Firebase login cannot issue a session before TOTP and cannot replay a challenge', async (t) => {
   const { sql, db } = database();
   const env: CentralEnv = {
     DB: db, CREATOR_SETUP_TOKEN: '', AUTH_PROVIDER: 'firebase',
@@ -124,7 +125,7 @@ test('creator Firebase login cannot issue a session before TOTP and cannot repla
   try {
     const login = await handleCreatorApi(request('login', { password: 'Correcta-123456', turnstileToken: 'valid' }), env);
     assert.equal(login.status, 200);
-    assert.equal((await login.json() as any).mfaRequired, true);
+    assert.equal((await login.json() as {mfaRequired?:boolean}).mfaRequired, true);
     assert.equal(issue.mock.callCount(), 0);
     const cookie = login.headers.get('set-cookie')!.split(';')[0];
     assert.match(cookie, /^__Host-qrmenu_challenge=/);
@@ -140,13 +141,14 @@ test('creator Firebase login cannot issue a session before TOTP and cannot repla
     assert.equal(issue.mock.callCount(), 1);
     assert.equal((await handleCreatorApi(request('auth/mfa/verify', { code: codeAt(0) }, cookie), env)).status, 401);
     assert.equal(issue.mock.callCount(), 1);
-    const current = JSON.parse(String(sql.prepare("SELECT data FROM application WHERE id = '__creator__'").get()!.data));
+    const current = JSON.parse(String(sql.prepare("SELECT data FROM application WHERE id = '__creator__'").get()!.data)) as State;
+    assert.ok(current.security);
     assert.equal(current.security.totpCiphertext, state.security.totpCiphertext);
     assert.equal(current.password.hash, '');
   } finally { sql.close(); }
 });
 
-test('remembered device rotates, expires by inactivity and can be revoked without exposing its token', async () => {
+void test('remembered device rotates, expires by inactivity and can be revoked without exposing its token', async () => {
   const { sql, db } = database();
   const security = new AuthSecurity({ DB: db } as CentralEnv);
   const restaurantId = '11111111-1111-4111-8111-111111111111';
@@ -169,7 +171,7 @@ test('remembered device rotates, expires by inactivity and can be revoked withou
   } finally { sql.close(); }
 });
 
-test('operator email migration is encrypted, revokes sessions, preserves restaurant and only runs once', async () => {
+void test('operator email migration is encrypted, revokes sessions, preserves restaurant and only runs once', async () => {
   const { sql, db } = database();
   const id = '11111111-1111-4111-8111-111111111111';
   const state = { draft: { name: 'Mi carta' }, password: { hash: 'unchanged' }, security: { emailHash: 'old' } };
@@ -182,7 +184,7 @@ test('operator email migration is encrypted, revokes sessions, preserves restaur
   const noStore = () => { throw Error('Migration must use a single database transaction'); };
   try {
     assert.equal((await handleOwnerAuth(request, env, noStore)).status, 200);
-    const row = sql.prepare('SELECT * FROM application WHERE id = ?').get(id) as any;
+    const row = sql.prepare('SELECT * FROM application WHERE id = ?').get(id) as {data:string;revision:number};
     const migrated = JSON.parse(row.data);
     assert.equal(row.revision, 8);
     assert.deepEqual(migrated.draft, state.draft);
@@ -196,7 +198,7 @@ test('operator email migration is encrypted, revokes sessions, preserves restaur
   } finally { sql.close(); }
 });
 
-test('owner email login issues a scoped secure session without MFA and rejects abuse', async () => {
+void test('owner email login issues a scoped secure session without MFA and rejects abuse', async () => {
   const { sql, db } = database();
   const id = '11111111-1111-4111-8111-111111111111';
   const state: State = { schemaVersion: 1, restaurantId: id, ownerId: 'owner', draft: blankCatalog, settings: defaultSettings,
@@ -206,12 +208,15 @@ test('owner email login issues a scoped secure session without MFA and rejects a
   sql.prepare('INSERT INTO application VALUES (?,0,?)').run(id, JSON.stringify(state));
   const env = { DB: db, DATA_ENCRYPTION_KEY: 'test-enabled', TURNSTILE_SECRET_KEY: 'test-key' } as CentralEnv;
   const store: Store = {
-    async read() { const row = sql.prepare('SELECT * FROM application WHERE id = ?').get(id) as any; return { revision: row.revision, state: JSON.parse(row.data) }; },
+    async read() { const row = sql.prepare('SELECT * FROM application WHERE id = ?').get(id) as {data:string;revision:number}; return { revision: row.revision, state: JSON.parse(row.data) }; },
     async commit(s, revision) { return sql.prepare('UPDATE application SET data = ?,revision = revision + 1 WHERE id = ? AND revision = ?').run(JSON.stringify(s), id, revision).changes === 1; },
     async mediaGet() { return null; }, async mediaPut() {},
   };
   const realFetch = globalThis.fetch;
-  globalThis.fetch = async (_url, init) => Response.json({ success: (init?.body as FormData).get('response') === 'valid' });
+  globalThis.fetch = async (_url, init) => {
+    assert.ok(init?.body instanceof FormData);
+    return Response.json({ success: init.body.get('response') === 'valid' });
+  };
   const request = (data: object, origin = 'https://menu.test') => new Request('https://menu.test/api/owner/login', {
     method: 'POST', headers: { 'content-type': 'application/json', origin, 'cf-connecting-ip': '192.0.2.1' }, body: JSON.stringify(data),
   });
@@ -223,7 +228,7 @@ test('owner email login issues a scoped secure session without MFA and rejects a
     assert.equal((await handleOwnerAuth(request({ ...values, password: 'incorrect' }), env, () => store)).status, 401);
     const success = await handleOwnerAuth(request(values), env, () => store);
     assert.equal(success.status, 200);
-    const result = await success.json() as any;
+    const result = await success.json() as {ownerUrl:string;mfaRequired?:boolean};
     assert.equal(result.ownerUrl, `/r/${id}/`);
     assert.equal(result.mfaRequired, undefined);
     assert.match(success.headers.get('set-cookie')!, /__Host-qrmenu_owner=.*HttpOnly; Secure; SameSite=Strict/);
@@ -241,7 +246,7 @@ test('owner email login issues a scoped secure session without MFA and rejects a
   } finally { globalThis.fetch = realFetch; sql.close(); }
 });
 
-test('creator recovery uses configured email and canonical link; token is single use and revokes sessions', async () => {
+void test('creator recovery uses configured email and canonical link; token is single use and revokes sessions', async () => {
   const { sql, db } = database();
   const state = { password: { salt: 'creator-salt', hash: await passwordHash('original-password', 'creator-salt'), iterations: 600000 },
     sessionEpoch: 0, failures: { count: 0, until: 0 }, security: { totpCiphertext: 'old-totp' } };
@@ -249,9 +254,9 @@ test('creator recovery uses configured email and canonical link; token is single
   const env = { DB: db, DATA_ENCRYPTION_KEY: 'test-enabled', TURNSTILE_SECRET_KEY: 'test-key', CREATOR_RECOVERY_EMAIL: 'recovery@example.com',
     RESEND_API_KEY: 'test-email-key', EMAIL_FROM: 'support@example.com', EMAIL_VERIFICATION_ENABLED: 'false', PUBLIC_APP_ORIGIN: 'https://menu.test' } as CentralEnv;
   const realFetch = globalThis.fetch;
-  let sent: any;
+  let sent: {to:string[];html:string}|undefined;
   globalThis.fetch = async (url, init) => {
-    if (String(url).includes('siteverify')) return Response.json({ success: true });
+    if (requestUrl(url).includes('siteverify')) return Response.json({ success: true });
     sent = JSON.parse(init!.body as string); return Response.json({ id: 'email-id' });
   };
   const request = (path: string, body: object) => new Request(`https://menu.test/api/creator/${path}`, { method: 'POST', headers: { 'content-type': 'application/json', origin: 'https://menu.test' }, body: JSON.stringify(body) });
@@ -259,18 +264,19 @@ test('creator recovery uses configured email and canonical link; token is single
     const security = new AuthSecurity(env);
     await security.createSession('creator', null);
     assert.equal((await handleCreatorApi(request('recovery/request', { turnstileToken: 'valid' }), env)).status, 200);
+    assert.ok(sent);
     assert.deepEqual(sent.to, ['recovery@example.com']);
-    const href = sent.html.match(/href="([^"]+)"/)[1];
+    const href = sent.html.match(/href="([^"]+)"/)![1];
     assert.equal(new URL(href).origin, 'https://menu.test');
     const token = new URLSearchParams(new URL(href).hash.slice(1)).get('recover')!;
     const reset = { token, password: 'New-password-123', turnstileToken: 'valid' };
     assert.equal((await handleCreatorApi(request('recovery/reset', reset), env)).status, 200);
     assert.equal((await handleCreatorApi(request('recovery/reset', reset), env)).status, 400);
-    const updated = JSON.parse((sql.prepare("SELECT data FROM application WHERE id = '__creator__'").get() as any).data);
+    const updated = JSON.parse((sql.prepare("SELECT data FROM application WHERE id = '__creator__'").get() as {data:string}).data);
     assert.equal(updated.security.totpCiphertext, undefined);
     assert.equal(updated.password.hash, await passwordHash('New-password-123', updated.password.salt));
-    assert.equal((sql.prepare('SELECT COUNT(*) AS count FROM auth_sessions WHERE revoked_at IS NULL').get() as any).count, 0);
+    assert.equal((sql.prepare('SELECT COUNT(*) AS count FROM auth_sessions WHERE revoked_at IS NULL').get() as {count:number}).count, 0);
     const login = await handleCreatorApi(request('login', { password: 'New-password-123', turnstileToken: 'valid' }), { ...env, DATA_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString('base64') });
-    assert.equal((await login.json() as any).mfaRequired, true);
+    assert.equal((await login.json() as {mfaRequired?:boolean}).mfaRequired, true);
   } finally { globalThis.fetch = realFetch; sql.close(); }
 });

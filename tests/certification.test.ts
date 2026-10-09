@@ -5,7 +5,7 @@ import {tmpdir} from 'node:os';
 import {join,resolve} from 'node:path';
 import {spawnSync} from 'node:child_process';
 
-test('la ficha rechaza pendientes, casos duplicados y combinaciones cambiadas',()=>{
+void test('la ficha rechaza pendientes, casos duplicados y combinaciones cambiadas',()=>{
  const dir=mkdtempSync(join(tmpdir(),'qrmenu-cert-test-')),file=join(dir,'fixture.json');
  const run=(command:string)=>spawnSync(process.execPath,[resolve('tools/certification.mjs'),command,file],{encoding:'utf8'});
  try{
@@ -14,7 +14,7 @@ test('la ficha rechaza pendientes, casos duplicados y combinaciones cambiadas',(
   report.technician='Fixture de prueba';report.restaurant='NO ES CERTIFICACIÓN';
   report.server={type:'android',model:'fixture',osVersion:'fixture',appVersion:'fixture',sha256:'a'.repeat(64)};
   report.router={model:'fixture',firmware:'fixture',openNDS:'fixture'};
-  for(const client of Object.values(report.clients) as any[]){client.model='fixture';client.osVersion='fixture'}
+  for(const client of Object.values(report.clients) as {model:string;osVersion:string}[]){client.model='fixture';client.osVersion='fixture'}
   report.observedWifiClients=30;report.androidHours=8;
   for(const c of report.cases){c.result='aprobado';c.evidence='Evidencia ficticia exclusiva de prueba automatizada';c.taps=2;c.seconds=3}
   const save=()=>writeFileSync(file,JSON.stringify(report));save();assert.equal(run('revisar').status,0);

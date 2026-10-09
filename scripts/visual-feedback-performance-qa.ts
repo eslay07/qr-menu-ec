@@ -1,4 +1,5 @@
 import { chromium } from '@playwright/test';
+const outputDir = process.env.QA_OUTPUT_DIR || 'outputs/mobile-performance';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { demoCatalog } from '../lib/contracts';
 type Sample={size:number;interaction:'search'|'category'|'cart-add';iteration:number;eventToMutationMs:number;visualMs:number};
@@ -59,7 +60,7 @@ try {
   const statistics=(field:'eventToMutationMs'|'visualMs')=>{const values=rows.map(r=>r[field]).sort((a,b)=>a-b);return {medianMs:(values[9]+values[10])/2,minMs:values[0],maxMs:values.at(-1),samples:values.length};};
   return {size,interaction,eventToMutation:statistics('eventToMutationMs'),eventToTwoAnimationFrames:statistics('visualMs')};
  }));
- await mkdir('outputs/mobile-performance',{recursive:true});
- await writeFile('outputs/mobile-performance/visual-'+phase+'.json',JSON.stringify({phase,base,recordedAt:new Date().toISOString(),profile:{width:390,cpu:4,downloadMbps:1.6,uploadKbps:750,rttMs:150},method:'Browser capture listener starts performance.now at input/click. MutationObserver waits for expected DOM result, then two requestAnimationFrame callbacks. Playwright only triggers actions; its locator/action duration is outside the measured interval.',limitations:['Loopback fixed built bundle with mocked fictional public API and no photos; not production or physical Android.','Two animation frames are a presentation opportunity proxy, not observed pixels or INP.','Starts at browser event capture; does not include hardware input latency or browser queue before dispatch.','One page load per catalog; this run measures interactions only. The 40-product catalog uses the existing first 30-card rendering window.','Network emulation applies to preview resources; fixture response is mocked.'],summary,samples},null,2));
+ await mkdir(outputDir,{recursive:true});
+ await writeFile(outputDir+'/visual-'+phase+'.json',JSON.stringify({phase,base,recordedAt:new Date().toISOString(),profile:{width:390,cpu:4,downloadMbps:1.6,uploadKbps:750,rttMs:150},method:'Browser capture listener starts performance.now at input/click. MutationObserver waits for expected DOM result, then two requestAnimationFrame callbacks. Playwright only triggers actions; its locator/action duration is outside the measured interval.',limitations:['Loopback fixed built bundle with mocked fictional public API and no photos; not production or physical Android.','Two animation frames are a presentation opportunity proxy, not observed pixels or INP.','Starts at browser event capture; does not include hardware input latency or browser queue before dispatch.','One page load per catalog; this run measures interactions only. The 40-product catalog uses the existing first 30-card rendering window.','Network emulation applies to preview resources; fixture response is mocked.'],summary,samples},null,2));
  console.log(JSON.stringify({phase,measurements:samples.length,summary}));
 } finally {await browser.close();}

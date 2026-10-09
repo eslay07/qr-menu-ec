@@ -1,3 +1,4 @@
+import {cleanupResult} from './cleanup-result.mjs';
 import assert from 'node:assert/strict';
 import {readFile,writeFile} from 'node:fs/promises';
 import {D1DocumentStore} from '../lib/d1-documents';
@@ -19,6 +20,7 @@ const id=crypto.randomUUID(),checks:string[]=[];
 const state:State={schemaVersion:1,restaurantId:id,ownerId:'qa-owner',draft:structuredClone(blankCatalog),settings:structuredClone(defaultSettings),published:null,license:null,password:{salt:'',hash:''},recoveryHash:'test-only',sessionEpoch:1,failures:{count:0,until:0},createdAt:new Date().toISOString(),access:{active:true,features:['orders'],maxDishes:150}};
 const store=new FirestoreRestaurantStore(db,id,{async mediaGet(){return null;},async mediaPut(){}});
 for(let i=0;i<150;i++)state.draft.dishes.push({id:`dish-${i}`,name:`Plato ${i}`,description:'',categoryId:'principales',priceCents:500,available:true,image:'',modifierGroups:[]});
+let primaryError: unknown;
 try{
  assert.equal(await store.commit(state,null),true);checks.push('150 dishes create');
  state.published={version:1,at:new Date().toISOString(),catalog:structuredClone(state.draft)};
@@ -35,12 +37,14 @@ try{
  assert.equal((await backups.read(backup)).orders.length,1);
  assert.equal(await backups.restoreComplete(backup,1),true);checks.push('verified backup and restore');
  await unchangedProduction();
-}finally{
+}catch(error){primaryError=error;throw error;}finally{
+ await cleanupResult(primaryError,async()=>{
  const rows=await db.inventoryWire();
  const allowed=(path:string)=>path.startsWith(`restaurants/${id}/`)||path===`restaurants/${id}`||path.startsWith(`publicMenus/${id}/`)||path===`publicMenus/${id}`||path===`platformConfig/orderTokens/entries/qa-${id}`;
  if(rows.some(row=>!allowed(row.path)))throw Error('Unexpected document found; refusing cleanup.');
  for(let i=0;i<rows.length;i+=40)await db.commit(rows.slice(i,i+40).map(row=>({path:row.path,delete:true,updateTime:row.updateTime})));
  assert.equal((await db.inventoryWire()).length,0);
+ });
 }
 const receipt={checkedAt:new Date().toISOString(),databaseId:destination.databaseId,checks,passed:true,destinationEmpty:true,realCustomerDataUsed:false,productionUnchanged:true};
 await writeFile('work/d1-transition/remote-rehearsal.json',JSON.stringify(receipt,null,2));console.log(JSON.stringify(receipt,null,2));

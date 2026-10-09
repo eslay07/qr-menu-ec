@@ -1,4 +1,5 @@
 import { chromium } from '@playwright/test';
+const outputDir = process.env.QA_OUTPUT_DIR || 'outputs/mobile-performance';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { demoCatalog } from '../lib/contracts';
 declare global { interface Window { __qa: { lcp: number; cls: number } } }
@@ -62,7 +63,7 @@ try {
     }
     await context.close();
   }
-  await mkdir('outputs/mobile-performance', { recursive: true });
-  await writeFile(`outputs/mobile-performance/${label}.json`, JSON.stringify({ recordedAt: new Date().toISOString(), profile: { width: 390, cpu: 4, downloadMbps: 1.6, uploadKbps: 750, latencyMs: 150 }, limitations: ['Local built SPA with mocked public API; API endpoint does not measure real server latency', 'Browser automation duration includes locator/action overhead', 'usableMs includes networkidle 500 ms settle; LCP separate', 'No physical Android device measurement'], results }, null, 2));
+  await mkdir(outputDir, { recursive: true });
+  await writeFile(`${outputDir}/${label}.json`, JSON.stringify({ recordedAt: new Date().toISOString(), profile: { width: 390, cpu: 4, downloadMbps: 1.6, uploadKbps: 750, latencyMs: 150 }, limitations: ['Local built SPA with mocked public API; API endpoint does not measure real server latency', 'Browser automation duration includes locator/action overhead', 'usableMs includes networkidle 500 ms settle; LCP separate', 'No physical Android device measurement'], results }, null, 2));
   console.log(`${label}: ${results.length} measurements saved`);
 } finally { await browser.close(); }

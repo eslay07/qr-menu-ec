@@ -45,7 +45,7 @@ async function main() {
   async function cf(path: string) {
     const response = await fetch(base + path, { headers: { Authorization: `Bearer ${credential.token}` }, signal: AbortSignal.timeout(15000) });
     if (!response.ok) throw Object.assign(Error('Cannot confirm write freeze.'), {status:response.status,code:'MAINTENANCE_LOOKUP_FAILED'});
-    return (await response.json()) as { result: any };
+    return (await response.json()) as { result: {resources: {bindings: {name:string;text?:string}[]};deployments:{versions:{version_id:string;percentage:number}[]}[]} };
   }
   const origins = new Set(['https://qr-menu-ec.consola.workers.dev']);
   for (const d of plan.documents.filter(d => d.path.startsWith('hostnames/'))) {
@@ -57,7 +57,7 @@ async function main() {
     const deployment = (await cf('/deployments')).result.deployments[0];
     if (deployment.versions.length !== 1 || deployment.versions[0].version_id !== maintenanceVersion || deployment.versions[0].percentage !== 100) throw Error('Maintenance version is not exclusively active.');
     const version = (await cf(`/versions/${maintenanceVersion}`)).result;
-    if (!version.resources.bindings.some((b: any) => b.name === 'MAINTENANCE_MODE' && b.text === 'true')) throw Error('Maintenance flag not confirmed.');
+    if (!version.resources.bindings.some((b: {name:string;text?:string}) => b.name === 'MAINTENANCE_MODE' && b.text === 'true')) throw Error('Maintenance flag not confirmed.');
     for (const origin of origins) {
       const response = await fetch(`${origin}/api/owner/login`, { redirect: 'manual', signal: AbortSignal.timeout(10000) });
       if (response.status !== 503 || response.headers.get('X-QRMenu-Maintenance') !== 'write-freeze-v1') throw Error('An origin is not frozen.');

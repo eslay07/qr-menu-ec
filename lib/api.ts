@@ -1,3 +1,4 @@
+import { scalarText } from './scalar-text';
 import { z } from 'zod';
 import {commercialPlan,entitlements} from './entitlements';
 import QRCode from 'qrcode';
@@ -22,7 +23,6 @@ import {
   verifyLicense,
   b64,
   unb64,
-  totpSecret,
   verifyTotp,
 } from './security';
 import type { Store, State } from './store';
@@ -181,14 +181,14 @@ function orderPdfUrl(req: Request, token: string, basePath = '') {
   return `${new URL(req.url).origin}${basePath}/api/v1/order/${encodeURIComponent(token)}/pdf`;
 }
 function reportRange(url: URL) {
-  const from = z.string().datetime().optional().parse(url.searchParams.get('from') || undefined);
-  const to = z.string().datetime().optional().parse(url.searchParams.get('to') || undefined);
+  const from = z.string().check(z.iso.datetime()).optional().parse(url.searchParams.get('from') || undefined);
+  const to = z.string().check(z.iso.datetime()).optional().parse(url.searchParams.get('to') || undefined);
   if (from && to && from > to) throw Error('La fecha inicial debe ser anterior a la final.');
   return { from, to };
 }
 function ordersCsv(orders: Awaited<ReturnType<OrderStore['list']>>) {
   const quote = (value: unknown) =>
-    `"${String(value ?? '').replace(/"/g, '""')}"`;
+    `"${scalarText(value ?? '').replace(/"/g, '""')}"`;
   const rows: unknown[][] = [
     [
       'pedido',
@@ -534,7 +534,7 @@ export async function handleApi(
       if (!challenge) return json({ error: 'El desafío venció. Inicia sesión otra vez.' }, 401);
       const ciphertext =
         challenge.kind === 'mfa_setup'
-          ? String(challenge.payload.secretCiphertext || '')
+          ? scalarText(challenge.payload.secretCiphertext || '')
           : s.security?.totpCiphertext || '';
       const secret = await opts.security.decrypt(ciphertext);
       if (!(await verifyTotp(secret, input.code))) {
@@ -714,7 +714,7 @@ export async function handleApi(
       );
     }
     if (path.startsWith('media/') && method === 'GET') {
-      const mediaId = z.string().uuid().parse(path.slice(6));
+      const mediaId = z.string().check(z.uuid()).parse(path.slice(6));
       const publicAsset =
         !!s.published && assetIds(s.published.catalog).includes(mediaId);
       if (!publicAsset && !(await isAuthed()))
@@ -792,7 +792,7 @@ export async function handleApi(
       });
     if (path === 'email' && method === 'PUT' && opts.security) {
       const input = z
-        .object({ email: z.string().trim().email().max(254) })
+        .object({ email: z.string().trim().check(z.email()).max(254) })
         .strict()
         .parse(await body(req));
       const normalized = input.email.toLowerCase();
@@ -881,7 +881,7 @@ export async function handleApi(
     const restoreMatch = path.match(/^backups\/([a-f0-9-]{36})\/restore$/);
     if (restoreMatch && method === 'POST' && opts.backups) {
       const input = z.object({ revision: z.number().int().nonnegative(), confirm: z.literal(true) }).strict().parse(await body(req));
-      const ok = await opts.backups.restoreComplete(z.string().uuid().parse(restoreMatch[1]), input.revision);
+      const ok = await opts.backups.restoreComplete(z.string().check(z.uuid()).parse(restoreMatch[1]), input.revision);
       return json(ok ? { ok: true } : { error: 'La carta cambió. Recarga antes de restaurar.' }, ok ? 200 : 409);
     }
     if (path === 'notifications' && method === 'GET' && opts.business) {
@@ -1066,7 +1066,7 @@ export async function handleApi(
       const mediaInput = z
         .array(
           z.object({
-            id: z.string().uuid(),
+            id: z.string().check(z.uuid()),
             type: z.enum(['image/jpeg', 'image/png', 'image/webp']),
             data: z.string().max(1_500_000),
           }),
@@ -1193,7 +1193,7 @@ export async function handleApi(
       if (orders.length > 5_000) return json({ error: 'Hay más de 5.000 pedidos. Reduce el rango de fechas para calcular el reporte completo.' }, 400);
       orders.sort((a, b) => b.createdAt.localeCompare(a.createdAt) || a.id.localeCompare(b.id));
       const rawCursor = url.searchParams.get('cursor');
-      const cursor = rawCursor ? z.object({ restaurantId: z.string().uuid(), at: z.string().datetime(), id: z.string().uuid(), from: z.string(), to: z.string() }).strict().parse(JSON.parse(atob(z.string().max(2048).parse(rawCursor)))) : null;
+      const cursor = rawCursor ? z.object({ restaurantId: z.string().check(z.uuid()), at: z.string().check(z.iso.datetime()), id: z.string().check(z.uuid()), from: z.string(), to: z.string() }).strict().parse(JSON.parse(atob(z.string().max(2048).parse(rawCursor)))) : null;
       if (cursor && (cursor.restaurantId !== s.restaurantId || cursor.from !== (range.from || '') || cursor.to !== (range.to || ''))) return json({ error: 'El cursor no corresponde al restaurante o al filtro.' }, 400);
       const remaining = cursor ? orders.filter(order => order.createdAt < cursor.at || (order.createdAt === cursor.at && order.id.localeCompare(cursor.id) > 0)) : orders;
       const page = remaining.slice(0, 50), last = page.at(-1);

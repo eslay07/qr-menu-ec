@@ -122,7 +122,7 @@ export class D1DocumentStore extends FirestoreRest {
         // cannot overwrite a concurrently changed sibling field.
         const existing = await this.get(write.path);
         statements.push(this.sql.prepare(`INSERT INTO operational_guard(ok) SELECT 0 WHERE ${existing ? 'NOT EXISTS (SELECT 1 FROM operational_documents WHERE path=? AND version=?)' : 'EXISTS (SELECT 1 FROM operational_documents WHERE path=?)'}`).bind(...(existing ? [write.path,existing.updateTime] : [write.path])));
-        data = { ...(existing?.data || {}) };
+        data = { ...existing?.data };
         for (const field of write.mask) {
           if (field.includes('.')) throw Error('Máscara anidada no soportada.');
           firestoreId(field);

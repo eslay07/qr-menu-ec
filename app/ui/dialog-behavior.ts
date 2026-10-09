@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 
 export function useDialogBehavior(open: boolean, onClose: () => void) {
   const close = useRef(onClose);
-  close.current = onClose;
+  useEffect(() => { close.current = onClose; }, [onClose]);
   useEffect(() => {
     if (!open) return;
     const previous = document.activeElement as HTMLElement | null;

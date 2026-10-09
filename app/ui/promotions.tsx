@@ -46,7 +46,7 @@ export default function Promotions({ catalog, media, onChoose, disabled }: {
               {promotion.promotionalPriceCents !== null && <del>{money(dish.priceCents)}</del>}</div>}
             {dish && <button className="offer-action" disabled={!dish.available || disabled} onClick={() => onChoose(dish)}>{dish.available ? 'Elegir promoción' : 'Agotado'} <ArrowRight size={16} /></button>}
           </div>
-          {image ? <img src={media(image)} alt={dish?.name || promotion.title} loading="lazy" decoding="async" width={480} height={320} /> : <div className="promotion-placeholder"><Utensils size={42} /><span>Hecho para ti</span></div>}
+          {image ? <picture><img src={media(image)} alt={dish?.name || promotion.title} loading="lazy" decoding="async" width={480} height={320} /></picture> : <div className="promotion-placeholder"><Utensils size={42} /><span>Hecho para ti</span></div>}
         </article>;
       })}
     </div>

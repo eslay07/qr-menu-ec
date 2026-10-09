@@ -1,5 +1,5 @@
 'use client';
-import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { SubmitEvent, useCallback, useEffect, useState } from 'react';
 import {
   Building2,
   ExternalLink,
@@ -11,6 +11,8 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import type { Feature } from '@/lib/contracts';
+import type { AuthResult, SessionState } from './api-types';
+import { scalarText } from '@/lib/scalar-text';
 import Turnstile from './turnstile';
 import CreatorRecovery from './creator-recovery';
 import { MfaPanel } from './dashboard';
@@ -52,8 +54,10 @@ const featureOptions: { value: Feature; label: string }[] = [
   { value: 'promotions', label: 'Campañas y precios promocionales' },
 ];
 
+type DomainSettings = {baseHostname:string;status:string};
+type CreatorResponse<P extends string> = P extends 'session' ? SessionState : P extends 'firebase/client-token' ? {customToken:string} : P extends 'restaurants' ? {restaurants:Restaurant[];code:string;recovery:string;ownerUrl:string;menuUrl:string} : P extends 'domain-settings' ? DomainSettings : P extends 'mail-failures' ? {failures:Array<{id:string;createdAt:string;status:string;expired:boolean}>} : P extends `restaurants/${string}/hostname${string}` | `restaurants/${string}/custom-domain${string}` ? ManagedDomain : AuthResult & {ok:boolean;recovery:string;code:string};
 let creatorCsrfToken = '';
-async function creatorApi(path: string, method = 'GET', data?: unknown) {
+async function creatorApi<P extends string>(path: P, method = 'GET', data?: unknown): Promise<CreatorResponse<P>> {
   const headers: Record<string, string> =
     data === undefined ? {} : { 'Content-Type': 'application/json' };
   if (!['GET', 'HEAD'].includes(method) && creatorCsrfToken)
@@ -61,13 +65,13 @@ async function creatorApi(path: string, method = 'GET', data?: unknown) {
   const response = await fetch(`/api/creator/${path}`, {
     method,
     headers,
-    body: data === undefined ? undefined : JSON.stringify(data),
+    ...(data === undefined ? {} : {body: JSON.stringify(data)}),
   });
-  const body = (await response.json()) as any;
+  const body = (await response.json()) as {csrfToken?:string;error?:string};
   if (body?.csrfToken) creatorCsrfToken = body.csrfToken;
   if (!response.ok)
     throw Error(body.error || 'No se pudo completar la operación.');
-  return body;
+  return body as unknown as CreatorResponse<P>;
 }
 
 export default function CreatorDashboard() {
@@ -82,8 +86,8 @@ export default function CreatorDashboard() {
     [error, setError] = useState(''),
     [busy, setBusy] = useState(false),
     [credentials, setCredentials] = useState<Credentials | null>(null),
-    [mfa, setMfa] = useState<any>(null),
-    [domainSettings, setDomainSettings] = useState<any>(null),
+    [mfa, setMfa] = useState<AuthResult|null>(null),
+    [domainSettings, setDomainSettings] = useState<DomainSettings|null>(null),
     [turnstileToken, setTurnstileToken] = useState(''),
     [turnstileSiteKey, setTurnstileSiteKey] = useState<string | null>(null),
     [turnstileAttempt, setTurnstileAttempt] = useState(0);
@@ -113,9 +117,9 @@ export default function CreatorDashboard() {
     }
   }, []);
   useEffect(() => {
-    load();
+    void Promise.resolve().then(load);
   }, [load]);
-  async function submitAuth(event: FormEvent<HTMLFormElement>) {
+  async function submitAuth(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy(true);
     setError('');
@@ -156,7 +160,7 @@ export default function CreatorDashboard() {
       setBusy(false);
     }
   }
-  async function addRestaurant(event: FormEvent<HTMLFormElement>) {
+  async function addRestaurant(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy(true);
     setError('');
@@ -175,7 +179,7 @@ export default function CreatorDashboard() {
       setCredentials({
         title: 'Acceso nuevo del dueño',
         code: result.code,
-        password: String(values.get('ownerPassword')),
+        password: scalarText(values.get('ownerPassword')),
         recovery: result.recovery,
         ownerUrl: result.ownerUrl,
         menuUrl: result.menuUrl,
@@ -240,9 +244,9 @@ export default function CreatorDashboard() {
   if (!ready)
     return (
       <main className="skeleton-shell" aria-busy="true">
-        <span className="sr-only" role="status">
+        <output className="sr-only" >
           Abriendo panel privado…
-        </span>
+        </output>
         <div className="skeleton-line" />
         <div className="skeleton-block" />
         <div className="skeleton-grid">
@@ -262,7 +266,7 @@ export default function CreatorDashboard() {
         onVerify={(code: string) => {
           setBusy(true);
           setError('');
-          creatorApi('auth/mfa/verify', 'POST', { code })
+          void creatorApi('auth/mfa/verify', 'POST', { code })
             .then((result) => {
               setMfa(null);
               setAuthenticated(true);
@@ -279,7 +283,7 @@ export default function CreatorDashboard() {
         onRecover={(code: string) => {
           setBusy(true);
           setError('');
-          creatorApi('auth/mfa/recover', 'POST', { code })
+          void creatorApi('auth/mfa/recover', 'POST', { code })
             .then(() => {
               setMfa(null);
               setAuthenticated(true);
@@ -428,7 +432,7 @@ export default function CreatorDashboard() {
               const form = new FormData(event.currentTarget);
               setBusy(true);
               setError('');
-              creatorApi('domain-settings', 'PUT', {
+              void creatorApi('domain-settings', 'PUT', {
                 baseHostname: form.get('baseHostname'),
               })
                 .then(setDomainSettings)
@@ -542,7 +546,7 @@ export default function CreatorDashboard() {
               </p>
               <RestaurantDomains restaurant={item} />
               <OwnerEmailEditor restaurant={item} />
-                <SampleMenuSettings restaurant={item} onSaved={load} />
+                <SampleMenuSettings key={`${item.id}-${item.revision}`} restaurant={item} onSaved={load} />
               <div className="creator-modes">
                 {featureOptions.map((m) => (
                   <label className="check-label" key={m.value}>
@@ -554,7 +558,7 @@ export default function CreatorDashboard() {
                         const features = e.target.checked
                           ? [...item.features, m.value]
                           : item.features.filter((x) => x !== m.value);
-                        setAccess(item, item.active, features);
+                        void setAccess(item, item.active, features);
                       }}
                     />
                     {m.label}
@@ -606,7 +610,7 @@ function MailFailurePanel() {
   }
   return <details className="card"><summary>Correos fallidos</summary><p>Revisa fallos recientes sin exponer contraseñas ni enlaces de recuperación. Los correos vencidos requieren generar una recuperación nueva.</p>
     <button className="btn" disabled={busy} onClick={() => run()}>Actualizar registro</button>
-    {message && <p role="status">{message}</p>}
+    {message && <output >{message}</output>}
     <ul>{rows.map(row => <li key={row.id}>{new Date(row.createdAt).toLocaleString('es-EC')} · {row.status} {row.expired ? '· Vencido' : ''} <button className="btn" disabled={busy || row.expired || row.status !== 'failed'} onClick={() => run(row.id)}>Reenviar</button></li>)}</ul>
   </details>;
 }
@@ -625,7 +629,7 @@ function OwnerEmailEditor({ restaurant }: { restaurant: Restaurant }) {
       finally { setBusy(false); }
     }}><label>Correo del dueño<input type="email" name="email" autoComplete="email" required maxLength={254} /></label>
       <button className="btn" disabled={busy}>{busy ? 'Guardando…' : 'Guardar correo de acceso'}</button>
-      {notice && <p role="status">{notice}</p>}
+      {notice && <output >{notice}</output>}
     </form>
   </details>;
 }
@@ -636,7 +640,7 @@ function SampleMenuSettings({ restaurant, onSaved }: { restaurant: Restaurant; o
   const [plan,setPlan]=useState(restaurant.plan||'premium');
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
-  useEffect(() => { setLimit(restaurant.maxDishes); setEnabled(restaurant.sampleMenuEnabled);setPlan(restaurant.plan||'premium'); }, [restaurant.maxDishes, restaurant.sampleMenuEnabled,restaurant.plan]);
+
   return <details className="owner-email-editor"><summary>Capacidad y carta de ejemplo</summary>
     <p>El límite se aplica al guardar, publicar, restaurar y cargar ejemplos. No puede ser menor que una carta existente.</p>
     <form onSubmit={async event => {
@@ -651,7 +655,7 @@ function SampleMenuSettings({ restaurant, onSaved }: { restaurant: Restaurant; o
       <label>Plan comercial<select value={plan} onChange={event=>setPlan(event.target.value as typeof plan)}><option value="basic">Básico · avisos dentro del panel</option><option value="medium">Medio · push y reportes</option><option value="premium">Premium · WiFi y respaldos programados</option></select></label>
       <label className="check-label"><input type="checkbox" checked={enabled} onChange={event => setEnabled(event.target.checked)} /> Habilitar “Cargar ejemplo profesional”</label>
       <button className="btn primary" disabled={busy}>{busy ? 'Guardando…' : 'Guardar capacidad'}</button>
-      {notice && <p role="status">{notice}</p>}
+      {notice && <output >{notice}</output>}
     </form>
   </details>;
 }
@@ -676,13 +680,13 @@ function RestaurantDomains({ restaurant }: { restaurant: Restaurant }) {
       className="domain-manager"
       onToggle={(event) => {
         if (event.currentTarget.open && !domain)
-          run(() =>
+          void run(() =>
             creatorApi(`restaurants/${restaurant.id}/hostname`, 'POST'),
           );
       }}
     >
       <summary>Administrar direcciones y dominio propio</summary>
-      {busy && <p role="status">Consultando Cloudflare…</p>}
+      {busy && <output >Consultando Cloudflare…</output>}
       {error && <div className="notice error" role="alert">{error}</div>}
       {domain?.primaryUrl && (
         <p>
@@ -708,7 +712,7 @@ function RestaurantDomains({ restaurant }: { restaurant: Restaurant }) {
         onSubmit={(event) => {
           event.preventDefault();
           const values = new FormData(event.currentTarget);
-          run(() =>
+          void run(() =>
             creatorApi(
               `restaurants/${restaurant.id}/custom-domain`,
               'PUT',

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import{generateKeyPairSync,sign,randomUUID,createPublicKey}from'node:crypto';import fs from'node:fs';import path from'node:path';
+import{generateKeyPairSync,sign,randomUUID}from'node:crypto';import fs from'node:fs';import path from'node:path';
 const[command,...args]=process.argv.slice(2);
 function fail(msg){console.error(msg);process.exit(1)}
 if(command==='keygen'){const[folder]=args;if(!folder)fail('Uso: node tools/license.mjs keygen RUTA_PRIVADA_FUERA_DEL_PROYECTO');const dest=path.resolve(folder),root=path.resolve('.');if(dest===root||dest.startsWith(root+path.sep))fail('Guarda la clave privada fuera del proyecto y de sus paquetes.');fs.mkdirSync(dest,{recursive:true});const privatePath=path.join(dest,'seller-private.pem');if(fs.existsSync(privatePath))fail('Ya existe una clave privada. No se reemplazó.');const pair=generateKeyPairSync('ed25519');fs.writeFileSync(privatePath,pair.privateKey.export({type:'pkcs8',format:'pem'}),{mode:0o600,flag:'wx'});const raw=pair.publicKey.export({type:'spki',format:'der'}).subarray(-32).toString('base64');fs.writeFileSync(path.join(dest,'seller-public.txt'),raw,{flag:'wx'});console.log('Claves creadas. Distribuye solo seller-public.txt. Conserva y respalda la clave privada.');}

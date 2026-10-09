@@ -27,6 +27,7 @@
     ".vinext/**",
     "out/**",
     "build/**",
+    "vendor/braces/build/**",
     "dist/**",
     "coverage/**",
     "next-env.d.ts"

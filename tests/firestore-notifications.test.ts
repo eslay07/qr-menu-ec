@@ -1,3 +1,4 @@
+import { jsonRequestBody } from './http-fixture';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { FirestoreRest, firestoreHashId, type FirestoreData } from '../lib/firestore-rest';
@@ -11,7 +12,7 @@ import { digest } from '../lib/security';
 async function seedSession(db:FirestoreRest,rid:string,csrf:string){const hash=await digest(crypto.randomUUID());const now=new Date();await db.commit([{path:'platformConfig/sessionGrants/entries/'+firestoreHashId(hash),data:{idHash:hash,scope:'owner',restaurantId:rid,csrfToken:csrf,revokedAt:null,createdAt:now,lastSeenAt:now,idleExpiresAt:new Date(now.getTime()+30*60_000),absoluteExpiresAt:new Date(now.getTime()+12*3600_000)}}]);}
 
 const skip = !process.env.FIRESTORE_EMULATOR_HOST;
-test('a concurrent device renewal retains the push job instead of silently dropping it', {skip}, async () => {
+void test('a concurrent device renewal retains the push job instead of silently dropping it', {skip}, async () => {
   class RefreshingStore extends FirestoreRest {
     refreshPath='';
     override async get<T=FirestoreData>(path:string) {
@@ -34,7 +35,7 @@ test('a concurrent device renewal retains the push job instead of silently dropp
   await push.dispatch(sender,new Date(now.getTime()+61_000));
   assert.equal(sends,1); assert.equal(await db.get(`${root}/pushJobs/renewal-race`),null);
 });
-test('push queue isolates restaurants, retries, revokes logout and suppresses disabled preferences', { skip }, async () => {
+void test('push queue isolates restaurants, retries, revokes logout and suppresses disabled preferences', { skip }, async () => {
   const db = new FirestoreRest('demo-qr-menu-ec', process.env.FIRESTORE_EMULATOR_HOST!);
   const rid = crypto.randomUUID(), other = crypto.randomUUID();
   const root = `restaurants/${rid}`;
@@ -58,7 +59,7 @@ test('push queue isolates restaurants, retries, revokes logout and suppresses di
   assert.ok(due.some(row => row.path === `${root}/pushJobs/first`));
   let calls = 0;
   const sender = new FcmSender('demo-qr-menu-ec', async () => 'test', async (_url, init) => {
-    const payload = JSON.parse(String(init?.body)).message.data;
+    const payload = jsonRequestBody<{message:{data:Record<string,string>}}>(init?.body).message.data;
     assert.equal(payload.title,'Nuevo pedido recibido'); assert.equal(payload.body,'Pedido 42 · USD 8.00'); assert.equal(payload.eventId,'first');
     calls++; return calls === 1 ? Response.json({}, { status: 503 }) : Response.json({ name: 'sent' });
   });
@@ -79,7 +80,7 @@ test('push queue isolates restaurants, retries, revokes logout and suppresses di
   await push.dispatch(sender, now); assert.equal(calls, 2);
   assert.equal((await db.list(`${root}/pushDevices`)).documents.length, 0);
 });
-test('notification inbox pagination, scoped reads and revision conflicts', { skip }, async () => {
+void test('notification inbox pagination, scoped reads and revision conflicts', { skip }, async () => {
   const db = new FirestoreRest('demo-qr-menu-ec', process.env.FIRESTORE_EMULATOR_HOST!);
   const rid = crypto.randomUUID(), other = crypto.randomUUID();
   const business = new FirestoreBusinessRepository(db, rid);
@@ -103,7 +104,7 @@ test('notification inbox pagination, scoped reads and revision conflicts', { ski
   await assert.rejects(business.notifications(btoa(JSON.stringify({ at: '2026-09-27T10:00:00.000Z', id: '../other' }))));
 });
 
-test('daily summary excludes cancelled/demo orders; inactivity is opt-in and deduplicated', { skip }, async () => {
+void test('daily summary excludes cancelled/demo orders; inactivity is opt-in and deduplicated', { skip }, async () => {
   const db = new FirestoreRest('demo-qr-menu-ec', process.env.FIRESTORE_EMULATOR_HOST!);
   const rid = crypto.randomUUID(), disabled = crypto.randomUUID();
   const base = `restaurants/${rid}`;

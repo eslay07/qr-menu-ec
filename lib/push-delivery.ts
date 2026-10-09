@@ -1,7 +1,10 @@
 import { z } from 'zod';
 
 export type PushResult = 'sent' | 'invalid-token' | 'retry' | 'rejected';
-export type PushMessage = { token: string; eventId: string; restaurantId: string; title?: string; body?: string };
+export type PushTargetType = 'token' | 'fid';
+// Firebase Installations SDK generate-fid.ts: exactly 22 base64url characters.
+export const firebaseInstallationId = /^[cdef][A-Za-z0-9_-]{21}$/;
+export type PushMessage = { targetType?: PushTargetType; token: string; eventId: string; restaurantId: string; title?: string; body?: string };
 
 // No customer names, order contents, WiFi secrets or bearer URLs on lock screens.
 export class FcmSender {
@@ -9,13 +12,13 @@ export class FcmSender {
     if (!/^[a-z][a-z0-9-]{4,62}$/.test(project)) throw Error('Proyecto FCM inválido.');
   }
   async send(message: PushMessage): Promise<PushResult> {
-    const parsed = z.object({ token: z.string().min(20).max(4096), eventId: z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/), restaurantId: z.string().uuid(), title: z.string().max(120).optional(), body: z.string().max(600).optional() }).strict().parse(message);
+    const parsed = z.object({ targetType: z.enum(['token','fid']).default('token'), token: z.string().min(20).max(4096), eventId: z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/), restaurantId: z.string().check(z.uuid()), title: z.string().max(120).optional(), body: z.string().max(600).optional() }).strict().superRefine((value,context)=>{if(value.targetType==='fid'&&!firebaseInstallationId.test(value.token))context.addIssue({code:'custom',path:['token'],message:'FID inválido.'});}).parse(message);
     try {
       const response = await this.transport.call(globalThis, `https://fcm.googleapis.com/v1/projects/${this.project}/messages:send`, {
         method: 'POST', signal: AbortSignal.timeout(15_000),
         headers: { Authorization: `Bearer ${await this.bearer()}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: {
-          token: parsed.token,
+          ...(parsed.targetType === 'fid' ? { fid: parsed.token } : { token: parsed.token }),
           data: { eventId: parsed.eventId, restaurantId: parsed.restaurantId, title: parsed.title || 'QR Menu EC', body: parsed.body || 'Tienes una novedad en tu restaurante. Abre el panel para revisarla.' },
           android: { priority: 'high', ttl: '3600s' },
           webpush: { headers: { TTL: '3600', Urgency: 'normal' } },

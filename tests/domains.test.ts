@@ -90,7 +90,7 @@ function fakeDb(initial: HostRow[] = []) {
   return { db: db as unknown as D1Database, rows };
 }
 
-test('free hostnames normalize names and resolve collisions', async () => {
+void test('free hostnames normalize names and resolve collisions', async () => {
   const { db, rows } = fakeDb([
     {
       hostname: 'la-mesa.menus.test',
@@ -120,7 +120,7 @@ test('free hostnames normalize names and resolve collisions', async () => {
   );
 });
 
-test('custom hostname waits for both hostname and certificate', async () => {
+void test('custom hostname waits for both hostname and certificate', async () => {
   const { db } = fakeDb();
   const originalFetch = globalThis.fetch;
   let verification = 0;
@@ -145,7 +145,7 @@ test('custom hostname waits for both hostname and certificate', async () => {
     const pending = await service.verify('restaurant');
     assert.equal(pending.custom?.status, 'pending_validation');
     assert.equal(
-      (pending.custom?.validation as { ssl: { status: string } }).ssl.status,
+      (pending.custom!.validation as { ssl: { status: string } }).ssl.status,
       'pending',
     );
     const active = await service.verify('restaurant');

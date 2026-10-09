@@ -9,7 +9,7 @@ export class FirestoreError extends Error {
   get conflict() { return [409, 412].includes(this.status) || ['FAILED_PRECONDITION', 'ALREADY_EXISTS', 'ABORTED'].includes(this.code); }
 }
 export function firestoreId(value: string) {
-  if (!value || value === '.' || value === '..' || /[/\\?#%\u0000-\u001f]/.test(value) || value.length > 256) throw Error('Identificador inválido.');
+  if (!value || value === '.' || value === '..' || (/[/\\?#%]/.test(value) || Array.from(value).some(char => char.charCodeAt(0) <= 31)) || value.length > 256) throw Error('Identificador inválido.');
   return value;
 }
 export const firestoreHashId = (hash: string) => firestoreId(hash.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''));
@@ -70,7 +70,7 @@ export class FirestoreRest {
     return { path: wire.name.slice(this.root.length + 1), data: decode({ mapValue: { fields: wire.fields || {} } }) as T, updateTime: wire.updateTime };
   }
   private async request<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
-    const response = await fetch(this.origin + path, { method, headers: { Authorization: `Bearer ${this.isEmulator ? 'owner' : await this.bearer!()}`, 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(20_000) }).catch(error => {
+    const response = await fetch(this.origin + path, { method, headers: { Authorization: `Bearer ${this.isEmulator ? 'owner' : await this.bearer!()}`, 'Content-Type': 'application/json' }, ...(body !== undefined && method !== 'GET' && method !== 'HEAD' ? { body: JSON.stringify(body) } : {}), signal: AbortSignal.timeout(20_000) }).catch(error => {
       // Diagnose transport failures without exposing document IDs, tokens or bodies.
       throw new Error(`Firestore ${method} ${path.endsWith(':commit') ? 'commit' : path.endsWith(':runQuery') ? 'query' : 'read'} transport failed (${error instanceof Error ? error.name : 'unknown'}).`, { cause: error });
     });

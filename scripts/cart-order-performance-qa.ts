@@ -1,4 +1,5 @@
 import { chromium, expect } from '@playwright/test';
+const outputDir = process.env.QA_OUTPUT_DIR || 'outputs/mobile-performance';
 import { writeFile } from 'node:fs/promises';
 import { demoCatalog } from '../lib/contracts';
 import { createOrderRecord } from '../lib/orders';
@@ -31,6 +32,6 @@ try{
   }
   await context.close();
  }
- await writeFile('outputs/mobile-performance/cart-order-'+phase+'.json',JSON.stringify({recordedAt:new Date().toISOString(),limitations:['Local fixture API, controlled 150ms; real recalculation function but no persistence, Firebase or Turnstile','Emulated network/CPU, automation overhead, no physical phone'],results},null,2));
+ await writeFile(outputDir+'/cart-order-'+phase+'.json',JSON.stringify({recordedAt:new Date().toISOString(),limitations:['Local fixture API, controlled 150ms; real recalculation function but no persistence, Firebase or Turnstile','Emulated network/CPU, automation overhead, no physical phone'],results},null,2));
  console.log(phase+': '+results.length+' supplemental measurements');
 }finally{await browser.close();}

@@ -14,9 +14,9 @@ export default function CreatorRecovery({ siteKey, enabled, onBack, token }: {
     <button className="close-button" onClick={onBack}><ArrowLeft size={18} /> Volver al acceso</button>
     <Mail size={34} /><h1>{token ? 'Recupera tu cuenta' : '¿Olvidaste tu acceso?'}</h1>
     <p>{token ? 'Elige una contraseña nueva. Al volver al acceso seguiremos verificando tu autenticador.' : 'Enviaremos un enlace privado al correo de recuperación registrado para el creador.'}</p>
-    {!enabled && !token && <p className="notice" role="status">El envío de correo aún necesita configuración. El acceso habitual sigue disponible.</p>}
+    {!enabled && !token && <output className="notice" >El envío de correo aún necesita configuración. El acceso habitual sigue disponible.</output>}
     {error && <p className="notice error" role="alert">{error}</p>}
-    {message ? <p className="notice" role="status">{message}</p> : <form onSubmit={async event => {
+    {message ? <output className="notice" >{message}</output> : <form onSubmit={async event => {
       event.preventDefault();
       const values = new FormData(event.currentTarget);
       if (token && values.get('password') !== values.get('confirmPassword')) { setError('Las contraseñas no coinciden.'); return; }
@@ -26,7 +26,7 @@ export default function CreatorRecovery({ siteKey, enabled, onBack, token }: {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(token ? { token, password: values.get('password'), turnstileToken: botToken } : { turnstileToken: botToken }),
         });
-        const result = await response.json() as any;
+        const result = await response.json() as {error:string;message:string};
         if (!response.ok) throw Error(result.error);
         setMessage(token ? 'Contraseña actualizada. Vuelve al acceso para completar la verificación de seguridad.' : result.message);
       } catch (failure) { setError((failure as Error).message); }

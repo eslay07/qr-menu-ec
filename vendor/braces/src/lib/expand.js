@@ -1,8 +1,6 @@
-'use strict';
-
-const fill = require('fill-range');
-const stringify = require('./stringify');
-const utils = require('./utils');
+import fill from 'fill-range';
+import stringify from './stringify.js';
+import utils from './utils.js';
 
 const append = (queue = '', stash = '', enclose = false) => {
   const result = [];
@@ -110,4 +108,4 @@ const expand = (ast, options = {}) => {
   return utils.flatten(walk(ast));
 };
 
-module.exports = expand;
+export default expand;

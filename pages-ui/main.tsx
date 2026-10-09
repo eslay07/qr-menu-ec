@@ -23,6 +23,18 @@ const validRoute = ['/', '/menu', '/demo', `/${slug}`, `/${slug}/qr`].includes(
   path,
 );
 
+const webUrl = `https://qr-menu-ec.pages.dev/${slug}`;
+const payloads = catalog
+  ? [
+      {
+        kind: 'web' as const,
+        label: 'MENÚ CON INTERNET',
+        subtitle: 'fotos y experiencia completa',
+        payload: webUrl,
+      },
+    ]
+  : [];
+
 function App() {
   const [status, setStatus] = useState(
     'Menú online actualizado desde Cloudflare.',
@@ -36,17 +48,6 @@ function App() {
       image: string;
     }[]
   >([]);
-  const webUrl = `https://qr-menu-ec.pages.dev/${slug}`;
-  const payloads = catalog
-    ? [
-        {
-          kind: 'web' as const,
-          label: 'MENÚ CON INTERNET',
-          subtitle: 'fotos y experiencia completa',
-          payload: webUrl,
-        },
-      ]
-    : [];
   useEffect(() => {
     if (!catalog || !validRoute) return;
     document.title = `${catalog.name} · QR Menu EC`;
@@ -67,12 +68,12 @@ function App() {
         .catch(() =>
           setStatus('No se pudieron generar los QR. Recarga la página.'),
         );
-  }, [isQr]);
+  }, []);
   if (!catalog || !validRoute)
     return (
       <main className="customer-empty">
         <h1>Restaurante no encontrado</h1>
-        <a className="btn" href="/restaurante-demo">
+        <a className="btn" href={new URL('/restaurante-demo', location.origin).href}>
           Abrir restaurante demo
         </a>
       </main>
@@ -93,17 +94,17 @@ function App() {
           </div>
         </header>
         <div className="print-card-grid">
-          {qrs.map((qr, index) => (
+          {qrs.map((qr) => (
             <article className={`print-card ${qr.kind}`} key={qr.kind}>
               <p className="eyebrow">{qr.label}</p>
               <h2>{catalog.name}</h2>
               <p>{qr.subtitle}</p>
-              <img
+              <picture><img
                 src={qr.image}
                 width="360"
                 height="360"
                 alt={`Código QR de ${qr.label.toLowerCase()}`}
-              />
+              /></picture>
               <strong>Abre el menú interactivo</strong>
               <details className="qr-payload no-print">
                 <summary>Ver enlace incluido</summary>
@@ -124,8 +125,8 @@ function App() {
   return (
     <div className="pages-edition">
       <Menu initialCatalog={catalog} />
-      <aside className="pages-status" role="status">
-        <p>{status}</p>
+      <aside className="pages-status">
+        <output>{status}</output>
         <a href={`/${slug}/qr`}>Ver e imprimir QR</a>
       </aside>
     </div>

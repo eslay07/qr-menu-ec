@@ -3,7 +3,7 @@ import { z } from 'zod';
 
 // Independent Worker secret; never reuse or broaden the Auth service account.
 export function firestoreBearer(projectId: string, secret: string, scope = 'https://www.googleapis.com/auth/datastore') {
-  const account = z.object({ project_id: z.string(), client_email: z.string().email(), private_key: z.string().min(1) }).parse(JSON.parse(secret));
+  const account = z.object({ project_id: z.string(), client_email: z.string().check(z.email()), private_key: z.string().min(1) }).parse(JSON.parse(secret));
   if (account.project_id !== projectId) throw Error('El proyecto de la credencial Firestore no coincide.');
   let cached: { token: string; expires: number } | undefined;
   return async () => {

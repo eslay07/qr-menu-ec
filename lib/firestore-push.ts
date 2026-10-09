@@ -4,14 +4,14 @@ import { FirestoreRest, FirestoreError, firestoreId, firestoreHashId, type Fires
 import { digest } from './security';
 import type { AuthSecurity } from './auth-security';
 import { NotificationSettings } from './restaurant-preferences';
-import { FcmSender, pushRetryAt } from './push-delivery';
+import { FcmSender, pushRetryAt, firebaseInstallationId, type PushTargetType } from './push-delivery';
 
 type Preference = 'newOrder' | 'customerCancelled' | 'soldOut' | 'dailySummary' | 'inactivity';
 const eventLabels: Record<Preference, string> = { newOrder:'Nuevo pedido recibido', customerCancelled:'Pedido cancelado por el comensal', soldOut:'Producto agotado', dailySummary:'Resumen diario de pedidos', inactivity:'Alerta de inactividad' };
 type SessionGrant = {idHash:string;scope:string;restaurantId:string|null;csrfToken:string;revokedAt:string|null;absoluteExpiresAt:string;idleExpiresAt:string;familySessionHash?:string};
-type Device = { sessionGrantHash?:string;sessionFamilyHash?:string; tokenCiphertext: string; sessionEpoch: number; sessionBinding: string; registeredAt: string; expiresAt: string };
+type Device = { platform?:'web'|'android';targetType?:PushTargetType;registrationKeyHash?:string; sessionGrantHash?:string;sessionFamilyHash?:string; tokenCiphertext: string; sessionEpoch: number; sessionBinding: string; registeredAt: string; expiresAt: string };
 type Job = { eventId: string; preference: Preference; createdAt: string; expiresAt: string; nextAttemptAt: string; attempt: number; delivered: string[] };
-export const PushRegistration = z.object({ token: z.string().min(20).max(4096).regex(/^[A-Za-z0-9_:.-]+$/), platform: z.enum(['web', 'android']) }).strict();
+export const PushRegistration = z.object({ token: z.string().min(20).max(4096).regex(/^[A-Za-z0-9_:.-]+$/), platform: z.enum(['web', 'android']), targetType:z.enum(['token','fid']).default('token'), registrationKey:z.uuid().optional() }).strict().superRefine((value,context)=>{ if(value.targetType==='fid'&&!firebaseInstallationId.test(value.token))context.addIssue({code:'custom',path:['token'],message:'FID inválido.'}); if(value.registrationKey&&value.platform!=='web')context.addIssue({code:'custom',path:['registrationKey'],message:'La clave web no corresponde a Android.'}); });
 
 export function pushJob(restaurantId: string, eventId: string, preference: Preference, now = new Date()): FirestoreWrite {
   return { path: `restaurants/${firestoreId(restaurantId)}/pushJobs/${firestoreId(eventId)}`, exists: false,
@@ -34,14 +34,21 @@ export class FirestorePush {
     if(!family || family.data.revokedAt || Date.parse(family.data.absoluteExpiresAt)<=Date.now())throw Error('La sesión de notificaciones fue revocada o venció.');
     const registryPath = `${this.root}/private/pushRegistry`, registry = await this.db.get(registryPath);
     const path = `${this.root}/pushDevices/${id}`, old = await this.db.get<Device>(path);
-    const devices = await this.db.list(`${this.root}/pushDevices`, 21);
-    if (!old && devices.documents.length >= 20) throw Error('Se alcanzó el límite de 20 dispositivos. Desactiva uno antes de agregar otro.');
+    const devices = await this.db.list<Device>(`${this.root}/pushDevices`, 21);
+    const bindingHash = await digest(sessionBinding);
+    const registrationKeyHash = input.registrationKey ? await digest(input.registrationKey) : undefined;
+    const replacements = input.platform === 'web' && registrationKeyHash ? devices.documents.filter(device => device.path !== path && device.data.platform === 'web' && (device.data.sessionFamilyHash === familyHash || device.data.sessionBinding === bindingHash) && (device.data.registrationKeyHash === registrationKeyHash || !device.data.registrationKeyHash)) : [];
+    const ownerships = await Promise.all(replacements.map(device => this.db.get<{restaurantId:string}>(`platformConfig/pushTokens/entries/${device.path.split('/').at(-1)!}`)));
+    const replacementDeletes = replacements.map(device=>({path:device.path,delete:true,updateTime:device.updateTime}));
+    const ownershipDeletes = ownerships.filter(owner=>owner?.data.restaurantId===this.restaurantId).map(owner=>({path:owner!.path,delete:true,updateTime:owner!.updateTime}));
+    if (!old && devices.documents.length - replacements.length >= 20) throw Error('Se alcanzó el límite de 20 dispositivos. Desactiva uno antes de agregar otro.');
     const now = new Date();
     await this.db.commit([
+      ...replacementDeletes, ...ownershipDeletes,
       {path:session.path,data:{familySessionHash:familyHash},mask:['familySessionHash'],updateTime:session.updateTime},
       ...(family.path!==session.path?[{path:family.path,data:{},mask:[],updateTime:family.updateTime}]:[]),
       { path: registryPath, data: { updatedAt: now }, ...(registry ? { updateTime: registry.updateTime } : { exists: false }) },
-      { path, data: { tokenCiphertext: await this.security.encrypt(input.token), platform: input.platform, sessionGrantHash:session.data.idHash,sessionFamilyHash:familyHash,sessionEpoch, sessionBinding: await digest(sessionBinding), registeredAt: old?.data.registeredAt || now, expiresAt: new Date(now.getTime() + 30 * 86_400_000) }, ...(old ? { updateTime: old.updateTime } : { exists: false }) },
+      { path, data: { targetType:input.targetType,...(registrationKeyHash?{registrationKeyHash}:{}),tokenCiphertext: await this.security.encrypt(input.token), platform: input.platform, sessionGrantHash:session.data.idHash,sessionFamilyHash:familyHash,sessionEpoch, sessionBinding: await digest(sessionBinding), registeredAt: old?.data.registeredAt || now, expiresAt: new Date(now.getTime() + 30 * 86_400_000) }, ...(old ? { updateTime: old.updateTime } : { exists: false }) },
       // A shared phone can only receive messages for its most recently registered restaurant.
       { path: `platformConfig/pushTokens/entries/${id}`, data: { restaurantId: this.restaurantId, expiresAt: new Date(now.getTime() + 30 * 86_400_000) } },
     ]);
@@ -129,7 +136,7 @@ export class FirestorePush {
         // alone cannot authorize a session revoked during queue preparation.
         if(!await allowed(device.data)){try{await this.db.commit([{path:device.path,delete:true,updateTime:currentDevice.updateTime}]);}catch(error){if(!(error instanceof FirestoreError&&error.conflict))throw error;}continue;}
         budget.remaining--;
-        const result = await sender.send({ token: await this.security.decrypt(device.data.tokenCiphertext), eventId: job.data.eventId, restaurantId: this.restaurantId, title: notification?.data.title.slice(0,120) || eventLabels[job.data.preference], body: notification?.data.message.slice(0,600) || `${eventLabels[job.data.preference]}. Abre este aviso para consultar el detalle.` });
+        const result = await sender.send({ targetType:device.data.targetType || 'token', token: await this.security.decrypt(device.data.tokenCiphertext), eventId: job.data.eventId, restaurantId: this.restaurantId, title: notification?.data.title.slice(0,120) || eventLabels[job.data.preference], body: notification?.data.message.slice(0,600) || `${eventLabels[job.data.preference]}. Abre este aviso para consultar el detalle.` });
         console.info('push_delivery_result', { eventId:job.data.eventId, result });
         if (result === 'retry') retry = true;
         else delivered.add(id);

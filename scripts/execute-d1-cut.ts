@@ -57,7 +57,7 @@ if(!process.argv.includes('--execute-authorized-window')){
    const child=spawn(process.execPath,args,{windowsHide:true,stdio:['ignore','pipe','pipe'],env:{...process.env,WRANGLER_SEND_METRICS:'false',WRANGLER_WRITE_LOGS:'false'}});
    let bytes=0;for(const stream of [child.stdout,child.stderr])stream.on('data',buffer=>{bytes+=buffer.length;if(bytes>10_000_000)child.kill();});
    const timer=setTimeout(()=>child.kill(),recovering?15*60*1000:Math.max(1000,deadline-Date.now()));
-   child.on('error',error=>{clearTimeout(timer);reject(error);});child.on('exit',code=>{clearTimeout(timer);code===0?resolve():reject(Error(`${label} failed (${code})`));});
+   child.on('error',error=>{clearTimeout(timer);reject(error);});child.on('exit',code=>{clearTimeout(timer);if(code===0)resolve();else reject(Error(`${label} failed (${code})`));});
   });
  }
  async function guard(){

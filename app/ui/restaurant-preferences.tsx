@@ -37,8 +37,8 @@ export default function RestaurantPreferencesPanel({ mode }: { mode: 'notificati
   return <section className="card settings-section" aria-busy={(!ready && !failed) || busy}>
     <h2>{mode === 'wifi' ? 'WiFi en el QR impreso' : 'Notificaciones del restaurante'}</h2>
     <p className="muted">{mode === 'wifi' ? 'La clave solo aparece en la impresión autenticada. No se incorpora al código QR ni al menú público.' : 'Avisos dentro del panel. No requieren notificaciones push del teléfono.'}</p>
-    {message && <div id={`preference-status-${mode}`} className={`notice ${failed ? 'error' : ''}`} role={failed ? 'alert' : 'status'} tabIndex={-1}>{message}</div>}
-    {!ready && !failed && <p role="status">Cargando preferencias…</p>}
+    {message && <output id={`preference-status-${mode}`} className={`notice ${failed ? 'error' : ''}`} role={failed ? 'alert' : 'status'} tabIndex={-1}>{message}</output>}
+    {!ready && !failed && <output >Cargando preferencias…</output>}
     {ready && <form onSubmit={event => { event.preventDefault(); void save(); }}>
       <fieldset disabled={busy} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
       {mode === 'notifications' && notification && <>

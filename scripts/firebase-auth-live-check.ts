@@ -70,7 +70,7 @@ try {
     if (user) {
       await admin.post(`projects/${project}/accounts:delete`, { localId: uid }, hidden);
       console.log('Temporary test account deleted; no restaurant accounts changed.');
-    } else if (created) throw Error('Test account cleanup not confirmed.');
+    } else assert.equal(created, false, 'Test account cleanup not confirmed.');
   } catch { console.error(`Check cleanup for temporary UID ${uid}.`); process.exitCode = 1; }
   if (keyName) {
     try { await iam.delete(keyName, hidden); console.log('Temporary test credential revoked.'); }

@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { Store } from './store';
 import { validateStoredImage } from './media-validation';
 
-const uuid = z.string().uuid();
+const uuid = z.string().check(z.uuid());
 const mime = z.enum(['image/jpeg', 'image/png', 'image/webp']);
 // The Firebase bucket is backed by Google Cloud Storage. Server IAM only;
 // browser access remains denied, and all existing media URLs stay unchanged.

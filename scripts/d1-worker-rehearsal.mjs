@@ -1,3 +1,4 @@
+import {cleanupResult} from './cleanup-result.mjs';
 import {build} from 'esbuild';
 import {randomBytes} from 'node:crypto';
 import {readFile,writeFile} from 'node:fs/promises';
@@ -23,6 +24,7 @@ const created=await fetch(`https://api.cloudflare.com/client/v4/accounts/088309a
 if(!created.ok)throw Error(`Test worker creation HTTP ${created.status}`);
 const result=await created.json();if(!result.success)throw Error('Test worker creation unconfirmed.');
 let receipt;
+let primaryError;
 try{
  await cf(`/workers/scripts/${name}/subdomain`,'POST',{enabled:true});
  const checks=[];
@@ -40,7 +42,8 @@ try{
   if(!response.ok||body.passed!==true)break;
  }
  receipt={checkedAt:new Date().toISOString(),checks,passed:checks.length===3&&checks.every(check=>check.passed),productionUnchanged:true};
-}finally{
+}catch(error){primaryError=error;throw error;}finally{
+ await cleanupResult(primaryError,async()=>{
  await cf(`/workers/scripts/${name}`,'DELETE');
  const rows=await db.inventoryWire();
  const id='00000000-0000-4000-8000-000000000001';
@@ -48,6 +51,7 @@ try{
  for(let i=0;i<rows.length;i+=40)await db.commit(rows.slice(i,i+40).map(row=>({path:row.path,delete:true,updateTime:row.updateTime})));
  if((await db.inventoryWire()).length)throw Error('Test cleanup incomplete.');
  await unchangedProduction();
+ });
 }
 await writeFile('work/d1-transition/worker-rehearsal.json',JSON.stringify(receipt,null,2));console.log(JSON.stringify(receipt,null,2));
 if(!receipt?.passed)process.exitCode=1;

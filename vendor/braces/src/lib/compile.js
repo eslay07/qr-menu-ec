@@ -1,7 +1,5 @@
-'use strict';
-
-const fill = require('fill-range');
-const utils = require('./utils');
+import fill from 'fill-range';
+import utils from './utils.js';
 
 const compile = (ast, options = {}) => {
   const walk = (node, parent = {}) => {
@@ -57,4 +55,4 @@ const compile = (ast, options = {}) => {
   return walk(ast);
 };
 
-module.exports = compile;
+export default compile;

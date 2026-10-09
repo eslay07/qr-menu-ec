@@ -1,8 +1,6 @@
-'use strict';
+import utils from './utils.js';
 
-const utils = require('./utils');
-
-module.exports = (ast, options = {}) => {
+const stringifyAst = (ast, options = {}) => {
   const stringify = (node, parent = {}) => {
     const invalidBlock = options.escapeInvalid && utils.isInvalidBrace(parent);
     const invalidNode = node.invalid === true && options.escapeInvalid === true;
@@ -30,3 +28,5 @@ module.exports = (ast, options = {}) => {
   return stringify(ast);
 };
 
+
+export default stringifyAst;

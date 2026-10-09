@@ -161,7 +161,10 @@ class OwnerActivity : Activity() {
             val cutout = insets.getInsets(WindowInsetsCompat.Type.displayCutout())
             val safe = safeArea(SafeArea(bars.left, bars.top, bars.right, bars.bottom), SafeArea(cutout.left, cutout.top, cutout.right, cutout.bottom), insets.getInsets(WindowInsetsCompat.Type.ime()).bottom)
             view.setPadding(safe.left, safe.top, safe.right, safe.bottom)
-            insets
+            // The native container owns bars, cutout and IME padding. Passing
+            // these insets down makes WebView reserve the same bottom space
+            // again through CSS env(safe-area-inset-bottom).
+            WindowInsetsCompat.CONSUMED
         }
         ViewCompat.requestApplyInsets(root)
         // A cold start must not launch authentication before the Activity is

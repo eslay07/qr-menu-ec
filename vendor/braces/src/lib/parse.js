@@ -1,11 +1,10 @@
-'use strict';
-
-const stringify = require('./stringify');
+import stringify from './stringify.js';
 
 /**
  * Constants
  */
 
+import constants from './constants.js';
 const {
   MAX_LENGTH,
   CHAR_BACKSLASH, /* \ */
@@ -22,7 +21,7 @@ const {
   CHAR_SINGLE_QUOTE, /* ' */
   CHAR_NO_BREAK_SPACE,
   CHAR_ZERO_WIDTH_NOBREAK_SPACE
-} = require('./constants');
+} = constants;
 
 /**
  * parse
@@ -330,4 +329,4 @@ const parse = (input, options = {}) => {
   return ast;
 };
 
-module.exports = parse;
+export default parse;

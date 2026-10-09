@@ -1,3 +1,4 @@
+import {cleanupResult} from './cleanup-result.mjs';
 import { createRequire } from 'node:module';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { firestoreBearer } from '../lib/firestore-credentials.ts';
@@ -58,6 +59,7 @@ export async function withMigrationCredential(iam, task, audit, makeBearer=fires
   await migrationStage('credential.permissions',()=>iam.check());
   let keyName, bytes, secret;
   let revoked=false;
+  let primaryError;
   try {
     const key=await migrationStage('credential.create',()=>iam.create());
     keyName=key.name;
@@ -73,7 +75,8 @@ export async function withMigrationCredential(iam, task, audit, makeBearer=fires
     const bearer=await migrationStage('credential.bearer-provider',async()=>makeBearer(migrationProject,secret));
     await migrationStage('credential.wait-for-new-key-propagation',()=>freshCredentialReady(bearer,{report:result=>console.log(JSON.stringify({stage:'credential.oauth-readiness',...result}))}));
     return await task(bearer);
-  } finally {
+  } catch(error) { primaryError=error; throw error; } finally {
+    await cleanupResult(primaryError, async()=>{
     bytes?.fill(0);secret=undefined;
     if(keyName) {
       for(let attempt=0;attempt<3&&!revoked;attempt++) {
@@ -82,6 +85,7 @@ export async function withMigrationCredential(iam, task, audit, makeBearer=fires
       await audit({keyName,status:revoked?'revoked':'REVOCATION_REQUIRED',checkedAt:new Date().toISOString()});
       if(!revoked)throw Error('Temporary key revocation required; keep maintenance and inspect local audit');
     }
+    });
   }
 }
 

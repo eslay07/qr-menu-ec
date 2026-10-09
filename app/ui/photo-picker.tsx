@@ -11,7 +11,7 @@ export default function PhotoPicker({ value, onChange, onBusy }: {
   const [error, setError] = useState('');
   const url = value.startsWith('/api/v1/media/') ? restaurantBase() + value : value;
   return <section className="dish-photo-editor" aria-busy={busy}>
-    <div className="photo-preview">{url ? <img src={url} alt="Vista previa de la foto del plato" /> : <ImagePlus size={36} />}</div>
+    <div className="photo-preview">{url ? <picture><img src={url} alt="Vista previa de la foto del plato" /></picture> : <ImagePlus size={36} />}</div>
     <div><h3>Foto del plato</h3><p>Una buena foto ayuda a elegir. JPG, PNG o WebP; la optimizamos al subirla.</p>
       <input ref={input} id={id} type="file" className="sr-only" accept="image/jpeg,image/png,image/webp" disabled={busy}
         aria-label="Subir foto del plato" onChange={async e => {
@@ -26,7 +26,7 @@ export default function PhotoPicker({ value, onChange, onBusy }: {
       <div className="photo-actions"><button type="button" className="btn" disabled={busy} onClick={() => input.current?.click()}><Upload size={17} />{busy ? 'Subiendo foto…' : value ? 'Cambiar foto' : 'Subir foto'}</button>
         {value && <button type="button" className="btn" disabled={busy} onClick={() => onChange('')}><Trash2 size={16} />Quitar</button>}</div>
       {error && <p className="field-error" role="alert">{error}</p>}
-      {busy && <p role="status">Preparando la imagen, espera un momento.</p>}
+      {busy && <output >Preparando la imagen, espera un momento.</output>}
     </div>
   </section>;
 }

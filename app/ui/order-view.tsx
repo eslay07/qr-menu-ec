@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { Download, Share2, Utensils } from 'lucide-react';
+import type { OrderRecord } from '@/lib/orders';
 import { money } from '@/lib/contracts';
 import { api, restaurantBase } from './client';
 
@@ -9,7 +10,7 @@ export default function OrderView({
 }: {
   token?: string;
 }) {
-  const [order, setOrder] = useState<any>(null),
+  const [order, setOrder] = useState<OrderRecord|null>(null),
     [error, setError] = useState('');
   const match =
       typeof location === 'undefined'
@@ -66,13 +67,13 @@ export default function OrderView({
           {order.alias ? ` · ${order.alias}` : ''}
         </p>
         <div className="confirmation-lines">
-          {order.lines.map((line: any) => (
+          {order.lines.map((line) => (
             <article key={line.id}>
               <div>
                 <strong>
                   {line.quantity} × {line.dishName}
                 </strong>
-                {line.options.map((option: any) => (
+                {line.options.map((option) => (
                   <small key={`${option.groupId}-${option.optionId}`}>
                     {option.groupName}: {option.optionName}
                   </small>

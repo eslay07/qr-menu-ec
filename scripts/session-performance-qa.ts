@@ -1,4 +1,5 @@
 import { chromium } from '@playwright/test';
+const outputDir = process.env.QA_OUTPUT_DIR || 'outputs/mobile-performance';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { demoCatalog, defaultSettings } from '../lib/contracts';
 const base = process.env.QA_URL || 'http://127.0.0.1:4181';
@@ -37,7 +38,7 @@ try {
     }
     await context.close();
   }
-  await mkdir('outputs/mobile-performance', { recursive: true });
-  await writeFile(`outputs/mobile-performance/session-${process.env.QA_PHASE || 'before'}.json`, JSON.stringify({ limitations: ['Mocked credentials/session API with 150 ms controlled RTT; no actual Firebase token or password validation', 'Android userAgent simulates WebView routing only, not physical Android', 'Durations include navigation and automation overhead'], results }, null, 2));
+  await mkdir(outputDir, { recursive: true });
+  await writeFile(`${outputDir}/session-${process.env.QA_PHASE || 'before'}.json`, JSON.stringify({ limitations: ['Mocked credentials/session API with 150 ms controlled RTT; no actual Firebase token or password validation', 'Android userAgent simulates WebView routing only, not physical Android', 'Durations include navigation and automation overhead'], results }, null, 2));
   console.log('40 synthetic login/reopen measurements');
 } finally { await browser.close(); }

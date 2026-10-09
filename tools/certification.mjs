@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-const [command,file,...args]=process.argv.slice(2);
+const [command,file]=process.argv.slice(2);
 function stop(message){console.error(message);process.exit(1)}
 if(!file)stop('Uso: node tools/certification.mjs crear|revisar archivo.json');
 if(command==='crear'){

@@ -8,7 +8,7 @@ import { blankCatalog, defaultSettings } from '../lib/contracts';
 import type { State } from '../lib/store';
 import type { OrderRecord } from '../lib/orders';
 
-test('monthly isolated drill restores catalog and missing order lines and verifies checksum', { skip: !process.env.FIRESTORE_EMULATOR_HOST }, async () => {
+void test('monthly isolated drill restores catalog and missing order lines and verifies checksum', { skip: !process.env.FIRESTORE_EMULATOR_HOST }, async () => {
   // Hard-coded demo project and loopback-only transport: never reads live data.
   const db = new FirestoreRest('demo-qr-menu-ec', process.env.FIRESTORE_EMULATOR_HOST!);
   const id = crypto.randomUUID();
