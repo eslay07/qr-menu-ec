@@ -65,7 +65,7 @@
     "@vitejs/plugin-react": "6.0.2",
     "@vitejs/plugin-rsc": "^0.5.34",
     "braces": "file:vendor/braces",
-    "drizzle-kit": "0.31.10",
+    "drizzle-kit": "0.31.11",
     "esbuild": "0.28.2",
     "firebase-tools": "^15.31.0",
     "jsqr": "^1.4.0",
