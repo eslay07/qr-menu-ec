@@ -450,7 +450,7 @@ export const CreateOrderInput = z.object({
   alias: singleLine(80).trim().min(1, 'Escribe tu nombre o alias.'),
   lines: z.array(OrderLineInput).min(1).max(100),
   expectedTotalCents: z.number().int().min(0).max(999_999_999),
-  operationKey: z.string().uuid().optional(),
+  operationKey: z.uuid().optional(),
   menuVersion: z.number().int().nonnegative().optional(),
   demo: z.boolean().optional(),
   turnstileToken: z.string().max(4096).optional(),

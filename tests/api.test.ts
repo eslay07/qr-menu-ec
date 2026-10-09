@@ -504,7 +504,7 @@ test('authentication, conflicts, suspension and recovery remain enforced', async
   assert.equal((await h.call('session')).body.authenticated, false);
 });
 
-test('publish rejects an unconfirmed automatic name before changing the persisted draft or revision',async()=>{
+void test('publish rejects an unconfirmed automatic name before changing the persisted draft or revision',async()=>{
  const h=harness();await h.call('setup','POST',{name:'Mi restaurante',password:'test-password-123',setupToken:'setup-secret'});
  let state=(await h.call('state')).body;
  await h.call('draft','PUT',{revision:state.revision,catalog:{...demoCatalog,name:'Mi restaurante',nameConfirmed:false}});
@@ -514,7 +514,7 @@ test('publish rejects an unconfirmed automatic name before changing the persiste
  await h.call('draft','PUT',{revision:state.revision,catalog:{...after.draft,nameConfirmed:true}});state=(await h.call('state')).body;
  assert.equal((await h.call('publish','POST',{revision:state.revision})).status,200);
 });
-test('WhatsApp prepares a priced request without inserting an internal order and respects feature gates',async()=>{
+void test('WhatsApp prepares a priced request without inserting an internal order and respects feature gates',async()=>{
  const {h}=await configured();let state=(await h.call('state')).body;
  const contact={address:'Prueba ficticia',phone:'',whatsapp:'+593990000000',hours:[]};
  await h.call('draft','PUT',{revision:state.revision,catalog:{...state.draft,contact}});state=(await h.call('state')).body;await h.call('publish','POST',{revision:state.revision});

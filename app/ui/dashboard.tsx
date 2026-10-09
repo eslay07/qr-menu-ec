@@ -909,12 +909,12 @@ export default function Dashboard() {
         )}
       </main>
 
-      {reloadConfirm && <div className="modal-backdrop" role="presentation"><section className="modal" role="dialog" aria-modal="true" aria-labelledby="reload-title" aria-describedby="reload-description">
+      {reloadConfirm && <div className="modal-backdrop" role="presentation"><dialog open className="modal" style={{ position: 'relative', margin: 0, inset: 'auto', border: 0, color: 'inherit' }} aria-modal="true" aria-labelledby="reload-title" aria-describedby="reload-description">
         <div className="section-title"><h2 id="reload-title">¿Recargar y descartar cambios?</h2></div>
         <p id="reload-description">Hay cambios sin guardar. Recargar descartará estos cambios locales y abrirá la versión guardada más reciente. El menú publicado no cambiará.</p>
         <div className="actions"><button type="button" className="btn" onClick={() => setReloadConfirm(false)}>Cancelar</button>
           <button type="button" className="btn danger" onClick={() => location.reload()}>Sí, recargar y descartar</button></div>
-      </section></div>}
+      </dialog></div>}
       {sampleConfirm && <div className="modal-backdrop" role="presentation"><section className="modal" role="dialog" aria-modal="true" aria-labelledby="sample-title">
         <div className="section-title"><h2 id="sample-title">Reemplazar borrador con ejemplos</h2><button className="close-button" disabled={busy} onClick={() => setSampleConfirm(false)}>× Cerrar</button></div>
         <p>Esto reemplazará todos los platos, categorías y promociones de tu borrador. El menú publicado no cambiará hasta que pulses Publicar.</p>
