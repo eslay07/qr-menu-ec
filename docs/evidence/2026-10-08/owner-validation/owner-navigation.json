@@ -1,0 +1,21 @@
+{
+  "checkedAt": "2026-10-09T03:22:56.686Z",
+  "passed": [
+    "settings-disclosures",
+    "back-two-tabs",
+    "native-back-root-false",
+    "native-back-nested-tab-true",
+    "native-back-editor-dialog-consumed",
+    "external-revision-focus",
+    "cancel-reload-preserves-draft",
+    "reload-dialog-focus-restored",
+    "native-back-reload-dialog-consumed",
+    "escape-reload-dialog-preserves-draft",
+    "no-native-browser-dialog",
+    "accept-reload-fetches-state",
+    "409-preserves-draft",
+    "creator-features-and-entitlements-change",
+    "30-second-poll-with-browser-clock"
+  ],
+  "limitation": "Chromium localhost mocked APIs and virtual timer; native callback contract only, no physical Android or production authentication"
+}

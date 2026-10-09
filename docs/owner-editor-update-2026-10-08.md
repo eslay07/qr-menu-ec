@@ -1,5 +1,7 @@
 # Ajustes desplegables, volver y recarga del editor
 
+Estado posterior vigente: [seguimiento de aceptación](owner-validation-2026-10-08.md), Worker `fb6cb9e4`, confirmación de recarga verificada en producción y APK instalado comprobado por hash. Los recibos y bloqueos descritos abajo conservan su fecha y alcance anteriores.
+
 El dueño puede abrir y cerrar Categorías, Identidad, Presentación, Contacto, Horarios, Colores, Seguridad y Respaldos. Los campos permanecen montados: cerrar no guarda ni borra el borrador. Publicar sin nombre abre Identidad y enfoca el campo.
 
 La navegación entre secciones registra historial. Atrás vuelve a la sección anterior; el contrato Android cierra primero el editor de plato o su diálogo. La raíz conserva la salida normal. La APK0.8.4/versionCode15 incorpora el callback de volver para Android13+ y conserva las protecciones de sesión/desbloqueo.

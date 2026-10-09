@@ -1,0 +1,27 @@
+{
+  "checkedAt": "2026-10-09T03:36:46.179Z",
+  "checks": [
+    {
+      "url": "https://qa-ficticio-octubre-2026.consola.workers.dev/api/v1/menu",
+      "status": 200,
+      "version": 13,
+      "name": "QA FICTICIO · Octubre 2026",
+      "dishCount": 40
+    },
+    {
+      "url": "https://qr-menu-ec.consola.workers.dev/r/76d3def9-52e9-4779-b048-1242f45c634e/api/v1/menu",
+      "status": 200,
+      "version": 13,
+      "name": "QA FICTICIO · Octubre 2026",
+      "dishCount": 40
+    },
+    {
+      "url": "https://qr-menu-ec.consola.workers.dev/m/qa-ficticio-octubre-2026/api/v1/menu",
+      "status": 200,
+      "version": 13,
+      "name": "QA FICTICIO · Octubre 2026",
+      "dishCount": 40
+    }
+  ],
+  "physicalQrScanPerformed": false
+}

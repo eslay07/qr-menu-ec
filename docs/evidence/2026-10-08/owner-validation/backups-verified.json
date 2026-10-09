@@ -1,0 +1,26 @@
+[
+  {
+    "scope": "operational",
+    "archiveSha256": "b5c6b7a761391da64c154044505b3cc34f07f686d56f130924762d9c5f15f8d3",
+    "sqlSha256": "af2cc85326131704b11f47e10c0778c7f7fd9e6c9f7aed81c53eec7ef175f13c",
+    "inventorySha256": "cd3fff644dcd192ee3dfff0e4dc5457fdd7bd718af3665945bcf3bc7a584c240",
+    "restoredTables": 3,
+    "mediaVerified": 0,
+    "integrity": "ok",
+    "foreignKeys": "ok",
+    "r2Verified": false,
+    "source": "encrypted files on disk; no network access or production changes"
+  },
+  {
+    "scope": "legacy",
+    "archiveSha256": "67926e6a4b843b035a3e53e026014351df83472257e0ab07a5532f15d8746828",
+    "sqlSha256": "2dcc0c023aed07764265cc15cee87e43ea7bca3aa421c2b72a6dd8544ae209a9",
+    "inventorySha256": "e9e11c4c68dbc0ab43b031a50cc015dae4fac51a911257c8b81a9e94bb58233b",
+    "restoredTables": 12,
+    "mediaVerified": 17,
+    "integrity": "ok",
+    "foreignKeys": "ok",
+    "r2Verified": false,
+    "source": "encrypted files on disk; no network access or production changes"
+  }
+]
