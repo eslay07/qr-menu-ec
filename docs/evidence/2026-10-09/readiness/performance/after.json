@@ -10,7 +10,7 @@
   "limitations": [
     "Local built SPA with mocked public API; API endpoint does not measure real server latency",
     "Browser automation duration includes locator/action overhead",
-    "usableMs includes networkidle 500 ms settle; LCP separate",
+    "usableMs observes enabled search/cart plus two animation frames; automationSettledMs separately includes networkidle and controller waits",
     "No physical Android device measurement"
   ],
   "results": [
@@ -954,5 +954,11 @@
       "iteration": 20,
       "ms": 325.3767999999982
     }
-  ]
+  ],
+  "metadataCorrection": {
+    "correctedAt": "2026-10-09T16:08:30.271Z",
+    "previous": "usableMs includes networkidle 500 ms settle; LCP separate",
+    "reason": "Readiness observer and controller settling were separated in the measured implementation; only the description was stale",
+    "measurementValuesChanged": false
+  }
 }
