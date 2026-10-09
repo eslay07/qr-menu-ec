@@ -1,10 +1,13 @@
+import { performanceFixture } from './performance-fixture';
 import { chromium, expect } from '@playwright/test';
 const outputDir = process.env.QA_OUTPUT_DIR || 'outputs/mobile-performance';
 import { writeFile } from 'node:fs/promises';
 import { demoCatalog } from '../lib/contracts';
 import { createOrderRecord } from '../lib/orders';
-const phase=process.env.QA_PHASE || 'after',base=process.env.QA_URL || 'http://127.0.0.1:4185';
-if(!['localhost','127.0.0.1'].includes(new URL(base).hostname))throw Error('Local fixtures only');
+const phase=process.env.QA_PHASE || 'after',sourceBase=process.env.QA_URL || 'http://127.0.0.1:4185';
+if(!['localhost','127.0.0.1'].includes(new URL(sourceBase).hostname))throw Error('Local fixtures only');
+const fixture = await performanceFixture(sourceBase);
+const base = fixture.base;
 const browser=await chromium.launch(),results:{size:number;interaction:string;iteration:number;ms:number}[]=[];
 try{
  for(const size of [10,40]){
@@ -12,9 +15,9 @@ try{
   catalog.dishes=Array.from({length:size},(_,i)=>({...catalog.dishes[0],id:'qa-'+i,name:'Plato ficticio '+i,modifierGroups:[]}));
   const context=await browser.newContext({viewport:{width:390,height:844}}),page=await context.newPage(),cdp=await context.newCDPSession(page);
   await cdp.send('Network.enable');await cdp.send('Network.emulateNetworkConditions',{offline:false,latency:150,downloadThroughput:200000,uploadThroughput:93750});await cdp.send('Emulation.setCPUThrottlingRate',{rate:4});
-  await page.route('**/api/v1/menu',async route=>{await new Promise(resolve=>setTimeout(resolve,150));await route.fulfill({json:{catalog,ordersEnabled:true,version:1}});});
-  await page.route('**/api/v1/orders',async route=>{
-   await new Promise(resolve=>setTimeout(resolve,150));
+  fixture.route('**/api/v1/menu',async route=>{await route.fulfill({json:{catalog,ordersEnabled:true,version:1}});});
+  fixture.route('**/api/v1/orders',async route=>{
+
    const created=await createOrderRecord(route.request().postDataJSON(),catalog,'11111111-1111-4111-8111-111111111111','QA FICTICIO',1);
    await route.fulfill({json:{order:created.order,publicUrl:base+'/order/ficticio',pdfUrl:base+'/ficticio.pdf',qrPayload:base+'/order/ficticio'}});
   });
@@ -34,4 +37,4 @@ try{
  }
  await writeFile(outputDir+'/cart-order-'+phase+'.json',JSON.stringify({recordedAt:new Date().toISOString(),limitations:['Local fixture API, controlled 150ms; real recalculation function but no persistence, Firebase or Turnstile','Emulated network/CPU, automation overhead, no physical phone'],results},null,2));
  console.log(phase+': '+results.length+' supplemental measurements');
-}finally{await browser.close();}
+}finally{await browser.close(); await fixture.close();}

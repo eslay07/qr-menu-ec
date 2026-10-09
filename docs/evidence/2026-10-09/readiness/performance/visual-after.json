@@ -1,0 +1,960 @@
+{
+  "phase": "after",
+  "base": "http://127.0.0.1:8380",
+  "recordedAt": "2026-10-09T15:50:39.263Z",
+  "profile": {
+    "width": 390,
+    "cpu": 4,
+    "downloadMbps": 1.6,
+    "uploadKbps": 750,
+    "rttMs": 150
+  },
+  "method": "Browser capture listener starts performance.now at input/click. MutationObserver waits for expected DOM result, then two requestAnimationFrame callbacks. Playwright only triggers actions; its locator/action duration is outside the measured interval.",
+  "limitations": [
+    "Loopback fixed built bundle with mocked fictional public API and no photos; not production or physical Android.",
+    "Two animation frames are a presentation opportunity proxy, not observed pixels or INP.",
+    "Starts at browser event capture; does not include hardware input latency or browser queue before dispatch.",
+    "One page load per catalog; this run measures interactions only. The 40-product catalog uses the existing first 30-card rendering window.",
+    "Network emulation applies to preview resources; fixture response is mocked."
+  ],
+  "summary": [
+    {
+      "size": 10,
+      "interaction": "search",
+      "eventToMutation": {
+        "medianMs": 11.949999999254942,
+        "minMs": 8.400000005960464,
+        "maxMs": 32.399999998509884,
+        "samples": 20
+      },
+      "eventToTwoAnimationFrames": {
+        "medianMs": 28.75,
+        "minMs": 20.900000005960464,
+        "maxMs": 47.899999998509884,
+        "samples": 20
+      }
+    },
+    {
+      "size": 10,
+      "interaction": "category",
+      "eventToMutation": {
+        "medianMs": 12.24999999627471,
+        "minMs": 8.399999998509884,
+        "maxMs": 27.799999997019768,
+        "samples": 20
+      },
+      "eventToTwoAnimationFrames": {
+        "medianMs": 37.94999999925494,
+        "minMs": 28.600000001490116,
+        "maxMs": 81.89999999850988,
+        "samples": 20
+      }
+    },
+    {
+      "size": 10,
+      "interaction": "cart-add",
+      "eventToMutation": {
+        "medianMs": 16.649999998509884,
+        "minMs": 10.900000005960464,
+        "maxMs": 40.600000001490116,
+        "samples": 20
+      },
+      "eventToTwoAnimationFrames": {
+        "medianMs": 39.70000000298023,
+        "minMs": 22.69999999552965,
+        "maxMs": 75.29999999701977,
+        "samples": 20
+      }
+    },
+    {
+      "size": 40,
+      "interaction": "search",
+      "eventToMutation": {
+        "medianMs": 15.600000001490116,
+        "minMs": 9.899999998509884,
+        "maxMs": 87.89999999850988,
+        "samples": 20
+      },
+      "eventToTwoAnimationFrames": {
+        "medianMs": 34.70000000298023,
+        "minMs": 22.19999999552965,
+        "maxMs": 156.60000000149012,
+        "samples": 20
+      }
+    },
+    {
+      "size": 40,
+      "interaction": "category",
+      "eventToMutation": {
+        "medianMs": 33.399999998509884,
+        "minMs": 16.399999998509884,
+        "maxMs": 73.39999999850988,
+        "samples": 20
+      },
+      "eventToTwoAnimationFrames": {
+        "medianMs": 66.44999999552965,
+        "minMs": 46.70000000298023,
+        "maxMs": 150.89999999850988,
+        "samples": 20
+      }
+    },
+    {
+      "size": 40,
+      "interaction": "cart-add",
+      "eventToMutation": {
+        "medianMs": 42.44999999925494,
+        "minMs": 20.69999999552965,
+        "maxMs": 104,
+        "samples": 20
+      },
+      "eventToTwoAnimationFrames": {
+        "medianMs": 65.90000000223517,
+        "minMs": 37.100000001490116,
+        "maxMs": 153.70000000298023,
+        "samples": 20
+      }
+    }
+  ],
+  "samples": [
+    {
+      "size": 10,
+      "interaction": "search",
+      "iteration": 1,
+      "eventToMutationMs": 32.399999998509884,
+      "visualMs": 47.899999998509884
+    },
+    {
+      "size": 10,
+      "interaction": "category",
+      "iteration": 1,
+      "eventToMutationMs": 22.700000002980232,
+      "visualMs": 56.400000005960464
+    },
+    {
+      "size": 10,
+      "interaction": "cart-add",
+      "iteration": 1,
+      "eventToMutationMs": 40.600000001490116,
+      "visualMs": 73.10000000149012
+    },
+    {
+      "size": 10,
+      "interaction": "search",
+      "iteration": 2,
+      "eventToMutationMs": 16.399999998509884,
+      "visualMs": 42.70000000298023
+    },
+    {
+      "size": 10,
+      "interaction": "category",
+      "iteration": 2,
+      "eventToMutationMs": 12.299999997019768,
+      "visualMs": 29.69999999552965
+    },
+    {
+      "size": 10,
+      "interaction": "cart-add",
+      "iteration": 2,
+      "eventToMutationMs": 24.69999999552965,
+      "visualMs": 49.099999994039536
+    },
+    {
+      "size": 10,
+      "interaction": "search",
+      "iteration": 3,
+      "eventToMutationMs": 14.899999998509884,
+      "visualMs": 40.5
+    },
+    {
+      "size": 10,
+      "interaction": "category",
+      "iteration": 3,
+      "eventToMutationMs": 10,
+      "visualMs": 35.5
+    },
+    {
+      "size": 10,
+      "interaction": "cart-add",
+      "iteration": 3,
+      "eventToMutationMs": 16.399999998509884,
+      "visualMs": 35.20000000298023
+    },
+    {
+      "size": 10,
+      "interaction": "search",
+      "iteration": 4,
+      "eventToMutationMs": 13.200000002980232,
+      "visualMs": 28.399999998509884
+    },
+    {
+      "size": 10,
+      "interaction": "category",
+      "iteration": 4,
+      "eventToMutationMs": 12.199999995529652,
+      "visualMs": 31.100000001490116
+    },
+    {
+      "size": 10,
+      "interaction": "cart-add",
+      "iteration": 4,
+      "eventToMutationMs": 12.899999998509884,
+      "visualMs": 35.399999998509884
+    },
+    {
+      "size": 10,
+      "interaction": "search",
+      "iteration": 5,
+      "eventToMutationMs": 13.099999994039536,
+      "visualMs": 26.599999994039536
+    },
+    {
+      "size": 10,
+      "interaction": "category",
+      "iteration": 5,
+      "eventToMutationMs": 8.899999998509884,
+      "visualMs": 29.5
+    },
+    {
+      "size": 10,
+      "interaction": "cart-add",
+      "iteration": 5,
+      "eventToMutationMs": 14.700000002980232,
+      "visualMs": 29.80000000447035
+    },
+    {
+      "size": 10,
+      "interaction": "search",
+      "iteration": 6,
+      "eventToMutationMs": 17.700000002980232,
+      "visualMs": 35.20000000298023
+    },
+    {
+      "size": 10,
+      "interaction": "category",
+      "iteration": 6,
+      "eventToMutationMs": 10.300000004470348,
+      "visualMs": 28.600000001490116
+    },
+    {
+      "size": 10,
+      "interaction": "cart-add",
+      "iteration": 6,
+      "eventToMutationMs": 30.700000002980232,
+      "visualMs": 75.29999999701977
+    },
+    {
+      "size": 10,
+      "interaction": "search",
+      "iteration": 7,
+      "eventToMutationMs": 9.300000004470348,
+      "visualMs": 25.100000001490116
+    },
+    {
+      "size": 10,
+      "interaction": "category",
+      "iteration": 7,
+      "eventToMutationMs": 15.899999998509884,
+      "visualMs": 49.899999998509884
+    },
+    {
+      "size": 10,
+      "interaction": "cart-add",
+      "iteration": 7,
+      "eventToMutationMs": 13.899999998509884,
+      "visualMs": 31.700000002980232
+    },
+    {
+      "size": 10,
+      "interaction": "search",
+      "iteration": 8,
+      "eventToMutationMs": 11,
+      "visualMs": 20.900000005960464
+    },
+    {
+      "size": 10,
+      "interaction": "category",
+      "iteration": 8,
+      "eventToMutationMs": 15,
+      "visualMs": 41.30000000447035
+    },
+    {
+      "size": 10,
+      "interaction": "cart-add",
+      "iteration": 8,
+      "eventToMutationMs": 16.899999998509884,
+      "visualMs": 44
+    },
+    {
+      "size": 10,
+      "interaction": "search",
+      "iteration": 9,
+      "eventToMutationMs": 10.100000001490116,
+      "visualMs": 29
+    },
+    {
+      "size": 10,
+      "interaction": "category",
+      "iteration": 9,
+      "eventToMutationMs": 16.600000001490116,
+      "visualMs": 39.100000001490116
+    },
+    {
+      "size": 10,
+      "interaction": "cart-add",
+      "iteration": 9,
+      "eventToMutationMs": 14.299999997019768,
+      "visualMs": 31.399999998509884
+    },
+    {
+      "size": 10,
+      "interaction": "search",
+      "iteration": 10,
+      "eventToMutationMs": 9.299999997019768,
+      "visualMs": 26.399999998509884
+    },
+    {
+      "size": 10,
+      "interaction": "category",
+      "iteration": 10,
+      "eventToMutationMs": 11.399999998509884,
+      "visualMs": 37.19999999552965
+    },
+    {
+      "size": 10,
+      "interaction": "cart-add",
+      "iteration": 10,
+      "eventToMutationMs": 24.400000005960464,
+      "visualMs": 39.400000005960464
+    },
+    {
+      "size": 10,
+      "interaction": "search",
+      "iteration": 11,
+      "eventToMutationMs": 11.5,
+      "visualMs": 26.80000000447035
+    },
+    {
+      "size": 10,
+      "interaction": "category",
+      "iteration": 11,
+      "eventToMutationMs": 8.399999998509884,
+      "visualMs": 53.100000001490116
+    },
+    {
+      "size": 10,
+      "interaction": "cart-add",
+      "iteration": 11,
+      "eventToMutationMs": 13.700000002980232,
+      "visualMs": 40
+    },
+    {
+      "size": 10,
+      "interaction": "search",
+      "iteration": 12,
+      "eventToMutationMs": 10.899999998509884,
+      "visualMs": 34.70000000298023
+    },
+    {
+      "size": 10,
+      "interaction": "category",
+      "iteration": 12,
+      "eventToMutationMs": 12.399999998509884,
+      "visualMs": 29.69999999552965
+    },
+    {
+      "size": 10,
+      "interaction": "cart-add",
+      "iteration": 12,
+      "eventToMutationMs": 38.399999998509884,
+      "visualMs": 61.79999999701977
+    },
+    {
+      "size": 10,
+      "interaction": "search",
+      "iteration": 13,
+      "eventToMutationMs": 9.800000004470348,
+      "visualMs": 47.5
+    },
+    {
+      "size": 10,
+      "interaction": "category",
+      "iteration": 13,
+      "eventToMutationMs": 27.799999997019768,
+      "visualMs": 70.5
+    },
+    {
+      "size": 10,
+      "interaction": "cart-add",
+      "iteration": 13,
+      "eventToMutationMs": 23,
+      "visualMs": 36.899999998509884
+    },
+    {
+      "size": 10,
+      "interaction": "search",
+      "iteration": 14,
+      "eventToMutationMs": 12.399999998509884,
+      "visualMs": 26.600000001490116
+    },
+    {
+      "size": 10,
+      "interaction": "category",
+      "iteration": 14,
+      "eventToMutationMs": 10.700000002980232,
+      "visualMs": 76.5
+    },
+    {
+      "size": 10,
+      "interaction": "cart-add",
+      "iteration": 14,
+      "eventToMutationMs": 10.900000005960464,
+      "visualMs": 24.80000000447035
+    },
+    {
+      "size": 10,
+      "interaction": "search",
+      "iteration": 15,
+      "eventToMutationMs": 8.899999998509884,
+      "visualMs": 25.700000002980232
+    },
+    {
+      "size": 10,
+      "interaction": "category",
+      "iteration": 15,
+      "eventToMutationMs": 19.399999998509884,
+      "visualMs": 58.30000000447035
+    },
+    {
+      "size": 10,
+      "interaction": "cart-add",
+      "iteration": 15,
+      "eventToMutationMs": 26.799999997019768,
+      "visualMs": 62.5
+    },
+    {
+      "size": 10,
+      "interaction": "search",
+      "iteration": 16,
+      "eventToMutationMs": 20.799999997019768,
+      "visualMs": 39.399999998509884
+    },
+    {
+      "size": 10,
+      "interaction": "category",
+      "iteration": 16,
+      "eventToMutationMs": 8.399999998509884,
+      "visualMs": 34.79999999701977
+    },
+    {
+      "size": 10,
+      "interaction": "cart-add",
+      "iteration": 16,
+      "eventToMutationMs": 14.600000001490116,
+      "visualMs": 46
+    },
+    {
+      "size": 10,
+      "interaction": "search",
+      "iteration": 17,
+      "eventToMutationMs": 8.400000005960464,
+      "visualMs": 27.100000001490116
+    },
+    {
+      "size": 10,
+      "interaction": "category",
+      "iteration": 17,
+      "eventToMutationMs": 8.5,
+      "visualMs": 32.80000000447035
+    },
+    {
+      "size": 10,
+      "interaction": "cart-add",
+      "iteration": 17,
+      "eventToMutationMs": 24.5,
+      "visualMs": 41.400000005960464
+    },
+    {
+      "size": 10,
+      "interaction": "search",
+      "iteration": 18,
+      "eventToMutationMs": 12.899999998509884,
+      "visualMs": 30.30000000447035
+    },
+    {
+      "size": 10,
+      "interaction": "category",
+      "iteration": 18,
+      "eventToMutationMs": 14.5,
+      "visualMs": 38.70000000298023
+    },
+    {
+      "size": 10,
+      "interaction": "cart-add",
+      "iteration": 18,
+      "eventToMutationMs": 11.199999995529652,
+      "visualMs": 22.69999999552965
+    },
+    {
+      "size": 10,
+      "interaction": "search",
+      "iteration": 19,
+      "eventToMutationMs": 9.899999998509884,
+      "visualMs": 28.5
+    },
+    {
+      "size": 10,
+      "interaction": "category",
+      "iteration": 19,
+      "eventToMutationMs": 8.899999998509884,
+      "visualMs": 81.89999999850988
+    },
+    {
+      "size": 10,
+      "interaction": "cart-add",
+      "iteration": 19,
+      "eventToMutationMs": 15.200000002980232,
+      "visualMs": 25.700000002980232
+    },
+    {
+      "size": 10,
+      "interaction": "search",
+      "iteration": 20,
+      "eventToMutationMs": 13.199999995529652,
+      "visualMs": 33.29999999701977
+    },
+    {
+      "size": 10,
+      "interaction": "category",
+      "iteration": 20,
+      "eventToMutationMs": 13.600000001490116,
+      "visualMs": 34.399999998509884
+    },
+    {
+      "size": 10,
+      "interaction": "cart-add",
+      "iteration": 20,
+      "eventToMutationMs": 27.899999998509884,
+      "visualMs": 43.600000001490116
+    },
+    {
+      "size": 40,
+      "interaction": "search",
+      "iteration": 1,
+      "eventToMutationMs": 87.89999999850988,
+      "visualMs": 156.60000000149012
+    },
+    {
+      "size": 40,
+      "interaction": "category",
+      "iteration": 1,
+      "eventToMutationMs": 35.5,
+      "visualMs": 84.5
+    },
+    {
+      "size": 40,
+      "interaction": "cart-add",
+      "iteration": 1,
+      "eventToMutationMs": 36.399999998509884,
+      "visualMs": 66.80000000447035
+    },
+    {
+      "size": 40,
+      "interaction": "search",
+      "iteration": 2,
+      "eventToMutationMs": 14,
+      "visualMs": 30.599999994039536
+    },
+    {
+      "size": 40,
+      "interaction": "category",
+      "iteration": 2,
+      "eventToMutationMs": 25.5,
+      "visualMs": 55.100000001490116
+    },
+    {
+      "size": 40,
+      "interaction": "cart-add",
+      "iteration": 2,
+      "eventToMutationMs": 50.80000000447035,
+      "visualMs": 88.5
+    },
+    {
+      "size": 40,
+      "interaction": "search",
+      "iteration": 3,
+      "eventToMutationMs": 13.899999998509884,
+      "visualMs": 33.30000000447035
+    },
+    {
+      "size": 40,
+      "interaction": "category",
+      "iteration": 3,
+      "eventToMutationMs": 57.70000000298023,
+      "visualMs": 123.5
+    },
+    {
+      "size": 40,
+      "interaction": "cart-add",
+      "iteration": 3,
+      "eventToMutationMs": 43.899999998509884,
+      "visualMs": 100.39999999850988
+    },
+    {
+      "size": 40,
+      "interaction": "search",
+      "iteration": 4,
+      "eventToMutationMs": 27.899999998509884,
+      "visualMs": 43.19999999552965
+    },
+    {
+      "size": 40,
+      "interaction": "category",
+      "iteration": 4,
+      "eventToMutationMs": 41.600000001490116,
+      "visualMs": 76.89999999850988
+    },
+    {
+      "size": 40,
+      "interaction": "cart-add",
+      "iteration": 4,
+      "eventToMutationMs": 22.19999999552965,
+      "visualMs": 39.29999999701977
+    },
+    {
+      "size": 40,
+      "interaction": "search",
+      "iteration": 5,
+      "eventToMutationMs": 22.899999998509884,
+      "visualMs": 36.100000001490116
+    },
+    {
+      "size": 40,
+      "interaction": "category",
+      "iteration": 5,
+      "eventToMutationMs": 32.5,
+      "visualMs": 59.79999999701977
+    },
+    {
+      "size": 40,
+      "interaction": "cart-add",
+      "iteration": 5,
+      "eventToMutationMs": 67.10000000149012,
+      "visualMs": 89.39999999850988
+    },
+    {
+      "size": 40,
+      "interaction": "search",
+      "iteration": 6,
+      "eventToMutationMs": 9.899999998509884,
+      "visualMs": 22.19999999552965
+    },
+    {
+      "size": 40,
+      "interaction": "category",
+      "iteration": 6,
+      "eventToMutationMs": 35.099999994039536,
+      "visualMs": 65.59999999403954
+    },
+    {
+      "size": 40,
+      "interaction": "cart-add",
+      "iteration": 6,
+      "eventToMutationMs": 43.399999998509884,
+      "visualMs": 61.29999999701977
+    },
+    {
+      "size": 40,
+      "interaction": "search",
+      "iteration": 7,
+      "eventToMutationMs": 14.699999995529652,
+      "visualMs": 61.69999999552965
+    },
+    {
+      "size": 40,
+      "interaction": "category",
+      "iteration": 7,
+      "eventToMutationMs": 37.600000001490116,
+      "visualMs": 127.79999999701977
+    },
+    {
+      "size": 40,
+      "interaction": "cart-add",
+      "iteration": 7,
+      "eventToMutationMs": 104,
+      "visualMs": 153.70000000298023
+    },
+    {
+      "size": 40,
+      "interaction": "search",
+      "iteration": 8,
+      "eventToMutationMs": 18.399999998509884,
+      "visualMs": 34.100000001490116
+    },
+    {
+      "size": 40,
+      "interaction": "category",
+      "iteration": 8,
+      "eventToMutationMs": 18.899999998509884,
+      "visualMs": 49.899999998509884
+    },
+    {
+      "size": 40,
+      "interaction": "cart-add",
+      "iteration": 8,
+      "eventToMutationMs": 66.5,
+      "visualMs": 98.10000000149012
+    },
+    {
+      "size": 40,
+      "interaction": "search",
+      "iteration": 9,
+      "eventToMutationMs": 13.399999998509884,
+      "visualMs": 30.099999994039536
+    },
+    {
+      "size": 40,
+      "interaction": "category",
+      "iteration": 9,
+      "eventToMutationMs": 36.20000000298023,
+      "visualMs": 88.89999999850988
+    },
+    {
+      "size": 40,
+      "interaction": "cart-add",
+      "iteration": 9,
+      "eventToMutationMs": 41.5,
+      "visualMs": 63.20000000298023
+    },
+    {
+      "size": 40,
+      "interaction": "search",
+      "iteration": 10,
+      "eventToMutationMs": 15.5,
+      "visualMs": 36.600000001490116
+    },
+    {
+      "size": 40,
+      "interaction": "category",
+      "iteration": 10,
+      "eventToMutationMs": 34.29999999701977,
+      "visualMs": 71.20000000298023
+    },
+    {
+      "size": 40,
+      "interaction": "cart-add",
+      "iteration": 10,
+      "eventToMutationMs": 56.600000001490116,
+      "visualMs": 76.70000000298023
+    },
+    {
+      "size": 40,
+      "interaction": "search",
+      "iteration": 11,
+      "eventToMutationMs": 19.19999999552965,
+      "visualMs": 34.599999994039536
+    },
+    {
+      "size": 40,
+      "interaction": "category",
+      "iteration": 11,
+      "eventToMutationMs": 24.099999994039536,
+      "visualMs": 60.399999998509884
+    },
+    {
+      "size": 40,
+      "interaction": "cart-add",
+      "iteration": 11,
+      "eventToMutationMs": 51,
+      "visualMs": 85.5
+    },
+    {
+      "size": 40,
+      "interaction": "search",
+      "iteration": 12,
+      "eventToMutationMs": 19.600000001490116,
+      "visualMs": 52.600000001490116
+    },
+    {
+      "size": 40,
+      "interaction": "category",
+      "iteration": 12,
+      "eventToMutationMs": 20.700000002980232,
+      "visualMs": 49.100000001490116
+    },
+    {
+      "size": 40,
+      "interaction": "cart-add",
+      "iteration": 12,
+      "eventToMutationMs": 64.70000000298023,
+      "visualMs": 102.39999999850988
+    },
+    {
+      "size": 40,
+      "interaction": "search",
+      "iteration": 13,
+      "eventToMutationMs": 36.100000001490116,
+      "visualMs": 65.60000000149012
+    },
+    {
+      "size": 40,
+      "interaction": "category",
+      "iteration": 13,
+      "eventToMutationMs": 27.19999999552965,
+      "visualMs": 57.399999998509884
+    },
+    {
+      "size": 40,
+      "interaction": "cart-add",
+      "iteration": 13,
+      "eventToMutationMs": 22.899999998509884,
+      "visualMs": 39.79999999701977
+    },
+    {
+      "size": 40,
+      "interaction": "search",
+      "iteration": 14,
+      "eventToMutationMs": 14.200000002980232,
+      "visualMs": 40.5
+    },
+    {
+      "size": 40,
+      "interaction": "category",
+      "iteration": 14,
+      "eventToMutationMs": 18.399999998509884,
+      "visualMs": 53
+    },
+    {
+      "size": 40,
+      "interaction": "cart-add",
+      "iteration": 14,
+      "eventToMutationMs": 25.5,
+      "visualMs": 65
+    },
+    {
+      "size": 40,
+      "interaction": "search",
+      "iteration": 15,
+      "eventToMutationMs": 31,
+      "visualMs": 45.600000001490116
+    },
+    {
+      "size": 40,
+      "interaction": "category",
+      "iteration": 15,
+      "eventToMutationMs": 73.39999999850988,
+      "visualMs": 150.89999999850988
+    },
+    {
+      "size": 40,
+      "interaction": "cart-add",
+      "iteration": 15,
+      "eventToMutationMs": 71.29999999701977,
+      "visualMs": 89.19999999552965
+    },
+    {
+      "size": 40,
+      "interaction": "search",
+      "iteration": 16,
+      "eventToMutationMs": 15.700000002980232,
+      "visualMs": 34.70000000298023
+    },
+    {
+      "size": 40,
+      "interaction": "category",
+      "iteration": 16,
+      "eventToMutationMs": 16.399999998509884,
+      "visualMs": 65.30000000447035
+    },
+    {
+      "size": 40,
+      "interaction": "cart-add",
+      "iteration": 16,
+      "eventToMutationMs": 24.400000005960464,
+      "visualMs": 37.100000001490116
+    },
+    {
+      "size": 40,
+      "interaction": "search",
+      "iteration": 17,
+      "eventToMutationMs": 17.200000002980232,
+      "visualMs": 34.70000000298023
+    },
+    {
+      "size": 40,
+      "interaction": "category",
+      "iteration": 17,
+      "eventToMutationMs": 19,
+      "visualMs": 46.70000000298023
+    },
+    {
+      "size": 40,
+      "interaction": "cart-add",
+      "iteration": 17,
+      "eventToMutationMs": 32.29999999701977,
+      "visualMs": 43.600000001490116
+    },
+    {
+      "size": 40,
+      "interaction": "search",
+      "iteration": 18,
+      "eventToMutationMs": 14.100000001490116,
+      "visualMs": 30.899999998509884
+    },
+    {
+      "size": 40,
+      "interaction": "category",
+      "iteration": 18,
+      "eventToMutationMs": 30,
+      "visualMs": 67.29999999701977
+    },
+    {
+      "size": 40,
+      "interaction": "cart-add",
+      "iteration": 18,
+      "eventToMutationMs": 22.700000002980232,
+      "visualMs": 42.5
+    },
+    {
+      "size": 40,
+      "interaction": "search",
+      "iteration": 19,
+      "eventToMutationMs": 12.799999997019768,
+      "visualMs": 31.100000001490116
+    },
+    {
+      "size": 40,
+      "interaction": "category",
+      "iteration": 19,
+      "eventToMutationMs": 51.20000000298023,
+      "visualMs": 80.80000000447035
+    },
+    {
+      "size": 40,
+      "interaction": "cart-add",
+      "iteration": 19,
+      "eventToMutationMs": 20.69999999552965,
+      "visualMs": 38.29999999701977
+    },
+    {
+      "size": 40,
+      "interaction": "search",
+      "iteration": 20,
+      "eventToMutationMs": 10.899999998509884,
+      "visualMs": 26.799999997019768
+    },
+    {
+      "size": 40,
+      "interaction": "category",
+      "iteration": 20,
+      "eventToMutationMs": 51,
+      "visualMs": 87.39999999850988
+    },
+    {
+      "size": 40,
+      "interaction": "cart-add",
+      "iteration": 20,
+      "eventToMutationMs": 32.899999998509884,
+      "visualMs": 52.599999994039536
+    }
+  ]
+}

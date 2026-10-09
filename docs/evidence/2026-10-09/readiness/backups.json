@@ -1,0 +1,30 @@
+{
+  "verifiedAt": "2026-10-09T15:18:39.802Z",
+  "productionChanged": false,
+  "rows": [
+    {
+      "scope": "operational-documents",
+      "archiveSha256": "6cb750b7ee8afcaff2adc10c59b0b2e53cf485a9274b7d4257300f6752fc8d98",
+      "sqlSha256": "32edd3900069735cd30508280e0cf3a3ed82083d67310852d5e3b6b00ea9a78f",
+      "inventorySha256": "19ebd2b9b7ddd1117de9989014719faa33468b7362e95c5c86c86c39ca8dc20b",
+      "restoredTables": 3,
+      "mediaVerified": 0,
+      "integrity": "ok",
+      "foreignKeys": "ok",
+      "r2Verified": false,
+      "source": "encrypted files on disk; no network access or production changes"
+    },
+    {
+      "scope": "legacy-and-photos",
+      "archiveSha256": "c38148c52b42f6bdc44c0d2b1d610444f4235e808e605417b1c76dae64665eb8",
+      "sqlSha256": "2dcc0c023aed07764265cc15cee87e43ea7bca3aa421c2b72a6dd8544ae209a9",
+      "inventorySha256": "e9e11c4c68dbc0ab43b031a50cc015dae4fac51a911257c8b81a9e94bb58233b",
+      "restoredTables": 12,
+      "mediaVerified": 17,
+      "integrity": "ok",
+      "foreignKeys": "ok",
+      "r2Verified": false,
+      "source": "encrypted files on disk; no network access or production changes"
+    }
+  ]
+}

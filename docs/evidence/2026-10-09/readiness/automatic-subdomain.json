@@ -1,0 +1,10 @@
+{
+  "checkedAt": "2026-10-09T15:52:03.261Z",
+  "isolatedDatabase": true,
+  "productionRestaurantRecordsModified": false,
+  "url": "https://qa-ficticio-octubre-2026-2.consola.workers.dev/menu",
+  "collisionSuffixVerified": true,
+  "workersDevEnabled": true,
+  "tlsAndCoreRouteStatus": 200,
+  "testWorkerRemoved": true
+}
