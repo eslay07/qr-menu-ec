@@ -1,0 +1,10 @@
+{
+  "checkedAt": "2026-10-09T08:09:25.681Z",
+  "versionName": "0.8.5",
+  "versionCode": 16,
+  "installedApkSha256": "aa57f0efa246a68020586099b7c67b46d2be8a44c7fea2b2a6e496a462928080",
+  "bytes": 8502129,
+  "matchesDeployedApk": true,
+  "updatePath": "Update prompt → Internet download → Android source permission and installation confirmed by owner",
+  "adbInstallUsed": false
+}

@@ -1,5 +1,7 @@
 # Honor y actualización Android · 8 de octubre de 2026
 
+> Informe histórico. La aceptación vigente de instalación OTA, diez reaperturas y recarga está en el [seguimiento del 9 de octubre](android-physical-2026-10-09.md). Los pendientes de este documento describen el estado anterior.
+
 El Honor LNA-LX3 físico está conectado: Android 16, WebView 153.0.8010.36 y APK 0.8.4/código 15. Cuenta utilizada: QA FICTICIO · Octubre 2026, catálogo de 40 platos. No se usan cuentas reales.
 
 El usuario confirmó Carta → Ajustes → Volver conservando la app abierta. Se repitió mediante entrada de prueba Android y se capturó Carta como resultado. Ajustes presenta secciones desplegables. Dos cierres completos y arranques fríos se iniciaron mediante el gestor de actividades Android; el desbloqueo nativo lo realiza el usuario, sin compartir credenciales. Se observó la Carta de nuevo; no se atribuyen todavía diez reaperturas a esta evidencia. El servidor conserva dos sesiones activas en las lecturas realizadas.

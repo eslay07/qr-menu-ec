@@ -1,0 +1,55 @@
+{
+  "checkedAt": "2026-10-09T08:28:13.170Z",
+  "versionId": "9d9d6bf3-85b5-4043-afec-bbdfdf90c6c7",
+  "publicChecks": [
+    {
+      "url": "https://qa-ficticio-octubre-2026.consola.workers.dev/api/v1/menu",
+      "status": 200,
+      "version": 13,
+      "name": "QA FICTICIO · Octubre 2026",
+      "dishCount": 40
+    },
+    {
+      "url": "https://qr-menu-ec.consola.workers.dev/r/76d3def9-52e9-4779-b048-1242f45c634e/api/v1/menu",
+      "status": 200,
+      "version": 13,
+      "name": "QA FICTICIO · Octubre 2026",
+      "dishCount": 40
+    },
+    {
+      "url": "https://qr-menu-ec.consola.workers.dev/m/qa-ficticio-octubre-2026/api/v1/menu",
+      "status": 200,
+      "version": 13,
+      "name": "QA FICTICIO · Octubre 2026",
+      "dishCount": 40
+    }
+  ],
+  "privateChecks": [
+    {
+      "endpoint": "state",
+      "status": 401,
+      "cache": "no-store"
+    },
+    {
+      "endpoint": "orders",
+      "status": 401,
+      "cache": "no-store"
+    },
+    {
+      "endpoint": "sessions",
+      "status": 401,
+      "cache": "no-store"
+    },
+    {
+      "endpoint": "backups",
+      "status": 401,
+      "cache": "no-store"
+    },
+    {
+      "endpoint": "notifications",
+      "status": 401,
+      "cache": "no-store"
+    }
+  ],
+  "physicalQrScanPerformed": false
+}
