@@ -42,7 +42,7 @@ jobs:
           sha256sum outputs/QR-Menu-EC-0.8.2-debug.apk | tee outputs/SHA256SUMS.txt
 
       - name: Upload APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: QR-Menu-EC-0.8.2-debug-not-production
           path: |
