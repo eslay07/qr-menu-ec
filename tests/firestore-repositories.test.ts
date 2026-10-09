@@ -17,7 +17,7 @@ import { RestaurantPreferences } from '../lib/restaurant-preferences';
 import { firestoreMaintenance } from '../lib/firestore-maintenance';
 import { cleanupCatalogVersions } from '../lib/firestore-version-cleanup';
 
-test('maintenance paginates expired aliases without deleting real orders and purges expired public links', { skip: !process.env.FIRESTORE_EMULATOR_HOST }, async () => {
+void test('maintenance paginates expired aliases without deleting real orders and purges expired public links', { skip: !process.env.FIRESTORE_EMULATOR_HOST }, async () => {
   const db = new FirestoreRest('demo-qr-menu-ec', process.env.FIRESTORE_EMULATOR_HOST!);
   const rid = crypto.randomUUID();
   const base = `restaurants/${rid}`;
@@ -36,7 +36,7 @@ test('maintenance paginates expired aliases without deleting real orders and pur
   assert.equal(await db.get(tokenPath), null);
 });
 
-test('historical server imports resume, preserve domain reservations and reject changed destinations', { skip: !process.env.FIRESTORE_EMULATOR_HOST }, async () => {
+void test('historical server imports resume, preserve domain reservations and reject changed destinations', { skip: !process.env.FIRESTORE_EMULATOR_HOST }, async () => {
   const db = new FirestoreRest('demo-qr-menu-ec', process.env.FIRESTORE_EMULATOR_HOST!);
   const rid = crypto.randomUUID(), hostname = `menu-${rid}.example.test`, now = new Date().toISOString();
   const row = { hostname, restaurant_id: rid, kind: 'custom', status: 'active', validation_data: '{"ssl":{"status":"active"}}', created_at: now, updated_at: now, priority: 30, provider: 'cloudflare_for_saas', service_name: null, cloudflare_id: 'test', last_error: null };
@@ -60,13 +60,13 @@ test('historical server imports resume, preserve domain reservations and reject 
   await assert.rejects(importCreatorToEmulator(isolated, { ...creator, revision: 8 }), /no se sobrescribirá/);
 });
 
-test('Firestore transport refuses production projects and remote emulators', () => {
+void test('Firestore transport refuses production projects and remote emulators', () => {
   assert.throws(() => new FirestoreRest('qr-menu-6981a', 'localhost:8085'));
   assert.throws(() => new FirestoreRest('demo-qr-menu-ec', 'example.com:8085'));
   assert.equal(firestoreHashId('ab/c+d=='), 'ab_c-d');
 });
 
-test('Firestore security never consults D1; scopes, revocation, rotation and challenge replay', { skip: !process.env.FIRESTORE_EMULATOR_HOST }, async () => {
+void test('Firestore security never consults D1; scopes, revocation, rotation and challenge replay', { skip: !process.env.FIRESTORE_EMULATOR_HOST }, async () => {
   const env = { DB: new Proxy({} as D1Database, { get() { throw Error('D1 must not be called'); } }), DATA_PROVIDER: 'firestore-emulator' as const, FIRESTORE_EMULATOR_HOST: process.env.FIRESTORE_EMULATOR_HOST };
   const security = new AuthSecurity(env);
   const rid = crypto.randomUUID();
@@ -97,7 +97,7 @@ test('Firestore security never consults D1; scopes, revocation, rotation and cha
   await security.audit(rid, 'test', 'local-test', 'success', Date.now());
 });
 
-test('Firestore rate limit is atomic under concurrent attempts', { skip: !process.env.FIRESTORE_EMULATOR_HOST }, async () => {
+void test('Firestore rate limit is atomic under concurrent attempts', { skip: !process.env.FIRESTORE_EMULATOR_HOST }, async () => {
   const repository = new FirestoreSecurityRepository(new FirestoreRest('demo-qr-menu-ec', process.env.FIRESTORE_EMULATOR_HOST!));
   const key = crypto.randomUUID();
   const results = await Promise.all(Array.from({ length: 10 }, () => repository.consumeLimit(key, 'test', 5, 60_000)));
@@ -105,7 +105,7 @@ test('Firestore rate limit is atomic under concurrent attempts', { skip: !proces
   assert.equal((await repository.consumeLimit(key, 'test', 5, 60_000)).allowed, false);
 });
 
-test('Firestore domain aliases reserve restaurant ownership and preserve free address', { skip: !process.env.FIRESTORE_EMULATOR_HOST }, async () => {
+void test('Firestore domain aliases reserve restaurant ownership and preserve free address', { skip: !process.env.FIRESTORE_EMULATOR_HOST }, async () => {
   const env = { DB: new Proxy({} as D1Database, { get() { throw Error('D1 must not be called'); } }), DATA_PROVIDER: 'firestore-emulator' as const, FIRESTORE_EMULATOR_HOST: process.env.FIRESTORE_EMULATOR_HOST, PLATFORM_MENU_DOMAIN: `${crypto.randomUUID()}.example.test` };
   const service = new DomainService(env);
   const first = crypto.randomUUID(), second = crypto.randomUUID();
@@ -132,7 +132,7 @@ test('Firestore domain aliases reserve restaurant ownership and preserve free ad
   assert.equal((await repository.primary(first))?.hostname, record.hostname);
 });
 
-test('WiFi is encrypted and exposed only through printing; notification settings use revisions', { skip: !process.env.FIRESTORE_EMULATOR_HOST }, async () => {
+void test('WiFi is encrypted and exposed only through printing; notification settings use revisions', { skip: !process.env.FIRESTORE_EMULATOR_HOST }, async () => {
   const db = new FirestoreRest('demo-qr-menu-ec', process.env.FIRESTORE_EMULATOR_HOST!);
   const rid = crypto.randomUUID();
   const security = new AuthSecurity({ DB: {} as D1Database, DATA_ENCRYPTION_KEY: Buffer.alloc(32, 3).toString('base64') });
@@ -151,7 +151,7 @@ test('WiFi is encrypted and exposed only through printing; notification settings
   await assert.rejects(preferences.saveNotifications({ ...initial.settings, inactivityHours: 0 }, (await preferences.notifications()).revision));
 });
 
-test('normalized Firestore repositories: isolation, CAS, publication, orders and manifests', { skip: !process.env.FIRESTORE_EMULATOR_HOST }, async () => {
+void test('normalized Firestore repositories: isolation, CAS, publication, orders and manifests', { skip: !process.env.FIRESTORE_EMULATOR_HOST }, async () => {
   const db = new FirestoreRest('demo-qr-menu-ec', process.env.FIRESTORE_EMULATOR_HOST!);
   const rid = crypto.randomUUID();
   const media = { async mediaGet() { return null; }, async mediaPut() {} };
@@ -184,7 +184,7 @@ test('normalized Firestore repositories: isolation, CAS, publication, orders and
   state.published = { version: 1, at: new Date().toISOString(), catalog: structuredClone(state.draft) };
   assert.equal(await store.commit(state, 1), true);
   const publicRoot = await db.get(`publicMenus/${rid}`);
-  const publicDishes = await db.all(`publicMenus/${rid}/versions/${publicRoot!.data.versionId}/dishes`, 150);
+  const publicDishes = await db.all(`publicMenus/${rid}/versions/${String(publicRoot!.data.versionId)}/dishes`, 150);
   assert.equal(publicDishes.length, 150);
   state.draft.dishes[0].name = 'Solo borrador';
   assert.equal(await store.commit(state, 2), true);
@@ -209,7 +209,7 @@ test('normalized Firestore repositories: isolation, CAS, publication, orders and
   assert.equal((await orders.list(rid, { query: 'client' })).length, 1);
   assert.equal((await orders.list(other.restaurantId)).length, 0);
   assert.equal(await orders.setStatus(other.restaurantId, order.id, 'cancelled'), false);
-  assert.deepEqual((await Promise.all([orders.setStatus(rid, order.id, 'cancelled'), orders.setStatus(rid, order.id, 'cancelled')])).sort(), [false, true]);
+  assert.deepEqual((await Promise.all([orders.setStatus(rid, order.id, 'cancelled'), orders.setStatus(rid, order.id, 'cancelled')])).sort((a,b)=>Number(a)-Number(b)), [false, true]);
   const expired = { ...order, id: crypto.randomUUID(), publicExpiresAt: new Date(0).toISOString() };
   await orders.create(expired, `expired-${rid}`);
   assert.equal(await orders.publicByTokenHash(`expired-${rid}`), null);

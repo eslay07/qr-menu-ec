@@ -98,7 +98,7 @@ async function routeRequest(request: Request, env: Env, context: ExecutionContex
     url.protocol = 'https:';
     return Response.redirect(url.toString(), 308);
   }
-  if (request.method === 'GET' && /\/menu\/$/.test(url.pathname)) {
+  if (request.method === 'GET' && url.pathname.endsWith('/menu/')) {
     url.pathname = url.pathname.slice(0, -1);
     return Response.redirect(url.toString(), 308);
   }
@@ -232,7 +232,7 @@ async function routeRequest(request: Request, env: Env, context: ExecutionContex
   return env.ASSETS.fetch(request);
 }
 
-export default {
+const worker = {
   async fetch(request: Request, env: Env, context: ExecutionContext) {
     // Before routing, redirects, auth, assets, audit or any database access.
     // Applies equally to UUID routes, aliases, custom hosts and Android WebView.
@@ -309,3 +309,5 @@ export default {
     await new AuthSecurity(env).cleanup();
   },
 };
+
+export default worker;

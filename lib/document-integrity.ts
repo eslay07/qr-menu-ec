@@ -11,12 +11,13 @@ export function validateDocumentIntegrity(rows:TransferDocument[]){
   if(parts[0]==='restaurants'&&parts.length===2){
    restaurants++;
    if(row.restaurantId!==parts[1])errors.push('Restaurant identity mismatch');
-   for(const field of ['draftCatalogId','publishedCatalogId'])if(row[field]&&!data.has(`${path}/catalogs/${row[field]}`))errors.push('Missing referenced catalog');
+   for(const field of ['draftCatalogId','publishedCatalogId']) { const reference=row[field]; if(reference && (typeof reference!=='string' || !data.has(`${path}/catalogs/${reference}`)))errors.push('Missing referenced catalog'); }
    if(!data.has(`${path}/private/auth`)||!data.has(`${path}/settings/general`))errors.push('Missing private restaurant records');
    const auth=data.get(`${path}/private/auth`),security=auth?.security as Record<string,unknown>|undefined;
    if(security?.firebaseUid){
-    const member=data.get(`${path}/members/${security.firebaseUid}`);
-    if(!member||member.role!=='owner'||!data.has(`users/${security.firebaseUid}`))errors.push('Owner membership mismatch');
+    if(typeof security.firebaseUid!=="string")errors.push('Owner identity must be a string');
+    const member=data.get(`${path}/members/${typeof security.firebaseUid === "string" ? security.firebaseUid : ""}`);
+    if(!member||member.role!=='owner'||!data.has(`users/${typeof security.firebaseUid === "string" ? security.firebaseUid : ""}`))errors.push('Owner membership mismatch');
     const access=row.access as Record<string,unknown>|undefined;
     if(member?.active!==(access?.active!==false))errors.push('Owner membership activation mismatch');
    }
@@ -30,7 +31,7 @@ export function validateDocumentIntegrity(rows:TransferDocument[]){
    lines++;
    if(!data.has(parts.slice(0,4).join('/'))||row.id!==parts[5])errors.push('Orphan or mismatched order line');
   }
-  if(parts[0]==='publicMenus'&&parts.length===2&&row.versionId&&!data.has(`${path}/versions/${row.versionId}`))errors.push('Missing public menu version');
+  if(parts[0]==='publicMenus'&&parts.length===2&&row.versionId&&(typeof row.versionId!=='string'||!data.has(`${path}/versions/${row.versionId}`)))errors.push('Missing public menu version');
  }
  if(errors.length)throw Error(`Document integrity failed: ${[...new Set(errors)].join('; ')}`);
  return {documents:rows.length,restaurants,orders,lines,verified:true};

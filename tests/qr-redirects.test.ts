@@ -4,12 +4,12 @@ import { register } from 'node:module';
 register(new URL('./cloudflare-test-loader.mjs', import.meta.url));
 const { default: worker, auditRoute } = await import('../deployment/cloudflare/worker');
 
-test('audit routes do not retain opaque order credentials', () => {
+void test('audit routes do not retain opaque order credentials', () => {
   assert.equal(auditRoute('/api/v1/order/private-bearer-token/pdf'), '/api/v1/order/:token/pdf');
   assert.equal(auditRoute('/api/v1/order/private-bearer-token/cancel'), '/api/v1/order/:token/cancel');
 });
 
-test('UUID and free aliases redirect once to active primary without loops or crossing restaurants', async () => {
+void test('UUID and free aliases redirect once to active primary without loops or crossing restaurants', async () => {
   const id = '11111111-1111-4111-8111-111111111111';
   const other = '22222222-2222-4222-8222-222222222222';
   const records = [{ hostname: 'free.example.com', restaurant_id: id, priority: 10 }, { hostname: 'menu.example.com', restaurant_id: id, priority: 100 }, { hostname: 'other.example.com', restaurant_id: other, priority: 100 }];

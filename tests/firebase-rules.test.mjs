@@ -33,7 +33,7 @@ before(async () => {
 });
 after(async () => { if (env) await env.cleanup(); });
 
-test('push device tokens, delivery queue and ownership index are server-only', async () => {
+void test('push device tokens, delivery queue and ownership index are server-only', async () => {
   for (const context of [env.unauthenticatedContext(), env.authenticatedContext('owner-a')]) {
     for (const path of ['restaurants/a/pushDevices/test', 'restaurants/a/pushJobs/test', 'platformConfig/pushTokens/entries/test']) {
       await assertFails(getDoc(doc(context.firestore(), path)));
@@ -42,7 +42,7 @@ test('push device tokens, delivery queue and ownership index are server-only', a
   }
 });
 
-test('owner reads and updates permitted fields only within their restaurant', async () => {
+void test('owner reads and updates permitted fields only within their restaurant', async () => {
   const db = env.authenticatedContext('owner-a').firestore();
   await assertSucceeds(getDoc(doc(db, 'restaurants/a')));
   await assertSucceeds(updateDoc(doc(db, 'restaurants/a'), { name: 'Mi carta' }));
@@ -54,7 +54,7 @@ test('owner reads and updates permitted fields only within their restaurant', as
   await assertFails(setDoc(doc(db, 'restaurants/b/catalogs/draft/dishes/new'), { name: 'Intrusión' }));
 });
 
-test('owner cannot grant membership, change limits, publish or forge order prices', async () => {
+void test('owner cannot grant membership, change limits, publish or forge order prices', async () => {
   const db = env.authenticatedContext('owner-a').firestore();
   await assertFails(setDoc(doc(db, 'restaurants/b/members/owner-a'), { role: 'owner', active: true }));
   await assertFails(updateDoc(doc(db, 'restaurants/a'), { 'access.maxDishes': 150 }));
@@ -63,7 +63,7 @@ test('owner cannot grant membership, change limits, publish or forge order price
   await assertFails(setDoc(doc(db, 'restaurants/a/catalogs/published'), { version: 1 }));
 });
 
-test('public menu and nested dishes are readable anonymously but never writable', async () => {
+void test('public menu and nested dishes are readable anonymously but never writable', async () => {
   for (const context of [env.unauthenticatedContext(), env.authenticatedContext('owner-a')]) {
     const db = context.firestore();
     for (const path of ['publicMenus/a', 'publicMenus/a/versions/1/dishes/dish']) {
@@ -74,7 +74,7 @@ test('public menu and nested dishes are readable anonymously but never writable'
   await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(), 'restaurants/a')));
 });
 
-test('private server collections deny all client access, including claimed creator', async () => {
+void test('private server collections deny all client access, including claimed creator', async () => {
   for (const context of [env.unauthenticatedContext(), env.authenticatedContext('owner-a'), env.authenticatedContext('creator', { role: 'creator' })]) {
     for (const collection of ['rateLimits', 'auditEvents', 'hostnames', 'platformConfig', 'migrationRuns']) {
       const ref = doc(context.firestore(), `${collection}/private`);
@@ -84,7 +84,7 @@ test('private server collections deny all client access, including claimed creat
   }
 });
 
-test('profile is private and cannot be used for privilege escalation', async () => {
+void test('profile is private and cannot be used for privilege escalation', async () => {
   const db = env.authenticatedContext('owner-a').firestore();
   await assertSucceeds(getDoc(doc(db, 'users/owner-a')));
   await assertSucceeds(updateDoc(doc(db, 'users/owner-a'), { displayName: 'Dueño' }));
@@ -94,7 +94,7 @@ test('profile is private and cannot be used for privilege escalation', async () 
   await assertFails(setDoc(doc(db, 'users/owner-a/devices/forged'), { active: true }));
 });
 
-test('missing, inactive memberships and suspended restaurants fail closed', async () => {
+void test('missing, inactive memberships and suspended restaurants fail closed', async () => {
   const outsider = env.authenticatedContext('outsider').firestore();
   await assertFails(getDoc(doc(outsider, 'restaurants/a')));
   await env.withSecurityRulesDisabled(async (context) => {
@@ -105,7 +105,7 @@ test('missing, inactive memberships and suspended restaurants fail closed', asyn
   await assertFails(getDoc(doc(env.authenticatedContext('inactive').firestore(), 'restaurants/a')));
 });
 
-test('notifications permit read-state changes only; backup manifests never client writes', async () => {
+void test('notifications permit read-state changes only; backup manifests never client writes', async () => {
   const db = env.authenticatedContext('owner-a').firestore();
   await assertSucceeds(getDoc(doc(db, 'restaurants/a/notifications/test')));
   await assertSucceeds(updateDoc(doc(db, 'restaurants/a/notifications/test'), { read: true }));

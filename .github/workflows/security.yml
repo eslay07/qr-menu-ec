@@ -27,6 +27,7 @@ jobs:
       - run: npm ci
       - run: npm audit --audit-level=high
       - run: npm run check
+      - run: npm run lint
       - run: npm test
       - name: Gitleaks repository and history
         uses: gitleaks/gitleaks-action@v3

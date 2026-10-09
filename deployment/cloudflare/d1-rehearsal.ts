@@ -4,7 +4,7 @@ import { blankCatalog,defaultSettings } from '../../lib/contracts';
 import type { State } from '../../lib/store';
 
 // Disposable authenticated synthetic test worker. Never route to production.
-export default {async fetch(request:Request,env:{DOCUMENT_DB:D1Database;REHEARSAL_TOKEN:string}){
+const worker = {async fetch(request:Request,env:{DOCUMENT_DB:D1Database;REHEARSAL_TOKEN:string}){
  if(request.headers.get('Authorization')!==`Bearer ${env.REHEARSAL_TOKEN}`)return new Response(null,{status:404});
  const db=new D1DocumentStore(env.DOCUMENT_DB),id='00000000-0000-4000-8000-000000000001';
  const store=new FirestoreRestaurantStore(db,id,{async mediaGet(){return null;},async mediaPut(){}});
@@ -27,3 +27,5 @@ export default {async fetch(request:Request,env:{DOCUMENT_DB:D1Database;REHEARSA
   return new Response(null,{status:404});
  }catch(error){return Response.json({passed:false,error:error instanceof Error?error.message:'Unknown'},{status:500});}
 }};
+
+export default worker;

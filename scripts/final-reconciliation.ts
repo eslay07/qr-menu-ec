@@ -27,7 +27,7 @@ if(mode==='--inspect-source'){
 const auth=require('firebase-tools/lib/auth');
 await require('firebase-tools/lib/requireAuth').requireAuth({project:current.project,nonInteractive:true,...auth.getProjectDefaultAccount(process.cwd())});
 const {getAccessToken}=require('firebase-tools/lib/apiv2');
-let db=new FirestoreRest(current.project,'',getAccessToken);
+const db=new FirestoreRest(current.project,'',getAccessToken);
 // Original immutable importer journals are preserved, not replayed or scanned.
 const excludedSubtrees=[`migrationRuns/${baseline.runId}`];
 const remote=await db.inventoryWire(100000,excludedSubtrees);

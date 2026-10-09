@@ -1,4 +1,5 @@
 import { chromium, expect } from '@playwright/test';
+const outputDir = process.env.QA_OUTPUT_DIR || 'outputs/mobile-performance';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { demoCatalog, defaultSettings } from '../lib/contracts';
 const base = process.env.QA_URL || 'http://127.0.0.1:4181';
@@ -57,7 +58,7 @@ try {
     }
     await context.close();
   }
-  await mkdir('outputs/mobile-performance', { recursive: true });
-  await writeFile(`outputs/mobile-performance/owner-${process.env.QA_PHASE || 'before'}.json`, JSON.stringify({ profile: { width: 390, cpu: 4, downloadMbps: 1.6, uploadKbps: 750, rttMs: 150 }, limitations: ['Mocked authenticated session and API: no real Firebase login/refresh', 'API fixture adds controlled 150 ms per response; not server benchmark', 'Interaction includes browser automation overhead', 'Orders open includes 200 ms fixed settle, not valid latency target'], results }, null, 2));
+  await mkdir(outputDir, { recursive: true });
+  await writeFile(`${outputDir}/owner-${process.env.QA_PHASE || 'before'}.json`, JSON.stringify({ profile: { width: 390, cpu: 4, downloadMbps: 1.6, uploadKbps: 750, rttMs: 150 }, limitations: ['Mocked authenticated session and API: no real Firebase login/refresh', 'API fixture adds controlled 150 ms per response; not server benchmark', 'Interaction includes browser automation overhead', 'Orders open includes 200 ms fixed settle, not valid latency target'], results }, null, 2));
   console.log(`Owner performance: ${results.length} measurements`);
 } finally { await browser.close(); }

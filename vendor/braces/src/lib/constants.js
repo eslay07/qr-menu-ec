@@ -1,6 +1,4 @@
-'use strict';
-
-module.exports = {
+const constants = {
   MAX_LENGTH: 10000,
 
   // Digits
@@ -55,3 +53,5 @@ module.exports = {
   CHAR_VERTICAL_LINE: '|', /* | */
   CHAR_ZERO_WIDTH_NOBREAK_SPACE: '\uFEFF' /* \uFEFF */
 };
+
+export default constants;

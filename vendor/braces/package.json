@@ -1,10 +1,26 @@
 {
- "name":"@qrmenu/braces",
- "version":"3.0.4-qrmenu.1",
- "description":"Local bounded-depth security fork of micromatch/braces 3.0.3",
- "main":"index.js",
- "type":"commonjs",
- "license":"MIT",
- "dependencies":{"fill-range":"^7.1.1"},
- "qrmenuUpstream":{"name":"braces","version":"3.0.3","url":"https://github.com/micromatch/braces"}
+  "name": "@qrmenu/braces",
+  "version": "3.0.4-qrmenu.1",
+  "description": "Local bounded-depth security fork of micromatch/braces 3.0.3",
+  "main": "build/index.js",
+  "type": "commonjs",
+  "license": "MIT",
+  "dependencies": {
+    "fill-range": "^7.1.1"
+  },
+  "qrmenuUpstream": {
+    "name": "braces",
+    "version": "3.0.3",
+    "url": "https://github.com/micromatch/braces"
+  },
+  "exports": {
+    ".": "./build/index.js",
+    "./package.json": "./package.json",
+    "./lib/*.js": "./build/lib/*.js",
+    "./lib/*": "./build/lib/*.js"
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "check:build": "node build.mjs --check"
+  }
 }

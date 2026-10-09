@@ -15,7 +15,7 @@ export class FirestoreBusinessRepository {
       ...(preference ? [pushJob(this.path.split('/')[1], notification.id, preference, new Date(notification.createdAt))] : [])]);
   }
   async notifications(pageToken?: string) {
-    const cursor = pageToken ? z.object({ at: z.string().datetime(), id: z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/) }).strict().parse(JSON.parse(atob(pageToken))) : null;
+    const cursor = pageToken ? z.object({ at: z.string().check(z.iso.datetime()), id: z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/) }).strict().parse(JSON.parse(atob(pageToken))) : null;
     const documents = await this.db.query<OwnerNotification>(`${this.path}/notifications`, [], 31, { orderBy: [{ field: 'createdAt', direction: 'DESCENDING' }, { field: '__name__', direction: 'DESCENDING' }], ...(cursor ? { startAfter: [{ value: new Date(cursor.at) }, { reference: `${this.path}/notifications/${cursor.id}` }] } : {}) });
     const page = documents.slice(0, 30), last = page.at(-1);
     return { documents: page, nextPageToken: documents.length > 30 && last ? btoa(JSON.stringify({ at: last.data.createdAt, id: last.data.id })) : undefined };

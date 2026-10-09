@@ -1,6 +1,6 @@
 plugins { id("com.android.application"); id("org.jetbrains.kotlin.android") }
 android { namespace="ec.qrmenu.app"; compileSdk=35
- defaultConfig { applicationId="ec.qrmenu.app"; minSdk=29; targetSdk=35; versionCode=16; versionName="0.8.5"
+ defaultConfig { applicationId="ec.qrmenu.app"; minSdk=29; targetSdk=35; versionCode=17; versionName="0.8.6"
   buildConfigField("String", "PLATFORM_HOST", "\"qr-menu-ec.consola.workers.dev\"")
   manifestPlaceholders["appLabel"] = "QR Menu EC"
  }

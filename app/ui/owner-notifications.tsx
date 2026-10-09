@@ -16,7 +16,7 @@ export default function OwnerNotifications({pushEnabled=true,restaurantId}:{push
   const alive = useRef(true), loading = useRef(false);
   const openingSequence = useRef(0);
   const detailHeading = useRef<HTMLHeadingElement>(null);
-  useEffect(() => { if (detail) detailHeading.current?.focus(); }, [detail?.id]);
+  useEffect(() => { if (detail) detailHeading.current?.focus(); }, [detail]);
   const load = useCallback(async (next?: string) => {
     if (loading.current) return;
     loading.current = true; setBusy(true); setError('');
@@ -28,7 +28,7 @@ export default function OwnerNotifications({pushEnabled=true,restaurantId}:{push
     } catch (cause) { if (alive.current) setError((cause as Error).message); }
     finally { loading.current = false; if (alive.current) setBusy(false); }
   }, []);
-  useEffect(() => { alive.current = true; void load(); return () => { alive.current = false; }; }, [load]);
+  useEffect(() => { alive.current = true; void Promise.resolve().then(() => load()); return () => { alive.current = false; }; }, [load]);
   const open = useCallback(async (id: string) => {
     const sequence = ++openingSequence.current;
     setOpening(true); setError(''); setDetail(null);
@@ -52,9 +52,9 @@ export default function OwnerNotifications({pushEnabled=true,restaurantId}:{push
   useEffect(() => {
     const query = new URLSearchParams(location.search), id = query.get('notification');
     if (query.get('restaurant') && query.get('restaurant') !== restaurantId) {
-      setError('Este aviso pertenece a otro restaurante. Accede con su cuenta para consultarlo.'); return;
+      void Promise.resolve().then(() => setError('Este aviso pertenece a otro restaurante. Accede con su cuenta para consultarlo.')); return;
     }
-    if (id && /^[a-zA-Z0-9_-]{1,100}$/.test(id)) void open(id);
+    if (id && /^[a-zA-Z0-9_-]{1,100}$/.test(id)) void Promise.resolve().then(() => open(id));
   }, [open,restaurantId]);
   function closeDetail() {
     openingSequence.current++;
@@ -75,10 +75,10 @@ export default function OwnerNotifications({pushEnabled=true,restaurantId}:{push
   return <section className="card settings-section notifications-center" aria-labelledby="owner-notifications-heading" aria-busy={busy || opening}>
     <h2 id="owner-notifications-heading"><Bell aria-hidden="true" /> Actividad de tu restaurante</h2>
     <p className="muted">Consulta tus novedades aquí. Los pedidos no confirman un pago recibido.</p>
-    <details><summary style={{minHeight:44,cursor:'pointer'}}>Configurar avisos en este dispositivo</summary>{pushEnabled?<PushSettings />:<p>Las notificaciones en el celular están disponibles desde el plan Medio.</p>}</details>
+    <details><summary style={{minHeight:44,cursor:'pointer'}}>Configurar avisos en este dispositivo</summary>{pushEnabled?<PushSettings restaurantId={restaurantId} />:<p>Las notificaciones en el celular están disponibles desde el plan Medio.</p>}</details>
     <button className="btn" type="button" disabled={busy} onClick={() => void load()}>{busy ? 'Actualizando…' : 'Actualizar avisos'}</button>
     {error && <p className="notice error" role="alert">{error}</p>}
-    {opening && <p role="status" aria-live="polite">Abriendo el detalle del aviso…</p>}
+    {opening && <output  aria-live="polite">Abriendo el detalle del aviso…</output>}
     {detail && <article style={{padding:24,marginTop:16,background:'#f0f7ed',border:'2px solid #47772d',borderRadius:16}} aria-label="Detalle de la notificación">
       <button className="btn" onClick={closeDetail}><ChevronLeft aria-hidden="true" /> Volver a notificaciones</button>
       <p className="muted">{labels[detail.kind] || 'Aviso del restaurante'} · {detail.read ? 'Leído' : 'Sin leer'}</p>
@@ -87,10 +87,10 @@ export default function OwnerNotifications({pushEnabled=true,restaurantId}:{push
       <p className="muted">Este aviso pertenece exclusivamente a tu restaurante. Un pedido no confirma un pago recibido.</p>
     </article>}
     {!detail && !opening && <button className="btn" aria-pressed={unreadOnly} onClick={() => setUnreadOnly(value => !value)}>{unreadOnly ? 'Mostrar todos' : 'Mostrar sin leer'}</button>}
-    {!loaded && busy && <p role="status">Cargando avisos…</p>}
-    {loaded && !items.length && <p role="status">No hay avisos todavía.</p>}
+    {!loaded && busy && <output >Cargando avisos…</output>}
+    {loaded && !items.length && <output >No hay avisos todavía.</output>}
     {loaded && !detail && !opening && items.length > 0 && <p className="muted">{items.filter(item => !item.read).length} sin leer entre los {items.length} avisos cargados.</p>}
-    {loaded && unreadOnly && !detail && !opening && items.length > 0 && !items.some(item => !item.read) && <p role="status">Todos los avisos cargados están leídos.{cursor ? ' Puedes consultar los anteriores.' : ''}</p>}
+    {loaded && unreadOnly && !detail && !opening && items.length > 0 && !items.some(item => !item.read) && <output >Todos los avisos cargados están leídos.{cursor ? ' Puedes consultar los anteriores.' : ''}</output>}
     <ul style={{ listStyle: 'none', padding: 0 }}>
       {!detail && !opening && items.filter(item => !unreadOnly || !item.read).map(item => <li key={item.id} style={{ padding: '16px', marginTop:12, background:item.read?'#fff':'#f0f7ed', border: '1px solid #d6dcd3',borderRadius:12 }}>
         <small>{labels[item.kind] || 'Aviso del restaurante'}</small>

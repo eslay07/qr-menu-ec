@@ -1,3 +1,4 @@
+import { scalarText } from './scalar-text';
 import { z } from 'zod';
 import { FirestoreRest, firestoreId, type FirestoreData } from './firestore-rest';
 import type { AuthSecurity } from './auth-security';
@@ -33,6 +34,6 @@ export class RestaurantPreferences {
   async printWifi() {
     const row = await this.db.get(`${this.path}/general`);
     if (row?.data.wifiEnabled !== true || typeof row.data.wifiCiphertext !== 'string') return null;
-    return { name: String(row.data.wifiName || ''), text: `WiFi gratis · Clave: ${await this.security.decrypt(row.data.wifiCiphertext)}` };
+    return { name: scalarText(row.data.wifiName || ''), text: `WiFi gratis · Clave: ${await this.security.decrypt(row.data.wifiCiphertext)}` };
   }
 }

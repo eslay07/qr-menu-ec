@@ -1,3 +1,4 @@
+import { scalarText } from './scalar-text';
 import { z } from 'zod';
 import {commercialPlan} from './entitlements';
 import {
@@ -165,7 +166,7 @@ export async function handleCreatorApi(
         .object({
           setupToken: z.string().min(20).max(200),
           password: z.string().min(12).max(128),
-          email: z.string().email().max(254).optional(),
+          email: z.string().check(z.email()).max(254).optional(),
           turnstileToken: z.string().max(4096).optional(),
         })
         .strict()
@@ -246,7 +247,7 @@ export async function handleCreatorApi(
       }
       if (!env.CREATOR_RECOVERY_EMAIL || !security.emailDeliveryReady)
         return json({ error: 'El envío de recuperación todavía no está configurado.' }, 503);
-      const recipient = z.string().email().parse(env.CREATOR_RECOVERY_EMAIL);
+      const recipient = z.string().check(z.email()).parse(env.CREATOR_RECOVERY_EMAIL);
       const actionToken = await security.issueActionToken('creator', null, 'password_reset', { passwordHash: creator.state.password.hash, sessionEpoch: creator.state.sessionEpoch });
       const recoveryUrl = new URL('/creator', env.PUBLIC_APP_ORIGIN || 'https://qr-menu-ec.consola.workers.dev');
       recoveryUrl.hash = `recover=${encodeURIComponent(actionToken)}`;
@@ -380,7 +381,7 @@ export async function handleCreatorApi(
         return json({ error: 'El desafío venció. Inicia sesión otra vez.' }, 401);
       const ciphertext =
         challenge.kind === 'mfa_setup'
-          ? String(challenge.payload.secretCiphertext || '')
+          ? scalarText(challenge.payload.secretCiphertext || '')
           : creator.state.security?.totpCiphertext || '';
       const secret = await security.decrypt(ciphertext);
       if (!(await verifyTotp(secret, input.code))) {
@@ -508,7 +509,7 @@ export async function handleCreatorApi(
         .object({
           name: z.string().trim().min(1).max(80),
           ownerPassword: z.string().min(12).max(128),
-          ownerEmail: z.string().email().max(254),
+          ownerEmail: z.string().check(z.email()).max(254),
           features: z.array(Feature).max(2).default([]),
         })
         .parse(await requestBody(request));
@@ -643,7 +644,7 @@ export async function handleCreatorApi(
       );
     const emailMatch = path.match(/^restaurants\/([a-f0-9-]{36})\/email$/);
     if (emailMatch && method === 'PUT' && security) {
-      const input = z.object({ email: z.string().trim().toLowerCase().email().max(254) }).strict().parse(await requestBody(request));
+      const input = z.object({ email: z.string().trim().toLowerCase().check(z.email()).max(254) }).strict().parse(await requestBody(request));
       const emailHash = await digest(input.email);
       const duplicate = await new ApplicationRepository(env).findByEmail(emailHash, emailMatch[1]);
       if (duplicate.length) return json({ error: 'Ese correo pertenece a otro restaurante.' }, 409);

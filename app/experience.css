@@ -87,7 +87,7 @@
 @media (max-width: 760px) {
   .sidebar { padding: 15px 18px; display: flex; align-items: center; justify-content: space-between; }
   .sidebar .logout { padding: 8px; }
-  .sidebar nav { position: fixed; bottom: 0; left: 0; right: 0; margin: 0; padding: 6px 5px max(6px, env(safe-area-inset-bottom)); z-index: 30; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 3px; background: #fff; border-top: 1px solid #dce5df; box-shadow: 0 -8px 28px #203b2510; }
+  .sidebar nav { position: fixed; bottom: 0; left: 0; right: 0; margin: 0; padding: 6px 5px max(6px, var(--owner-safe-bottom, env(safe-area-inset-bottom))); z-index: 30; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 3px; background: #fff; border-top: 1px solid #dce5df; box-shadow: 0 -8px 28px #203b2510; }
   .sidebar nav button { display: flex; flex-direction: column; justify-content: center; gap: 4px; padding: 6px 3px; min-height: 56px; color: #516359; font-size: 11px; border-radius: 10px; white-space: nowrap; }
   .sidebar nav button.active { background: #e4efdf; color: #203e2c; font-weight: 700; }
   .sidebar nav button svg { width: 20px; height: 20px; }
@@ -205,6 +205,13 @@
 .editor-disclosure > summary:focus-visible { outline:3px solid #245b47; outline-offset:3px; border-radius:12px; }
 .editor-disclosure .disclosure-indicator { font-size:24px; line-height:1; transition:transform .15s ease; }
 .editor-disclosure[open] > summary { border-bottom:1px solid #e4e7ec; }
+
+/* Semantic elements retain the established layout rather than browser defaults. */
+picture { display: contents; }
+/* Native owns this inset once; ordinary browsers keep their safe-area value. */
+.workspace[data-native-safe-area="true"] { --owner-safe-bottom: 0px; }
+output.notice, output.feedback-toast { display: block; }
+dialog.modal { margin: 0; border: 0; }
 .editor-disclosure[open] .disclosure-indicator { transform:rotate(180deg); }
 .editor-disclosure-body { padding:20px; }
 .editor-disclosure-body > .card { border:0; box-shadow:none; padding:0; margin:0; }

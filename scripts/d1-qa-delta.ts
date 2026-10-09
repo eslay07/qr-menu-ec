@@ -19,7 +19,7 @@ let plain:string;
 try{const magic=Buffer.from('QRMENUDOCS1');const cipher=createDecipheriv('aes-256-gcm',key,bytes.subarray(magic.length,magic.length+12));cipher.setAAD(magic);cipher.setAuthTag(bytes.subarray(magic.length+12,magic.length+28));plain=gunzipSync(Buffer.concat([cipher.update(bytes.subarray(magic.length+28)),cipher.final()])).toString();}finally{key.fill(0);}
 if(sha(plain)!==receipt.payloadSha256)throw Error('Source checksum mismatch.');
 const source=JSON.parse(plain);if(source.project!=='qr-menu-6981a')throw Error('Wrong source project.');
-const baseline=new Map<string,string>(source.documents.map((row:any)=>[row.path,canonicalDocument(row.fields)]));
+const baseline=new Map<string,string>(source.documents.map((row:import("../lib/firestore-rest").TransferDocument)=>[row.path,canonicalDocument(row.fields)]));
 const db=new D1DocumentStore(remoteD1('0c8dab0c-5e79-4272-a28c-90b00a93e676') as unknown as D1Database);
 const actual=await db.inventoryWire(100000),seen=new Set<string>(),counts:Record<string,{created:number;changed:number;deleted:number}>={};
 function add(path:string,kind:'created'|'changed'|'deleted'){const group=path.split('/').at(-2)!;counts[group]||={created:0,changed:0,deleted:0};counts[group][kind]++;}

@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useState, type SubmitEvent } from 'react';
 import { ArrowRight, Store } from 'lucide-react';
 import Turnstile from './turnstile';
 import { preserveNotification } from '../../lib/notification-link';
@@ -18,13 +18,14 @@ export default function OwnerLauncher() {
   const [message, setMessage] = useState('');
   const [restoring, setRestoring] = useState(inAndroidApp);
   useEffect(() => {
-    fetch('/api/owner/login').then(r => { if (!r.ok) throw Error('Acceso no disponible'); return r.json(); }).then((data: any) => {
+    fetch('/api/owner/login').then(r => { if (!r.ok) throw Error('Acceso no disponible'); return r.json(); }).then((value) => {
+      const data = value as {turnstileSiteKey:string|null};
       setSiteKey(data.turnstileSiteKey); setReady(true);
     }).catch(() => setError('No se pudo cargar el acceso. Recarga la página.'));
   }, []);
   useEffect(() => {
     if (!inAndroidApp) return;
-    (async () => {
+    void (async () => {
       try {
         const statusResponse = await fetch('/api/owner/device-session');
         const status = await statusResponse.json() as { remembered?: boolean; csrfToken?: string };
@@ -39,7 +40,7 @@ export default function OwnerLauncher() {
       finally { setRestoring(false); }
     })();
   }, [inAndroidApp]);
-  async function login(event: FormEvent<HTMLFormElement>) {
+  async function login(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     const values = new FormData(event.currentTarget);
     setBusy(true); setError('');
@@ -49,19 +50,19 @@ export default function OwnerLauncher() {
         body: JSON.stringify(recovering ? { email: values.get('email'), turnstileToken: token } : { email: values.get('email'), password: values.get('password'), turnstileToken: token,
           rememberDevice: canRemember && values.get('rememberDevice') === 'on' }),
       });
-      const result = await response.json() as any;
+      const result = await response.json() as {error: string; message: string; ownerUrl: string};
       if (!response.ok) throw Error(result.error);
       if (recovering) { setMessage(result.message); return; }
       location.assign(preserveNotification(result.ownerUrl, canRemember && values.get('rememberDevice') === 'on'));
     } catch (failure) { setError((failure as Error).message); revealIssue('.owner-login [role="alert"]'); }
     finally { setBusy(false); setToken(''); setAttempt(value => value + 1); }
   }
-  if (restoring) return <main className="creator-auth" aria-busy="true"><section className="creator-login card" role="status">Revisando el acceso guardado en este celular…</section></main>;
+  if (restoring) return <main className="creator-auth" aria-busy="true"><output className="creator-login card">Revisando el acceso guardado en este celular…</output></main>;
   return <main className="creator-auth"><section className="creator-login card owner-login">
     <Store size={38} /><p className="eyebrow">TU RESTAURANTE, AL DÍA</p>
     <h1>{recovering ? 'Recupera tu acceso' : 'Bienvenido a tu carta'}</h1><p>{recovering ? 'Recibe un enlace para elegir una contraseña nueva.' : 'Entra para editar tus platos, destacar promociones y revisar pedidos.'}</p>
     {error && <p className="notice error" role="alert">{error}</p>}
-    {message && <p className="notice" role="status">{message}</p>}
+    {message && <output className="notice" >{message}</output>}
     <form onSubmit={login}>
       <label>Correo electrónico<input name="email" type="email" autoComplete="username" placeholder="tu@restaurante.com" required maxLength={254} /></label>
       {!recovering && <label>Contraseña<input name="password" type="password" autoComplete="current-password" required maxLength={128} /></label>}

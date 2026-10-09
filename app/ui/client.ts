@@ -1,13 +1,14 @@
+import type { ApiResult } from './api-types';
 import { nativePush } from './native-push';
 export function restaurantBase(){if(typeof location==='undefined')return '';const match=location.pathname.match(/^\/r\/([a-f0-9-]{36})(?:\/|$)/);if(match)return `/r/${match[1]}`;const alias=location.pathname.match(/^\/m\/([a-z0-9]+(?:-[a-z0-9]+)*)(?:\/|$)/);return alias?`/m/${alias[1]}`:'';}
 let csrfToken='';
 const pendingReads = new Map<string, ReturnType<typeof request>>();
-export async function api(path: string, method = 'GET', data?: unknown) {
+export async function api<P extends string>(path: P, method = 'GET', data?: unknown): Promise<ApiResult<P>> {
   const key = `${restaurantBase()}/api/v1/${path}`;
   if (method !== 'GET' || data !== undefined) {
     // In-flight reads from before a mutation cannot be reused after it.
     pendingReads.clear();
-    return request(path, method, data);
+    return await request(path, method, data) as ApiResult<P>;
   }
   let pending = pendingReads.get(key);
   if (!pending) {
@@ -15,13 +16,13 @@ export async function api(path: string, method = 'GET', data?: unknown) {
     pendingReads.set(key, pending);
   }
   // Do not share mutable private state between callers; no persistent cache.
-  return structuredClone(await pending);
+  return structuredClone(await pending) as ApiResult<P>;
 }
 async function request(path: string, method: string, data?: unknown) {
   const headers: Record<string, string> = data === undefined ? {} : { 'Content-Type': 'application/json' };
   if (!['GET', 'HEAD'].includes(method) && csrfToken) headers['X-CSRF-Token'] = csrfToken;
   const response = await fetch(`${restaurantBase()}/api/v1/${path}`, { method, headers, body: data === undefined ? undefined : JSON.stringify(data) });
-  const result: any = await response.json();
+  const result = await response.json() as { csrfToken?: string; error?: string };
   if (result?.csrfToken) csrfToken = result.csrfToken;
   if (!response.ok) {
     const error = Error(result.error || 'No se pudo completar la operación.') as Error & { status?: number; details?: unknown };
@@ -63,7 +64,7 @@ export async function uploadPhoto(file: File) {
     const headers: Record<string, string> = { 'Content-Type': 'image/jpeg' };
     if (csrfToken) headers['X-CSRF-Token'] = csrfToken;
     const response = await fetch(`${restaurantBase()}/api/v1/media`, { method: 'POST', headers, body: blob });
-    const result: any = await response.json();
+    const result = await response.json() as {url:string;error?:string};
     if (!response.ok) throw Error(result.error || 'No se pudo subir la foto. Vuelve a intentar.');
     return result.url as string;
   } finally { image.close(); }

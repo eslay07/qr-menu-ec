@@ -6,8 +6,20 @@ import sharp from 'sharp';
 import jsQR from 'jsqr';
 import { handleApi } from '../lib/api';
 import { Catalog, demoCatalog } from '../lib/contracts';
-import type { Store, Stored } from '../lib/store';
-import type { OrderRecord, OrderStore } from '../lib/orders';
+import type { Store, Stored, State } from '../lib/store';
+import type { OrderRecord, OrderStore, OrderReport } from '../lib/orders';
+import type { entitlements } from '../lib/entitlements';
+
+// Fixture response fields are typed explicitly; individual tests still assert
+// the status and payload contract of each endpoint before inspecting it.
+type FixtureResponse = State & {
+  revision: number; plan: string; features: string[];
+  entitlements: ReturnType<typeof entitlements>; authenticated: boolean;
+  codes: { kind: string; payload: string }[]; order: OrderRecord;
+  orders: OrderRecord[]; report: OrderReport; nextCursor: string;
+  nextPageQuery: string; publicUrl: string; pdfUrl: string; recovery: string;
+  error: string; model: string; registered: boolean; url: string;
+};
 
 const pair = generateKeyPairSync('ed25519');
 const publicKey = Buffer.from(
@@ -40,7 +52,7 @@ void test('editor version is private, minimal and follows catalog and permission
   assert.equal((await first.h.call('editor-version')).status, 401);
 });
 
-test('owner plan gates are enforced on the server without blocking public basic ordering',async()=>{
+void test('owner plan gates are enforced on the server without blocking public basic ordering',async()=>{
  const {h}=await configured();h.setPlan('basic');
  assert.equal((await h.call('reports/orders')).status,403);
  assert.equal((await h.call('orders')).status,403);
@@ -119,6 +131,7 @@ function harness(features: Array<'orders' | 'promotions'> = ['orders']) {
     setPlan(plan:'basic'|'medium'|'premium') { if(!data)throw Error('Create first');data.state.access={...data.state.access,active:true,plan}; },
     seedOrder(order: OrderRecord) { orders.set(order.id, { order: structuredClone(order), hash: `fixture-${order.id}` }); },
     async call(path: string, method = 'GET', value?: unknown, origin?: string) {
+      assert.ok(value === undefined || (method !== 'GET' && method !== 'HEAD'), 'GET/HEAD fixture requests cannot carry a body');
       const response = await handleApi(
         new Request(`https://menu.test/api/v1/${path}`, {
           method,
@@ -129,7 +142,7 @@ function harness(features: Array<'orders' | 'promotions'> = ['orders']) {
               : {}),
             ...(origin ? { origin } : {}),
           },
-          body: value !== undefined ? JSON.stringify(value) : undefined,
+          ...(value !== undefined && method !== 'GET' && method !== 'HEAD' ? { body: JSON.stringify(value) } : {}),
         }),
         store,
         {
@@ -148,8 +161,8 @@ function harness(features: Array<'orders' | 'promotions'> = ['orders']) {
       return {
         status: response.status,
         body: contentType.includes('json')
-          ? ((await response.json()) as any)
-          : await response.arrayBuffer(),
+          ? ((await response.json()) as FixtureResponse)
+          : await response.arrayBuffer() as unknown as FixtureResponse,
         headers: response.headers,
       };
     },
@@ -189,7 +202,9 @@ async function decode(payload: string) {
     margin: 4,
     errorCorrectionLevel: 'M',
   });
-  const image = await (sharp as any)(png)
+  type SharpPipeline = { ensureAlpha(): SharpPipeline; raw(): SharpPipeline; toBuffer(options: { resolveWithObject: true }): Promise<{ data: Uint8Array; info: { width: number; height: number } }> };
+  const decodeImage = sharp as (bytes: Uint8Array) => SharpPipeline;
+  const image = await decodeImage(png)
     .ensureAlpha()
     .raw()
     .toBuffer({ resolveWithObject: true });
@@ -221,14 +236,14 @@ async function configured() {
   return { h, setup, state: (await h.call('state')).body };
 }
 
-test('legacy catalogs gain empty modifier groups', () => {
-  const legacy = structuredClone(demoCatalog) as any;
+void test('legacy catalogs gain empty modifier groups', () => {
+  const legacy = structuredClone(demoCatalog) as Omit<Catalog, 'dishes'> & { dishes: (Omit<Catalog['dishes'][number], 'modifierGroups'> & { modifierGroups?: Catalog['dishes'][number]['modifierGroups'] })[] };
   delete legacy.dishes[0].modifierGroups;
   const parsed = Catalog.parse(legacy);
   assert.deepEqual(parsed.dishes[0].modifierGroups, []);
 });
 
-test('sample replacement requires creator permission, explicit consent and respects the assigned dish cap', async () => {
+void test('sample replacement requires creator permission, explicit consent and respects the assigned dish cap', async () => {
   const h = harness();
   await h.call('setup', 'POST', { name: 'Mesa', password: 'test-password-123', setupToken: 'setup-secret' });
   let state = (await h.call('state')).body;
@@ -244,11 +259,11 @@ test('sample replacement requires creator permission, explicit consent and respe
   assert.equal((await h.call('draft', 'PUT', { revision: state.revision, catalog: state.draft })).status, 400);
 });
 
-test('one permanent HTTPS menu QR is produced', async () => {
+void test('one permanent HTTPS menu QR is produced', async () => {
   const { h } = await configured();
   const result = await h.call('qr');
   assert.deepEqual(
-    result.body.codes.map((code: any) => code.kind),
+    result.body.codes.map(code => code.kind),
     ['web'],
   );
   assert.equal(
@@ -258,7 +273,7 @@ test('one permanent HTTPS menu QR is produced', async () => {
   assert.doesNotMatch(result.body.codes[0].payload, /WIFI:/);
 });
 
-test('configured order pricing is rebuilt on the server', async () => {
+void test('configured order pricing is rebuilt on the server', async () => {
   const { h } = await configured();
   const result = await h.call('orders', 'POST', {
     alias: 'Ana',
@@ -286,16 +301,16 @@ test('configured order pricing is rebuilt on the server', async () => {
   assert.equal(publicOrder.body.order.alias, 'Ana');
   const pdf = await h.call(`order/${token}/pdf`);
   assert.equal(pdf.headers.get('content-type'), 'application/pdf');
-  assert.ok((pdf.body as ArrayBuffer).byteLength > 1000);
+  assert.ok((pdf.body as unknown as ArrayBuffer).byteLength > 1000);
 });
 
-test('QR fallback never uses a stale legacy webUrl',async()=>{
+void test('QR fallback never uses a stale legacy webUrl',async()=>{
  const {h}=await configured();h.setCanonicalUrl(undefined);
  const qr=await h.call('qr');assert.equal(qr.status,200);
  assert.equal(await decode(qr.body.codes[0].payload),'https://menu.test/menu');
 });
 
-test('invalid modifier choices and disabled ordering are rejected', async () => {
+void test('invalid modifier choices and disabled ordering are rejected', async () => {
   const { h } = await configured();
   const missing = await h.call('orders', 'POST', {
     alias: '',
@@ -322,7 +337,7 @@ test('invalid modifier choices and disabled ordering are rejected', async () => 
   );
 });
 
-test('customer cancellation requires confirmation and same origin, preserves history and is idempotent', async () => {
+void test('customer cancellation requires confirmation and same origin, preserves history and is idempotent', async () => {
   const { h } = await configured();
   const created = await h.call('orders', 'POST', {
     alias: 'Ana', expectedTotalCents: 750,
@@ -343,7 +358,7 @@ test('customer cancellation requires confirmation and same origin, preserves his
   assert.equal(report.confirmedOrders, 0);
 });
 
-test('reports paginate without losing totals, reject mismatched cursors and never truncate exports silently', async () => {
+void test('reports paginate without losing totals, reject mismatched cursors and never truncate exports silently', async () => {
   const { h } = await configured();
   const created = await h.call('orders', 'POST', { alias: 'Prueba', expectedTotalCents: 750, lines: [{ dishId: 'seco', quantity: 1, note: '', selections: [] }] });
   for (let i = 0; i < 60; i++) h.seedOrder({ ...created.body.order, id: crypto.randomUUID() });
@@ -363,7 +378,7 @@ test('reports paginate without losing totals, reject mismatched cursors and neve
   assert.equal((await h.call('reports/orders.csv')).status, 400);
 });
 
-test('reports exclude cancelled orders', async () => {
+void test('reports exclude cancelled orders', async () => {
   const { h } = await configured();
   const created = await h.call('orders', 'POST', {
     alias: 'Mesa 4',
@@ -381,7 +396,7 @@ test('reports exclude cancelled orders', async () => {
   assert.equal(report.body.report.cancelledOrders, 1);
 });
 
-test('active promotions are snapshotted and stale totals are rejected', async () => {
+void test('active promotions are snapshotted and stale totals are rejected', async () => {
   const h = harness(['orders', 'promotions']);
   await h.call('setup', 'POST', {
     name: 'Mesa',
@@ -434,6 +449,7 @@ test('active promotions are snapshotted and stale totals are rejected', async ()
     ],
   });
   assert.equal(accepted.status, 201);
+  assert.ok(accepted.body.order.lines[0].promotion);
   assert.equal(
     accepted.body.order.lines[0].promotion.promotionalPriceCents,
     595,
@@ -441,7 +457,7 @@ test('active promotions are snapshotted and stale totals are rejected', async ()
   assert.equal(accepted.body.order.lines[0].promotion.savingsCents, 55);
 });
 
-test('authentication, conflicts, suspension and recovery remain enforced', async () => {
+void test('authentication, conflicts, suspension and recovery remain enforced', async () => {
   const h = harness();
   const setup = await h.call('setup', 'POST', {
     name: 'Mesa',

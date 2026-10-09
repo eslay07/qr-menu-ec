@@ -86,10 +86,10 @@ export default function Menu({
   useEffect(() => {
     if (demo || initialCatalog) return;
     let active=true;
-    api(preview ? 'state' : 'menu')
+    (preview ? api('state').then(value => ({catalog:value.draft,version:0,ordersEnabled:false,turnstileSiteKey:null})) : api('menu'))
       .then((value) => {
         if (!active) return;
-        setCatalog(preview ? value.draft : value.catalog);
+        setCatalog(value.catalog);
         setVersion(value.version || 0);
         setOrdersEnabled(value.ordersEnabled === true);
         setTurnstileSiteKey(value.turnstileSiteKey || null);
@@ -193,9 +193,9 @@ export default function Menu({
   if (!catalog)
     return (
       <main className="skeleton-shell" aria-busy="true">
-        <span className="sr-only" role="status">
+        <output className="sr-only" >
           Preparando el menú…
-        </span>
+        </output>
         <div className="skeleton-line" />
         <div className="skeleton-block" />
         <div className="skeleton-grid">
@@ -238,7 +238,7 @@ export default function Menu({
       <header className="customer-header">
         <div className="customer-brand">
           {catalog.logo ? (
-            <img src={media(catalog.logo)} alt="" width={44} height={44} fetchPriority="high" />
+            <picture><img src={media(catalog.logo)} alt="" width={44} height={44} fetchPriority="high" /></picture>
           ) : (
             <Utensils />
           )}
@@ -320,7 +320,7 @@ export default function Menu({
                     >
                       <div className="dish-photo">
                         {dish.image ? (
-                          <img src={media(dish.image)} alt={dish.name} loading={matches[0]?.id===dish.id ? "eager" : "lazy"} fetchPriority={matches[0]?.id===dish.id ? "high" : "auto"} decoding="async" width={480} height={320} />
+                          <picture><img src={media(dish.image)} alt={dish.name} loading={matches[0]?.id===dish.id ? "eager" : "lazy"} fetchPriority={matches[0]?.id===dish.id ? "high" : "auto"} decoding="async" width={480} height={320} /></picture>
                         ) : (
                           <span className="no-photo">
                             <Utensils />
@@ -393,9 +393,9 @@ export default function Menu({
       )}
       {bag && (
         <div className="modal-backdrop" role="presentation">
-          <section
+          <dialog open
             className="modal order-review"
-            role="dialog"
+
             aria-modal="true"
             aria-labelledby="order-review-title"
           >
@@ -471,7 +471,7 @@ export default function Menu({
                     onChange={(e) => setAlias(e.target.value)}
                     placeholder="Ej. Ana"
                   />
-                  {attemptedOrder && !alias.trim() && <small id="order-alias-error" role="status">Falta tu nombre o alias.</small>}
+                  {attemptedOrder && !alias.trim() && <output id="order-alias-error">Falta tu nombre o alias.</output>}
                 </label>
                 <Turnstile
                   siteKey={turnstileSiteKey}
@@ -507,7 +507,7 @@ export default function Menu({
             >
               Vaciar selección
             </button>
-          </section>
+          </dialog>
         </div>
       )}
       {configuring && editingLine && (
@@ -582,9 +582,9 @@ function Configurator({
   };
   return (
     <div className="modal-backdrop" role="presentation">
-      <section
+      <dialog open
         className="modal configurator"
-        role="dialog"
+
         aria-modal="true"
         aria-labelledby="dish-configurator-title"
       >
@@ -610,7 +610,7 @@ function Configurator({
                 {group.minSelections ? 'Obligatorio' : 'Opcional'}
               </small>
             </legend>
-            {attempted && (selected(group.id).length < group.minSelections || selected(group.id).length > group.maxSelections) && <p id={`choice-error-${group.id}`} role="status">Revisa esta selección: elige entre {group.minSelections} y {group.maxSelections} opciones.</p>}
+            {attempted && (selected(group.id).length < group.minSelections || selected(group.id).length > group.maxSelections) && <output id={`choice-error-${group.id}`} >Revisa esta selección: elige entre {group.minSelections} y {group.maxSelections} opciones.</output>}
             {group.options.map((option) => (
               <label
                 className={`choice-option ${selected(group.id).includes(option.id) ? 'chosen' : ''}`}
@@ -651,7 +651,7 @@ function Configurator({
         <button className="btn primary" onClick={save}>
           Añadir configurado
         </button>
-      </section>
+      </dialog>
     </div>
   );
 }
@@ -717,7 +717,7 @@ function ConfirmationScreen({
         <div className="confirmation-mark">
           <Check />
         </div>
-        <p className="eyebrow" role="status">{cancelled ? 'PEDIDO CANCELADO' : 'PEDIDO CONFIRMADO'}</p>
+        <output className="eyebrow" >{cancelled ? 'PEDIDO CANCELADO' : 'PEDIDO CONFIRMADO'}</output>
         <h1>{cancelled ? 'Este pedido fue cancelado' : 'Muéstrale este pedido al mesero'}</h1>
         <div className="confirmation-number">{order.number}</div>
         <p>
@@ -748,20 +748,20 @@ function ConfirmationScreen({
         </div>
         {qrSvg && (
           <div className="order-handoff-qr">
-            <img src={qrSvg} alt={`QR del pedido ${order.number}`} />
+            <picture><img src={qrSvg} alt={`QR del pedido ${order.number}`} /></picture>
             <strong>El mesero puede escanear este QR</strong>
             <small>Abre el mismo detalle y su PDF durante 24 horas.</small>
           </div>
         )}
         <div className="confirmation-actions">
           {!cancelled && <button className="btn" onClick={() => setCancelOpen(true)}>Cancelar pedido</button>}
-          {cancelOpen && <div className="modal-backdrop"><section className="card" role="dialog" aria-modal="true" aria-labelledby="cancel-order-title">
+          {cancelOpen && <div className="modal-backdrop"><dialog open className="card"  aria-modal="true" aria-labelledby="cancel-order-title">
             <h2 id="cancel-order-title">¿Cancelar {order.number} por {money(order.totalCents)}?</h2>
             <p>Confirma con el mesero si ya empezó la preparación.</p>
             {cancelError && <p id="cancel-order-error" role="alert" className="notice error">{cancelError}</p>}
             <button className="btn" autoFocus disabled={cancelling} onClick={() => setCancelOpen(false)}>Volver</button>
             <button className="btn danger" disabled={cancelling} onClick={cancelOrder}>{cancelling ? 'Cancelando…' : 'Sí, cancelar pedido'}</button>
-          </section></div>}
+          </dialog></div>}
           {!cancelled && <button className="btn primary" onClick={showQr}>
             <QrCode /> {qrSvg ? 'QR listo' : 'Generar QR para el mesero'}
           </button>}

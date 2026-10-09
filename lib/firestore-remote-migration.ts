@@ -15,13 +15,13 @@ export function canonicalWire(value: unknown): string {
 }
 const valueSchema: z.ZodType = z.lazy(() => z.union([
   z.object({ nullValue: z.null() }).strict(), z.object({ booleanValue: z.boolean() }).strict(),
-  z.object({ integerValue: z.string().regex(/^-?\d+$/) }).strict(), z.object({ doubleValue: z.number().finite() }).strict(),
-  z.object({ stringValue: z.string() }).strict(), z.object({ timestampValue: z.string().datetime({ offset: true }) }).strict(),
+  z.object({ integerValue: z.string().regex(/^-?\d+$/) }).strict(), z.object({ doubleValue: z.number() }).strict(),
+  z.object({ stringValue: z.string() }).strict(), z.object({ timestampValue: z.string().check(z.iso.datetime({ offset: true })) }).strict(),
   z.object({ arrayValue: z.object({ values: z.array(valueSchema).optional() }).strict() }).strict(),
   z.object({ mapValue: z.object({ fields: z.record(z.string(), valueSchema).optional() }).strict() }).strict(),
 ]));
 const manifestSchema = z.object({ version: z.literal(1), project: z.literal('qr-menu-6981a'), database: z.literal('(default)'),
-  runId: z.string().uuid(), sourceChecksum: z.string().regex(/^[a-f0-9]{64}$/),
+  runId: z.string().check(z.uuid()), sourceChecksum: z.string().regex(/^[a-f0-9]{64}$/),
   documents: z.array(z.object({ path: z.string(), fields: z.record(z.string(), valueSchema) }).strict()).min(1).max(100000),
 }).strict();
 export type MigrationManifest = { version: 1; project: 'qr-menu-6981a'; database: '(default)'; runId: string; sourceChecksum: string; documents: TransferDocument[] };
@@ -31,14 +31,14 @@ export async function validateManifest(input: MigrationManifest, checksum: strin
   const seen = new Set<string>();
   for (const d of input.documents) {
     const parts = d.path.split('/');
-    if (parts.length % 2 || !roots.has(parts[0]) || parts.some(p => !p || p === '.' || p === '..' || /[\\?#%\u0000-\u001f]/.test(p)) || seen.has(d.path) || d.path.startsWith(`migrationRuns/${input.runId}`)) throw Error('Invalid or duplicate manifest path.');
+    if (parts.length % 2 || !roots.has(parts[0]) || parts.some(p => !p || p === '.' || p === '..' || (/[\\?#%]/.test(p) || Array.from(p).some(char => char.charCodeAt(0) <= 31))) || seen.has(d.path) || d.path.startsWith(`migrationRuns/${input.runId}`)) throw Error('Invalid or duplicate manifest path.');
     seen.add(d.path);
   }
   if (await digest(canonicalWire(input)) !== checksum) throw Error('Manifest checksum mismatch.');
 }
 export async function makeManifest(db: FirestoreRest, runId: string, sourceChecksum: string): Promise<MigrationManifest> {
   if (!db.isEmulator) throw Error('Manifest preparation requires isolated emulator.');
-  z.string().uuid().parse(runId);
+  z.string().check(z.uuid()).parse(runId);
   const rows = await db.inventoryWire();
   const phase = (path: string) => path === 'platformConfig/creator' ? 0
     : /\/orders\/|^platformConfig\/orderTokens\//.test(path) ? 3

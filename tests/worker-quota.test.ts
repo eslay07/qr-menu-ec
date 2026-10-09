@@ -5,14 +5,14 @@ import { FirestoreError } from '../lib/firestore-rest';
 register(new URL('./cloudflare-test-loader.mjs', import.meta.url));
 const { default: worker } = await import('../deployment/cloudflare/worker');
 const context = { waitUntil(promise: Promise<unknown>) { void promise.catch(() => undefined); } } as ExecutionContext;
-test('login shells and APK downloads remain available without database access', async () => {
+void test('login shells and APK downloads remain available without database access', async () => {
   const env = { DB: { prepare() { throw Error('Static routes must not query DB'); } }, ASSETS: { fetch: async () => new Response('asset') } } as unknown as Parameters<typeof worker.fetch>[1];
   for (const path of ['/owner', '/creator', '/demo', '/downloads/qr-menu-ec.apk', '/assets/app.js', '/firebase-messaging-sw.js']) {
     const response = await worker.fetch(new Request(`https://qr-menu-ec.consola.workers.dev${path}`), env, context);
     assert.equal(response.status, 200); assert.equal(await response.text(), 'asset');
   }
 });
-test('quota errors produce a safe retryable 503, never an unhandled 500 or secret', async () => {
+void test('quota errors produce a safe retryable 503, never an unhandled 500 or secret', async () => {
   const env = { DB: { prepare() { throw new FirestoreError(429, 'RESOURCE_EXHAUSTED'); } }, ASSETS: { fetch: async () => new Response('asset') } } as unknown as Parameters<typeof worker.fetch>[1];
   const response = await worker.fetch(new Request('https://qr-menu-ec.consola.workers.dev/r/11111111-1111-4111-8111-111111111111/api/v1/session'), env, context);
   assert.equal(response.status, 503); assert.equal(response.headers.get('Retry-After'), '60');

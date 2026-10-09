@@ -1,8 +1,9 @@
+const outputDir = process.env.QA_OUTPUT_DIR || 'outputs/mobile-performance';
 import { readFile, writeFile } from 'node:fs/promises';
 const rows = [];
 for (const kind of ['', 'owner-', 'session-', 'cart-order-']) for (const phase of ['before', 'after']) {
   let document;
-  try { document = JSON.parse(await readFile(`outputs/mobile-performance/${kind}${phase}.json`, 'utf8')); } catch { continue; }
+  try { document = JSON.parse(await readFile(`${outputDir}/${kind}${phase}.json`, 'utf8')); } catch { continue; }
   const groups = new Map();
   for (const sample of document.results) {
     for (const metric of sample.temperature && !sample.interaction ? ['usableMs', 'lcp', 'cls'] : ['ms']) {
@@ -18,5 +19,5 @@ for (const kind of ['', 'owner-', 'session-', 'cart-order-']) for (const phase o
     rows.push({ key, count: values.length, median: values.length%2 ? values[middle] : (values[middle-1]+values[middle])/2, min: values[0], max: values.at(-1) });
   }
 }
-await writeFile('outputs/mobile-performance/summary.json', JSON.stringify({ generatedAt: new Date().toISOString(), rows }, null, 2));
+await writeFile(outputDir+'/summary.json', JSON.stringify({ generatedAt: new Date().toISOString(), rows }, null, 2));
 console.log(JSON.stringify(rows, null, 2));

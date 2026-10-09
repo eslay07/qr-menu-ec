@@ -20,7 +20,7 @@ const Export = z.object({
 
 async function main() {
   const [filename, expectedChecksum, runId] = process.argv.slice(2);
-  if (!filename || !/^[a-f0-9]{64}$/.test(expectedChecksum || '') || !runId || !z.string().uuid().safeParse(runId).success) throw Error('Uso: node --import tsx scripts/firestore-migration-rehearsal.ts ARCHIVO SHA256 RUN_UUID');
+  if (!filename || !/^[a-f0-9]{64}$/.test(expectedChecksum || '') || !runId || !z.string().check(z.uuid()).safeParse(runId).success) throw Error('Uso: node --import tsx scripts/firestore-migration-rehearsal.ts ARCHIVO SHA256 RUN_UUID');
   const file = resolve(filename);
   if ((await stat(file)).size > 64_000_000) throw Error('Exportación demasiado grande para este ensayo.');
   const bytes = await readFile(file);
@@ -30,11 +30,11 @@ async function main() {
 export async function rehearseExport(bytes: Uint8Array, expectedChecksum: string, runId: string) {
   const host = process.env.FIRESTORE_EMULATOR_HOST || '';
   if (!/^(localhost|127\.0\.0\.1):\d+$/.test(host)) throw Error('Solo se admite un emulador loopback.');
-  z.string().uuid().parse(runId);
+  z.string().check(z.uuid()).parse(runId);
   if (bytes.byteLength > 64_000_000) throw Error('Exportación demasiado grande para este ensayo.');
   if (createHash('sha256').update(bytes).digest('hex') !== expectedChecksum) throw Error('El checksum no coincide.');
   const source = Export.parse(JSON.parse(new TextDecoder().decode(bytes)));
-  for (const row of source.restaurants) z.string().uuid().parse(row.state.restaurantId);
+  for (const row of source.restaurants) z.string().check(z.uuid()).parse(row.state.restaurantId);
   const ids = new Set(source.restaurants.map(row => row.state.restaurantId));
   if (ids.size !== source.restaurants.length || source.orders.some(row => !ids.has(row.order.restaurantId))) throw Error('Exportación con duplicados o pedidos fuera de ámbito.');
   const db = new FirestoreRest('demo-qr-menu-migration', host);

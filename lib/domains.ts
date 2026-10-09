@@ -1,3 +1,4 @@
+import { scalarText } from './scalar-text';
 import { z } from 'zod';
 import { FirestoreError } from './firestore-rest';
 import { ApplicationRepository, localFirestore, type DataEnv } from './application-repository';
@@ -244,16 +245,16 @@ export class DomainService {
       restaurantId: String(row.restaurant_id),
       kind: row.kind as DomainRecord['kind'],
       status: String(row.status),
-      cloudflareId: row.cloudflare_id ? String(row.cloudflare_id) : null,
+      cloudflareId: row.cloudflare_id ? scalarText(row.cloudflare_id) : null,
       validation: row.validation_data
-        ? JSON.parse(String(row.validation_data))
+        ? JSON.parse(scalarText(row.validation_data))
         : null,
-      provider: String(row.provider || 'legacy'),
-      serviceName: row.service_name ? String(row.service_name) : null,
+      provider: scalarText(row.provider || 'legacy'),
+      serviceName: row.service_name ? scalarText(row.service_name) : null,
       priority: Number(row.priority || 0),
-      lastError: row.last_error ? String(row.last_error) : null,
+      lastError: row.last_error ? scalarText(row.last_error) : null,
       createdAt: String(row.created_at),
-      updatedAt: row.updated_at ? String(row.updated_at) : null,
+      updatedAt: row.updated_at ? scalarText(row.updated_at) : null,
     };
   }
   async get(restaurantId: string) {
@@ -299,7 +300,7 @@ export class DomainService {
         headers: {
           Authorization: `Bearer ${this.env.CLOUDFLARE_API_TOKEN}`,
           'Content-Type': 'application/json',
-          ...(init?.headers || {}),
+          ...Object.fromEntries(new Headers(init?.headers).entries()),
         },
       },
     );
@@ -350,12 +351,12 @@ export class DomainService {
     });
     if (this.firestore) {
       const ssl = result.ssl as { status?: string } | undefined;
-      await this.firestore.save(this.record(restaurantId, hostname, 'custom', { status: result.status === 'active' && ssl?.status === 'active' ? 'active' : 'pending_validation', cloudflareId: String(result.id || ''), validation: result, provider: 'cloudflare_for_saas' }));
-      if (current?.cloudflare_id) await this.cloudflare(`/custom_hostnames/${current.cloudflare_id}`, { method: 'DELETE' });
+      await this.firestore.save(this.record(restaurantId, hostname, 'custom', { status: result.status === 'active' && ssl?.status === 'active' ? 'active' : 'pending_validation', cloudflareId: scalarText(result.id || ''), validation: result, provider: 'cloudflare_for_saas' }));
+      if (current?.cloudflare_id) await this.cloudflare(`/custom_hostnames/${scalarText(current.cloudflare_id)}`, { method: 'DELETE' });
       return this.get(restaurantId);
     }
     if (current?.cloudflare_id)
-      await this.cloudflare(`/custom_hostnames/${current.cloudflare_id}`, {
+      await this.cloudflare(`/custom_hostnames/${scalarText(current.cloudflare_id)}`, {
         method: 'DELETE',
       }).catch(() => undefined);
     await this.env.DB.prepare(
@@ -369,8 +370,8 @@ export class DomainService {
       .bind(
         hostname,
         restaurantId,
-        String(result.status || 'pending_validation'),
-        String(result.id || ''),
+        scalarText(result.status || 'pending_validation'),
+        scalarText(result.id || ''),
         JSON.stringify(result),
         new Date().toISOString(),
         new Date().toISOString(),
@@ -395,7 +396,7 @@ export class DomainService {
     if (!current?.cloudflare_id)
       throw Error('Primero registra el dominio personalizado.');
     const result = await this.cloudflare(
-      `/custom_hostnames/${current.cloudflare_id}`,
+      `/custom_hostnames/${scalarText(current.cloudflare_id)}`,
     );
     const ssl = result.ssl as Record<string, unknown> | undefined;
     const ready = result.status === 'active' && ssl?.status === 'active';
@@ -425,7 +426,7 @@ export class DomainService {
       .bind(restaurantId)
       .first<{ cloudflare_id: string | null }>();
     if (current?.cloudflare_id)
-      await this.cloudflare(`/custom_hostnames/${current.cloudflare_id}`, {
+      await this.cloudflare(`/custom_hostnames/${scalarText(current.cloudflare_id)}`, {
         method: 'DELETE',
       });
     await this.env.DB.prepare(
@@ -443,11 +444,11 @@ export class DomainService {
     ).first<Record<string, unknown>>();
     return row
       ? {
-          baseHostname: row.base_hostname ? String(row.base_hostname) : null,
-          zoneId: row.zone_id ? String(row.zone_id) : null,
+          baseHostname: row.base_hostname ? scalarText(row.base_hostname) : null,
+          zoneId: row.zone_id ? scalarText(row.zone_id) : null,
           status: String(row.status),
           validation: row.validation_data
-            ? JSON.parse(String(row.validation_data))
+            ? JSON.parse(scalarText(row.validation_data))
             : null,
           updatedAt: String(row.updated_at),
         }

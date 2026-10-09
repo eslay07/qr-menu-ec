@@ -33,7 +33,7 @@ const domains=[...new Set([...retained,host])];
 if(domains.length>10)throw Error('Turnstile hostname capacity reached; explicitly replace an inactive preview, never a production domain');
 if(!old.domains.includes(host))await api(path,'PUT',{...settings,domains});
 const checked=await api(path);
-if(!isDeepStrictEqual([...checked.domains].sort(),[...domains].sort())||keys.some(k=>Object.hasOwn(old,k)&&!isDeepStrictEqual(old[k],checked[k])))throw Error('Widget configuration verification failed');
+if(!isDeepStrictEqual([...checked.domains].sort((a,b)=>a.localeCompare(b)),[...domains].sort((a,b)=>a.localeCompare(b)))||keys.some(k=>Object.hasOwn(old,k)&&!isDeepStrictEqual(old[k],checked[k])))throw Error('Widget configuration verification failed');
 if(old.secret!==checked.secret||old.sitekey!==checked.sitekey)throw Error('Widget identity changed');
 const version=await api(route+'/versions/'+candidate);
 const required=['FIREBASE_PROJECT_ID','FIREBASE_API_KEY','FIREBASE_SERVICE_ACCOUNT'];

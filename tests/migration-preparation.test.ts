@@ -4,7 +4,7 @@ import maintenance from '../deployment/cloudflare/maintenance-only';
 import { withMigrationCredential, migrationIdentity, migrationProject } from '../scripts/migration-credential.mjs';
 import { awaitMaintenance } from '../scripts/maintenance-convergence.mjs';
 
-test('edge propagation requires three consecutive complete rounds; 302 never passes',async()=>{
+void test('edge propagation requires three consecutive complete rounds; 302 never passes',async()=>{
   let clock=0,calls=0;
   const good={status:503,marker:'write-freeze-v1',build:'d1-freeze-v2'};
   const attempts=await awaitMaintenance(async()=>[++calls<3?{status:302}:good],{now:()=>clock,sleep:async()=>{clock+=1000;},timeoutMs:10000});
@@ -13,7 +13,7 @@ test('edge propagation requires three consecutive complete rounds; 302 never pas
   await assert.rejects(awaitMaintenance(async()=>[{status:302}],{now:()=>clock,sleep:async()=>{clock+=1000;},timeoutMs:2000}));
 });
 
-test('maintenance-only version blocks every route without bindings or secrets',async()=>{
+void test('maintenance-only version blocks every route without bindings or secrets',async()=>{
   for(const origin of ['https://qr-menu-ec.consola.workers.dev','https://la-sazon-marinera.consola.workers.dev'])
     for(const path of ['/','/owner','/creator','/api/owner/login','/api/owner/device','/api/v1/orders','/r/998d4980-a169-469f-b009-634a373ca7ad/','/assets/app.js'])
       for(const method of ['GET','POST','PUT','DELETE','OPTIONS','HEAD']) {
@@ -26,7 +26,7 @@ test('maintenance-only version blocks every route without bindings or secrets',a
   await maintenance.scheduled();
 });
 
-for(const fail of [false,true])test(`temporary credential is revoked after ${fail?'interruption':'success'}`,async()=>{
+for(const fail of [false,true])void test(`temporary credential is revoked after ${fail?'interruption':'success'}`,async()=>{
   const calls:string[]=[];const records:unknown[]=[];
   const keyName=`projects/${migrationProject}/serviceAccounts/${migrationIdentity}/keys/test-only`;
   const iam={check:async()=>{calls.push('check');},create:async()=>({name:keyName,privateKeyData:Buffer.from(JSON.stringify({project_id:migrationProject,client_email:migrationIdentity,private_key:'test-only-secret'})).toString('base64')}),remove:async(name:string)=>{assert.equal(name,keyName);calls.push('revoked');}};
@@ -37,6 +37,6 @@ for(const fail of [false,true])test(`temporary credential is revoked after ${fai
   assert.ok(!JSON.stringify(records).includes('test-only-token'));
 });
 
-test('permission failure never creates a credential',async()=>{
+void test('permission failure never creates a credential',async()=>{
   await assert.rejects(withMigrationCredential({check:async()=>{throw Error('denied');},create:async()=>{assert.fail('must not create');}},async()=>{},async()=>{}),/denied/);
 });

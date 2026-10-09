@@ -1,6 +1,5 @@
-'use strict';
-
-exports.isInteger = num => {
+const utils = {};
+utils.isInteger = num => {
   if (typeof num === 'number') {
     return Number.isInteger(num);
   }
@@ -14,15 +13,15 @@ exports.isInteger = num => {
  * Find a node of the given type
  */
 
-exports.find = (node, type) => node.nodes.find(node => node.type === type);
+utils.find = (node, type) => node.nodes.find(node => node.type === type);
 
 /**
  * Find a node of the given type
  */
 
-exports.exceedsLimit = (min, max, step = 1, limit) => {
+utils.exceedsLimit = (min, max, step = 1, limit) => {
   if (limit === false) return false;
-  if (!exports.isInteger(min) || !exports.isInteger(max)) return false;
+  if (!utils.isInteger(min) || !utils.isInteger(max)) return false;
   return ((Number(max) - Number(min)) / Number(step)) >= limit;
 };
 
@@ -30,7 +29,7 @@ exports.exceedsLimit = (min, max, step = 1, limit) => {
  * Escape the given node with '\\' before node.value
  */
 
-exports.escapeNode = (block, n = 0, type) => {
+utils.escapeNode = (block, n = 0, type) => {
   const node = block.nodes[n];
   if (!node) return;
 
@@ -46,7 +45,7 @@ exports.escapeNode = (block, n = 0, type) => {
  * Returns true if the given brace node should be enclosed in literal braces
  */
 
-exports.encloseBrace = node => {
+utils.encloseBrace = node => {
   if (node.type !== 'brace') return false;
   if ((node.commas >> 0 + node.ranges >> 0) === 0) {
     node.invalid = true;
@@ -59,7 +58,7 @@ exports.encloseBrace = node => {
  * Returns true if a brace node is invalid.
  */
 
-exports.isInvalidBrace = block => {
+utils.isInvalidBrace = block => {
   if (block.type !== 'brace') return false;
   if (block.invalid === true || block.dollar) return true;
   if ((block.commas >> 0 + block.ranges >> 0) === 0) {
@@ -77,7 +76,7 @@ exports.isInvalidBrace = block => {
  * Returns true if a node is an open or close node
  */
 
-exports.isOpenOrClose = node => {
+utils.isOpenOrClose = node => {
   if (node.type === 'open' || node.type === 'close') {
     return true;
   }
@@ -88,7 +87,7 @@ exports.isOpenOrClose = node => {
  * Reduce an array of text nodes.
  */
 
-exports.reduce = nodes => nodes.reduce((acc, node) => {
+utils.reduce = nodes => nodes.reduce((acc, node) => {
   if (node.type === 'text') acc.push(node.value);
   if (node.type === 'range') node.type = 'text';
   return acc;
@@ -98,7 +97,7 @@ exports.reduce = nodes => nodes.reduce((acc, node) => {
  * Flatten an array
  */
 
-exports.flatten = (...args) => {
+utils.flatten = (...args) => {
   const result = [];
 
   const flat = arr => {
@@ -120,3 +119,5 @@ exports.flatten = (...args) => {
   flat(args);
   return result;
 };
+
+export default utils;

@@ -1,3 +1,4 @@
+import { scalarText } from './scalar-text';
 import { FirestoreRest, firestoreId, firestoreHashId, type FirestoreWrite } from './firestore-rest';
 import { digest } from './security';
 import { FirestoreRestaurantStore } from './firestore-store';
@@ -98,11 +99,11 @@ export async function importServerRowsToEmulator(db: FirestoreRest, table: Serve
       : table === 'auth_sessions' ? `platformConfig/sessionGrants/entries/${firestoreHashId(String(row.id_hash))}`
       : table === 'owner_devices' ? `platformConfig/deviceGrants/entries/${firestoreHashId(String(row.id_hash))}`
       : table === 'auth_challenges' ? `securityChallenges/${firestoreHashId(String(row.id_hash))}`
-      : `rateLimits/${firestoreHashId(await digest(`${row.bucket}:${row.key_hash}`))}`;
+      : `rateLimits/${firestoreHashId(await digest(`${scalarText(row.bucket)}:${scalarText(row.key_hash)}`))}`;
     const converted = Object.fromEntries(Object.entries(row).map(([key, value]) => [key.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase()), typeof value === 'string' && /_(at)$/.test(key) && !Number.isNaN(Date.parse(value)) ? new Date(value) : value]));
     if (table === 'owner_devices') converted.scope = 'owner';
     if (table === 'restaurant_hosts' || table === 'platform_domain_config') {
-      converted.validation = row.validation_data ? JSON.parse(String(row.validation_data)) : null;
+      converted.validation = row.validation_data ? JSON.parse(scalarText(row.validation_data)) : null;
       delete converted.validationData;
     }
     if (table === 'platform_domain_config') delete converted.id;

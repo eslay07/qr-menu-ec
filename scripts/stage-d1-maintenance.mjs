@@ -28,7 +28,7 @@ try {
   const source=await get(`/versions/${production}`);
   const db=source.resources.bindings.find(b=>b.name==='DB'&&b.type==='d1');
   if(!db || source.resources.bindings.some(b=>b.name==='DATA_PROVIDER'&&b.text!=='d1'))throw Error('D1 baseline required');
-  if(JSON.stringify([...source.resources.script.handlers].sort())!==JSON.stringify(['fetch','scheduled']))throw Error('Unhandled event types');
+  if(JSON.stringify([...source.resources.script.handlers].sort((a,b)=>a.localeCompare(b)))!==JSON.stringify(['fetch','scheduled']))throw Error('Unhandled event types');
   const compiled=await build({entryPoints:['deployment/cloudflare/maintenance-only.ts'],bundle:true,format:'esm',platform:'browser',write:false});
   const bytes=compiled.outputFiles[0].contents;
   const sha=buffer=>createHash('sha256').update(buffer).digest('hex');

@@ -11,7 +11,7 @@ export type FirebaseAuthEnv = {
 
 const accountSchema = z.object({
   project_id: z.string().min(1),
-  client_email: z.string().email(),
+  client_email: z.string().check(z.email()),
   private_key: z.string().min(1),
 });
 const userSchema = z.object({
@@ -47,8 +47,8 @@ export class FirebaseAuthProvider {
       body: body === undefined ? undefined : JSON.stringify(body),
       signal: AbortSignal.timeout(15_000),
     });
-    const data = await response.json() as Record<string, any>;
-    if (!response.ok) throw new FirebaseAuthFailure(String(data.error?.message || 'PROVIDER_UNAVAILABLE').split(' : ')[0]);
+    const data = await response.json() as Record<string, unknown>;
+    if (!response.ok) { const error = data.error as { message?: unknown } | undefined; throw new FirebaseAuthFailure((typeof error?.message === 'string' ? error.message : 'PROVIDER_UNAVAILABLE').split(' : ')[0]); }
     return data;
   }
 

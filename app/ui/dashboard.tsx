@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import QRCodeGenerator from 'qrcode';
 import {
   ArrowDown,
@@ -15,7 +15,6 @@ import {
   QrCode,
   Save,
   Settings as SettingsIcon,
-  ShieldCheck,
   Trash2,
   Upload,
   Utensils,
@@ -24,17 +23,16 @@ import {
 import {
   type Catalog,
   type Dish,
-  type Feature,
   type ModifierGroup,
   type Promotion,
   type Settings,
   blankCatalog,
   defaultSettings,
-  demoCatalog,
   money,
   publishNameValid,
 } from '@/lib/contracts';
 import { api, download, restaurantBase, uploadPhoto } from './client';
+import { nativeOwnsSafeArea } from './native-layout';
 import Turnstile from './turnstile';
 import PhotoPicker from './photo-picker';
 import OwnerLauncher from './owner-launcher';
@@ -46,28 +44,9 @@ import ContactEditor from './contact-editor';
 import EditorSection, {focusEditorField} from './editor-section';
 import { AppearanceEditor, CategoriesEditor, validateAppearance } from './catalog-editors';
 
-type PanelState = {
-  entitlements?: {push:boolean;notificationPreferences:boolean;reports:boolean;wifi:boolean;scheduledBackups:boolean};
-  businessReady?: boolean;
-  restaurantId: string;
-  revision: number;
-  draft: Catalog;
-  settings: Settings;
-  published: null | { version: number; at: string; catalog: Catalog };
-  maxDishes: number;
-  sampleMenuEnabled: boolean;
-  role: 'creator' | 'owner';
-  features: Feature[];
-};
-type DomainState = {
-  primary?: null | { hostname: string; status: string };
-  primaryUrl?: string | null;
-  aliases?: Array<{ hostname: string; kind: string; status: string }>;
-  free: null | { hostname: string; status: string };
-  custom: null | { hostname: string; status: string; validation?: any };
-  cnameTarget: string | null;
-  capacity?: { used: number; warningAt: number; limit: number };
-};
+import type { AuthResult, DomainState, EmailState, Enrollment, PanelState, ReportData, SessionEntry, SessionState, ShareCodes } from './api-types';
+import type { OrderRecord } from '@/lib/orders';
+import { scalarText } from '@/lib/scalar-text';
 const uid = (prefix: string) => `${prefix}-${crypto.randomUUID().slice(0, 8)}`;
 
 export default function Dashboard() {
@@ -77,11 +56,8 @@ export default function Dashboard() {
   const [sampleConfirm, setSampleConfirm] = useState(false);
   const [reloadConfirm, setReloadConfirm] = useState(false);
   const [visibleDishes, setVisibleDishes] = useState(30);
-  useEffect(() => {
-    if (new URLSearchParams(location.search).has('notification')) setTab('Notificaciones');
-  }, []);
-  const [tab, setTab] = useState('Carta'),
-    [session, setSession] = useState<any>(null),
+  const [tab, setTab] = useState(() => typeof location !== 'undefined' && new URLSearchParams(location.search).has('notification') ? 'Notificaciones' : 'Carta'),
+    [session, setSession] = useState<SessionState | null>(null),
     [state, setState] = useState<PanelState | null>(null);
   const [draft, setDraft] = useState<Catalog>(blankCatalog),
     [settings, setSettings] = useState<Settings>(defaultSettings);
@@ -89,9 +65,9 @@ export default function Dashboard() {
     [error, setError] = useState(''),
     [message, setMessage] = useState(''),
     [editing, setEditing] = useState<Dish | null>(null);
-  const [codes, setCodes] = useState<any>(null),
+  const [codes, setCodes] = useState<ShareCodes|null>(null),
     [domain, setDomain] = useState<DomainState | null>(null),
-    [reportData, setReportData] = useState<any>(null);
+    [reportData, setReportData] = useState<ReportData|null>(null);
   const [printWifi, setPrintWifi] = useState<{ name: string; text: string } | null>(null);
   useEffect(() => {
     const clear = () => setPrintWifi(null);
@@ -100,7 +76,7 @@ export default function Dashboard() {
   }, []);
   const [recovery, setRecovery] = useState(''),
     [recoverMode, setRecoverMode] = useState(false),
-    [mfa, setMfa] = useState<any>(null);
+    [mfa, setMfa] = useState<AuthResult|null>(null);
   const dirty =
     !!state && JSON.stringify(draft) !== JSON.stringify(state.draft);
   const settingsDirty =
@@ -155,7 +131,7 @@ export default function Dashboard() {
     return () => { clearInterval(timer); window.removeEventListener('focus', check); document.removeEventListener('visibilitychange', check); };
   }, []);
   useDialogBehavior(!!editing || sampleConfirm || reloadConfirm, () => { if (reloadConfirm) { setReloadConfirm(false); return; } if (!photoBusy && !busy) { setEditing(null); setSampleConfirm(false); } });
-  pendingRef.current = dirty || settingsDirty;
+  useEffect(() => { pendingRef.current = dirty || settingsDirty; }, [dirty, settingsDirty]);
   useEffect(() => {
     if (!message) return;
     const timer = window.setTimeout(() => setMessage(''), 6500);
@@ -184,7 +160,7 @@ export default function Dashboard() {
     setCodes(null);
   }
   useEffect(() => {
-    loadState(true).catch((e) => setError(e.message));
+    void Promise.resolve().then(() => loadState(true)).catch((e) => setError(e.message));
     const timer = window.setInterval(async () => {
       if (document.visibilityState !== 'visible') return;
       try {
@@ -208,7 +184,7 @@ export default function Dashboard() {
     } catch (e) {
       setError((e as Error).message);
       if ((e as Error & {status?:number}).status === 409 || (e as Error).message.includes('Recarga el editor')) setExternalChange(true);
-      revealIssue('.modal[role="dialog"] .notice.error, .feedback-toast[role="alert"]');
+      revealIssue('.modal .notice.error, .feedback-toast[role="alert"]');
     } finally {
       setBusy(false);
     }
@@ -247,13 +223,13 @@ export default function Dashboard() {
   async function loadReports(query = '') {
     const value = await api(`reports/orders${query}`);
     const append = new URLSearchParams(query).has('cursor');
-    setReportData((current: any) => append && current ? { ...value, orders: [...current.orders, ...value.orders.filter((order: any) => !current.orders.some((previous: any) => previous.id === order.id))] } : value);
+    setReportData((current) => append && current ? { ...value, orders: [...current.orders, ...value.orders.filter((order) => !current.orders.some((previous) => previous.id === order.id))] } : value);
   }
   const panelReady = !!state;
   const canReadOrders = !!state?.features.includes('orders') && state?.entitlements?.reports !== false;
   useEffect(() => {
-    if (panelReady && tab === 'Compartir') loadDomains().catch((e) => setError(e.message));
-    if (panelReady && tab === 'Pedidos' && canReadOrders) loadReports().catch((e) => setError(e.message));
+    if (panelReady && tab === 'Compartir') void Promise.resolve().then(loadDomains).catch((e) => setError(e.message));
+    if (panelReady && tab === 'Pedidos' && canReadOrders) void Promise.resolve().then(() => loadReports()).catch((e) => setError(e.message));
   }, [tab, panelReady, canReadOrders]);
   useEffect(() => {
     if (
@@ -290,14 +266,14 @@ export default function Dashboard() {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [tab, domain?.custom?.hostname, domain?.custom?.status]);
+  }, [tab, domain?.custom]);
 
   if (!session || (session.authenticated && !state && !error))
     return (
       <main className="skeleton-shell" aria-busy="true">
-        <span className="sr-only" role="status">
+        <output className="sr-only" >
           Abriendo tu restaurante…
-        </span>
+        </output>
         <div className="skeleton-line" />
         <div className="skeleton-block" />
         <div className="skeleton-grid">
@@ -385,7 +361,7 @@ export default function Dashboard() {
   ];
 
   return (
-    <div className="workspace">
+    <div className="workspace" data-native-safe-area={typeof navigator !== 'undefined' && nativeOwnsSafeArea(navigator.userAgent) ? 'true' : undefined}>
       <aside className="sidebar">
         <a className="wordmark" href={base || '/'}>
           <QrCode />
@@ -475,9 +451,9 @@ export default function Dashboard() {
           </div>
         )}
         {message && (
-          <div className="notice feedback-toast" role="status" aria-live="polite">
+          <output className="notice feedback-toast"  aria-live="polite">
             {message}
-          </div>
+          </output>
         )}
 
         {tab === 'Carta' && (
@@ -545,7 +521,7 @@ export default function Dashboard() {
               {draft.dishes.slice(0, visibleDishes).map((dish) => (
                 <article className="menu-row" key={dish.id}>
                   {dish.image ? (
-                    <img src={dish.image} alt="" loading="lazy" decoding="async" width={72} height={72} />
+                    <picture><img src={dish.image} alt="" loading="lazy" decoding="async" width={72} height={72} /></picture>
                   ) : (
                     <span className="row-placeholder">
                       <Utensils />
@@ -649,15 +625,15 @@ export default function Dashboard() {
                 </button>
               )}
             </div>
-            {codes?.codes.map((code: any) => (
+            {codes?.codes.map((code) => (
               <article className="qr-card" key={code.payload}>
                 <span className="eyebrow">MENÚ ONLINE</span>
                 <h2>{codes.name}</h2>
-                <img
+                <picture><img
                   className="qr-image"
                   src={`data:image/svg+xml,${encodeURIComponent(code.svg)}`}
                   alt={`QR del menú de ${codes.name}`}
-                />
+                /></picture>
                 <strong>Escanea para ver el menú</strong>
                 <small>{code.payload}</small>
                 {printWifi && <div className="wifi-print-only"><strong>{printWifi.name}</strong><p>{printWifi.text}</p></div>}
@@ -828,7 +804,7 @@ export default function Dashboard() {
                   onChange={(e) => {
                     const file = e.target.files?.[0];
                     if (file)
-                      run(async () =>
+                      void run(async () =>
                         setDraft({ ...draft, logo: await uploadPhoto(file) }),
                       );
                   }}
@@ -891,14 +867,14 @@ export default function Dashboard() {
                   onChange={(e) => {
                     const file = e.target.files?.[0];
                     if (file && confirm('¿Reemplazar el borrador actual?'))
-                      run(async () => {
+                      void run(async () => {
                         const result = await api(
                           'restore',
                           'POST',
                           JSON.parse(await file.text()),
                         );
                         await loadState(true);
-                        setMessage(result.notice);
+                        setMessage(result.notice || 'Respaldo restaurado.');
                       });
                     e.target.value = '';
                   }}
@@ -915,7 +891,7 @@ export default function Dashboard() {
         <div className="actions"><button type="button" className="btn" onClick={() => setReloadConfirm(false)}>Cancelar</button>
           <button type="button" className="btn danger" onClick={() => location.reload()}>Sí, recargar y descartar</button></div>
       </dialog></div>}
-      {sampleConfirm && <div className="modal-backdrop" role="presentation"><section className="modal" role="dialog" aria-modal="true" aria-labelledby="sample-title">
+      {sampleConfirm && <div className="modal-backdrop" role="presentation"><dialog open className="modal"  aria-modal="true" aria-labelledby="sample-title">
         <div className="section-title"><h2 id="sample-title">Reemplazar borrador con ejemplos</h2><button className="close-button" disabled={busy} onClick={() => setSampleConfirm(false)}>× Cerrar</button></div>
         <p>Esto reemplazará todos los platos, categorías y promociones de tu borrador. El menú publicado no cambiará hasta que pulses Publicar.</p>
         <p>Se cargarán hasta {state.maxDishes ?? 150} platos de muestra. Podrás editar cada uno antes de publicar.</p>
@@ -926,14 +902,15 @@ export default function Dashboard() {
             await loadState(true, 'settings'); setSampleConfirm(false); setVisibleDishes(30);
             setMessage('Ejemplo cargado en el borrador. Revísalo antes de publicar.');
           })}>{busy ? 'Cargando…' : 'Sí, reemplazar borrador'}</button></div>
-      </section></div>}
+      </dialog></div>}
       {editing && (
         <div className="modal-backdrop" role="presentation">
-          <form
+          <dialog open
             className="modal dish-editor"
-            role="dialog"
+
             aria-modal="true"
             aria-labelledby="dish-editor-title"
+          ><form
             onSubmit={(e) => {
               e.preventDefault();
               if (photoBusy || busy) return;
@@ -955,8 +932,8 @@ export default function Dashboard() {
                     )
                   : [...draft.dishes, editing],
               };
-              run(async () => {
-                await api('draft', 'PUT', { revision: state.revision, catalog: nextCatalog });
+              void run(async () => {
+                void await api('draft', 'PUT', { revision: state.revision, catalog: nextCatalog });
                 await loadState(true, 'settings');
                 setEditing(null);
                 setMessage('Plato guardado. Pulsa Publicar menú para que lo vean tus clientes.');
@@ -1357,7 +1334,7 @@ export default function Dashboard() {
                 </button>
               )}
             </div>
-          </form>
+          </form></dialog>
         </div>
       )}
     </div>
@@ -1372,7 +1349,7 @@ function Auth({
   setRecoverMode,
   recovery,
   onSubmit,
-}: any) {
+}: {session:SessionState;busy:boolean;error:string;recoverMode:boolean;setRecoverMode:(value:boolean)=>void;recovery:string;onSubmit:(form:FormData)=>Promise<void>}) {
   const [turnstileToken, setTurnstileToken] = useState('');
   const [turnstileAttempt, setTurnstileAttempt] = useState(0);
   return (
@@ -1482,10 +1459,10 @@ function SecuritySettings({
   run: (action: () => Promise<void>) => Promise<void>;
   role: 'creator' | 'owner';
 }) {
-  const [email, setEmail] = useState<any>(null);
-  const [sessions, setSessions] = useState<any[]>([]);
-  const [devices, setDevices] = useState<any[]>([]);
-  const load = async () => {
+  const [email, setEmail] = useState<EmailState|null>(null);
+  const [sessions, setSessions] = useState<SessionEntry[]>([]);
+  const [devices, setDevices] = useState<SessionEntry[]>([]);
+  const load = useCallback(async () => {
     const [emailState, sessionState, deviceState] = await Promise.all([
       api('email'),
       api('sessions'),
@@ -1494,10 +1471,10 @@ function SecuritySettings({
     setEmail(emailState);
     setSessions(sessionState.sessions || []);
     setDevices(deviceState.devices || []);
-  };
+  }, [role]);
   useEffect(() => {
-    load().catch(() => undefined);
-  }, []);
+    void Promise.resolve().then(load).catch(() => undefined);
+  }, [load]);
   return (
     <section className="card settings-section">
       <h2>Seguridad de la cuenta</h2>
@@ -1538,7 +1515,7 @@ function SecuritySettings({
           onSubmit={(event) => {
             event.preventDefault();
             const value = new FormData(event.currentTarget).get('email');
-            run(async () => {
+            void run(async () => {
               await api('email', 'PUT', { email: value });
               await load();
             });
@@ -1588,13 +1565,11 @@ function SecuritySettings({
   );
 }
 
-export function MfaPanel({ enrollment, busy, error, onVerify, onRecover }: any) {
+export function MfaPanel({ enrollment, busy, error, onVerify, onRecover }: {enrollment?:Enrollment;busy:boolean;error:string;onVerify:(code:string)=>Promise<unknown>|void;onRecover?:(code:string)=>Promise<unknown>|void}) {
   const [qr, setQr] = useState('');
   useEffect(() => {
     if (enrollment?.uri)
-      QRCodeGenerator.toDataURL(enrollment.uri, { width: 260, margin: 2 }).then(
-        setQr,
-      );
+      void QRCodeGenerator.toDataURL(enrollment.uri, { width: 260, margin: 2 }).then(setQr).catch(() => setQr(''));
   }, [enrollment?.uri]);
   return (
     <main className="auth-page">
@@ -1609,7 +1584,7 @@ export function MfaPanel({ enrollment, busy, error, onVerify, onRecover }: any) 
             : 'Escribe el código de seis dígitos de tu aplicación.'}
         </p>
         {enrollment && qr && (
-          <img className="mfa-qr" src={qr} alt="QR para configurar autenticación de dos factores" />
+          <picture><img className="mfa-qr" src={qr} alt="QR para configurar autenticación de dos factores" /></picture>
         )}
         {enrollment?.secret && (
           <p className="mfa-secret">
@@ -1620,7 +1595,7 @@ export function MfaPanel({ enrollment, busy, error, onVerify, onRecover }: any) 
         <form
           onSubmit={(event) => {
             event.preventDefault();
-            onVerify(String(new FormData(event.currentTarget).get('code')));
+            void onVerify(scalarText(new FormData(event.currentTarget).get('code')));
           }}
         >
           <label>
@@ -1644,7 +1619,7 @@ export function MfaPanel({ enrollment, busy, error, onVerify, onRecover }: any) 
           <form
             onSubmit={(event) => {
               event.preventDefault();
-              onRecover(String(new FormData(event.currentTarget).get('code') || ''));
+              void onRecover(scalarText(new FormData(event.currentTarget).get('code')));
             }}
           >
             <label>
@@ -1900,14 +1875,14 @@ function Reports({
   refresh,
   cancel,
 }: {
-  data: any;
+  data: ReportData | null;
   refresh: (query?: string) => void;
   cancel: (id: string) => Promise<void>;
 }) {
   const report = data?.report;
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
-  const [pendingCancel, setPendingCancel] = useState<any>(null);
+  const [pendingCancel, setPendingCancel] = useState<OrderRecord|null>(null);
   const [cancelBusy, setCancelBusy] = useState(false);
   const [cancelError, setCancelError] = useState('');
   useDialogBehavior(!!pendingCancel, () => { if (!cancelBusy) setPendingCancel(null); });
@@ -1989,7 +1964,7 @@ function Reports({
             <article className="card">
               <h2>Platos más pedidos</h2>
               {report.dishes.length ? (
-                report.dishes.slice(0, 8).map((dish: any) => (
+                report.dishes.slice(0, 8).map((dish) => (
                   <div className="status-line" key={dish.id}>
                     <span>{dish.name}</span>
                     <strong>
@@ -2004,9 +1979,9 @@ function Reports({
             <article className="card">
               <h2>Platos menos pedidos</h2>
               {[...report.dishes]
-                .sort((a: any, b: any) => a.quantity - b.quantity)
+                .sort((a, b) => a.quantity - b.quantity)
                 .slice(0, 8)
-                .map((dish: any) => (
+                .map((dish) => (
                   <div className="status-line" key={dish.id}>
                     <span>{dish.name}</span>
                     <strong>{dish.quantity}</strong>
@@ -2016,7 +1991,7 @@ function Reports({
             <article className="card">
               <h2>Opciones preferidas</h2>
               {report.options.length ? (
-                report.options.map((option: any) => (
+                report.options.map((option) => (
                   <div className="status-line" key={option.id}>
                     <span>{option.name}</span>
                     <strong>{option.quantity}</strong>
@@ -2031,7 +2006,7 @@ function Reports({
             <article className="card">
               <h2>Tendencia diaria</h2>
               {report.byDay.length ? (
-                report.byDay.map((day: any) => (
+                report.byDay.map((day) => (
                   <div className="status-line" key={day.day}>
                     <span>
                       {new Date(`${day.day}T12:00:00`).toLocaleDateString(
@@ -2051,8 +2026,8 @@ function Reports({
               <h2>Horas con más pedidos</h2>
               {report.byHour.length ? (
                 [...report.byHour]
-                  .sort((a: any, b: any) => b.orders - a.orders)
-                  .map((hour: any) => (
+                  .sort((a, b) => b.orders - a.orders)
+                  .map((hour) => (
                     <div className="status-line" key={hour.hour}>
                       <span>{String(hour.hour).padStart(2, '0')}:00</span>
                       <strong>{hour.orders}</strong>
@@ -2065,9 +2040,9 @@ function Reports({
           </section>
           <section className="card settings-section">
             <h2>Historial</h2>
-            <p role="status">Mostrando {data.orders.length} de {data.totalOrders ?? data.orders.length} pedidos. El resumen corresponde al rango completo.</p>
+            <output >Mostrando {data.orders.length} de {data.totalOrders ?? data.orders.length} pedidos. El resumen corresponde al rango completo.</output>
             {data.nextPageQuery && <button className="btn" onClick={() => refresh(data.nextPageQuery)}>Ver más pedidos</button>}
-            {data.orders.map((order: any) => (
+            {data.orders.map((order) => (
               <article className="order-admin" key={order.id}>
                 <div>
                   <strong>{order.number}</strong>
@@ -2092,7 +2067,7 @@ function Reports({
                 )}
                 <details className="order-admin-detail">
                   <summary>Ver detalle</summary>
-                  {order.lines.map((line: any, index: number) => (
+                  {order.lines.map((line, index) => (
                     <div
                       className="order-admin-line"
                       key={`${line.dishId}-${index}`}
@@ -2100,7 +2075,7 @@ function Reports({
                       <strong>
                         {line.quantity} × {line.dishName}
                       </strong>
-                      {line.options.map((option: any) => (
+                      {line.options.map((option) => (
                         <small key={`${option.groupId}-${option.optionId}`}>
                           {option.groupName}: {option.optionName}
                         </small>
@@ -2115,7 +2090,7 @@ function Reports({
           </section>
         </>
       )}
-      {pendingCancel && <div className="modal-backdrop" role="presentation"><section className="modal" role="dialog" aria-modal="true" aria-labelledby="cancel-title">
+      {pendingCancel && <div className="modal-backdrop" role="presentation"><dialog open className="modal"  aria-modal="true" aria-labelledby="cancel-title">
         <div className="section-title"><h2 id="cancel-title">¿Cancelar este pedido?</h2><button className="close-button" disabled={cancelBusy} onClick={() => setPendingCancel(null)}>× Cerrar</button></div>
         <p>Pedido <strong>{pendingCancel.number}</strong> · {money(pendingCancel.totalCents)}. Permanecerá en el historial marcado como cancelado.</p>
         {cancelError && <p className="notice error" role="alert">{cancelError}</p>}
@@ -2127,40 +2102,7 @@ function Reports({
             catch (failure) { setCancelError((failure as Error).message); }
             finally { setCancelBusy(false); }
           }}>{cancelBusy ? 'Cancelando…' : 'Sí, cancelar pedido'}</button></div>
-      </section></div>}
+      </dialog></div>}
     </>
   );
-}
-function ordersCsv(orders: any[]) {
-  const quote = (value: unknown) =>
-    `"${String(value ?? '').replace(/"/g, '""')}"`;
-  const rows = [
-    [
-      'pedido',
-      'fecha',
-      'estado',
-      'alias',
-      'plato',
-      'cantidad',
-      'opciones',
-      'nota',
-      'total',
-    ],
-  ];
-  for (const order of orders)
-    for (const line of order.lines)
-      rows.push([
-        order.number,
-        order.createdAt,
-        order.status,
-        order.alias,
-        line.dishName,
-        line.quantity,
-        line.options
-          .map((option: any) => `${option.groupName}: ${option.optionName}`)
-          .join(' | '),
-        line.note,
-        (line.totalCents / 100).toFixed(2),
-      ]);
-  return rows.map((row) => row.map(quote).join(',')).join('\n');
 }

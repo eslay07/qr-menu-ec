@@ -4,7 +4,7 @@ import { FirebaseStorageMedia, copyMediaVerified } from '../lib/firebase-storage
 import sharp from 'sharp';
 const createImage = sharp as (options: { create: { width: number; height: number; channels: number; background: string } }) => { png(): { toBuffer(): Promise<Uint8Array> } };
 
-test('Storage isolates restaurant paths, verifies bytes and never overwrites conflicting images', async t => {
+void test('Storage isolates restaurant paths, verifies bytes and never overwrites conflicting images', async t => {
   const rid = crypto.randomUUID(), id = crypto.randomUUID();
   const data = new Map<string, { bytes: Uint8Array; type: string }>();
   t.mock.method(globalThis, 'fetch', async (url: string, init: RequestInit) => {

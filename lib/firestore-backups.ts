@@ -15,8 +15,8 @@ const Snapshot = z.object({
   published: z.object({ version: z.number().int(), at: z.string(), catalog: Catalog, mode: z.string().optional(), settings: Settings.optional() }).nullable(),
   orders: z.array(z.record(z.string(), z.unknown())).max(10_000),
   orderOperations: z.array(z.object({key:z.uuid(),payloadHash:z.string().max(256),token:z.string().max(256),order:z.record(z.string(),z.unknown())}).strict()).max(10000).default([]),
-  orderTokens: z.array(z.object({ hash: z.string().min(1).max(256), restaurantId: z.string(), orderId: z.string(), expiresAt: z.string().datetime() }).strict()).max(10_000).default([]),
-  media: z.array(z.object({ id: z.string().uuid(), type: z.enum(['image/jpeg', 'image/png', 'image/webp']), content: z.string().max(1_400_000), checksum: z.string() }).strict()).max(320).default([]),
+  orderTokens: z.array(z.object({ hash: z.string().min(1).max(256), restaurantId: z.string(), orderId: z.string(), expiresAt: z.string().check(z.iso.datetime()) }).strict()).max(10_000).default([]),
+  media: z.array(z.object({ id: z.string().check(z.uuid()), type: z.enum(['image/jpeg', 'image/png', 'image/webp']), content: z.string().max(1_400_000), checksum: z.string() }).strict()).max(320).default([]),
   preferences: z.record(z.string(), z.record(z.string(), z.unknown())).default({}),
 }).strict();
 type Manifest = { status: 'verified'; checksum: string; chunks: number; revision: number; createdAt: string; orderCount: number; mediaBridgeRequired: boolean };

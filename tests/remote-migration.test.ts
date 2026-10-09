@@ -11,7 +11,7 @@ async function setup(count=45) {
   return {db,plan,checksum:await digest(canonicalWire(plan))};
 }
 const controls={authorizeWrites:async()=>{}};
-test('remote executor resumes interrupted atomic batches, preserves typed fields and has no duplicates',options,async()=>{
+void test('remote executor resumes interrupted atomic batches, preserves typed fields and has no duplicates',options,async()=>{
   const {db,plan,checksum}=await setup();
   await assert.rejects(importRemoteManifest(db,plan,checksum,{...controls,afterBatch:async()=>{throw Error('interrupted');}}),/interrupted/);
   assert.equal((await db.inventoryWire()).length,81);
@@ -21,7 +21,7 @@ test('remote executor resumes interrupted atomic batches, preserves typed fields
   assert.deepEqual(await importRemoteManifest(db,plan,checksum,controls),result);
   for(const d of plan.documents) assert.equal(canonicalWire((await db.getWire(d.path))!.fields),canonicalWire(d.fields));
 });
-test('lost commit acknowledgement resumes from the atomic per-document journal',options,async()=>{
+void test('lost commit acknowledgement resumes from the atomic per-document journal',options,async()=>{
   const {db,plan,checksum}=await setup(3);
   const commit=db.commitWire.bind(db);
   db.commitWire=async writes=>{await commit(writes);throw Error('lost acknowledgement');};
@@ -29,7 +29,7 @@ test('lost commit acknowledgement resumes from the atomic per-document journal',
   db.commitWire=commit;
   assert.equal((await importRemoteManifest(db,plan,checksum,controls)).status,'verified');
 });
-test('checksum changes, modified documents and missing journals stop without overwriting',options,async()=>{
+void test('checksum changes, modified documents and missing journals stop without overwriting',options,async()=>{
   const {db,plan,checksum}=await setup(2);
   await assert.rejects(importRemoteManifest(db,plan,'b'.repeat(64),controls),/checksum/);
   assert.equal((await db.inventoryWire()).length,0);
@@ -40,14 +40,14 @@ test('checksum changes, modified documents and missing journals stop without ove
   assert.equal((await db.get(plan.documents[0].path))!.data.changed,true);
   assert.ok(await db.get(plan.documents[1].path));
 });
-test('inventory detects documents below missing parents; nonempty target is never overwritten',options,async()=>{
+void test('inventory detects documents below missing parents; nonempty target is never overwritten',options,async()=>{
   const {db,plan,checksum}=await setup(1);
   await db.commit([{path:'unknown/missing/nested/real',data:{keep:true},exists:false}]);
   assert.equal((await db.inventoryWire()).length,1);
   await assert.rejects(importRemoteManifest(db,plan,checksum,controls),/not empty/);
   assert.equal(await db.get(`migrationRuns/${plan.runId}`),null);
 });
-test('loss of write freeze stops before next batch; owned-only rollback can be interrupted and resumed',options,async()=>{
+void test('loss of write freeze stops before next batch; owned-only rollback can be interrupted and resumed',options,async()=>{
   const {db,plan,checksum}=await setup();
   let frozen=true;
   await assert.rejects(importRemoteManifest(db,plan,checksum,{authorizeWrites:async()=>{if(!frozen)throw Error('freeze lost');},afterBatch:async()=>{frozen=false;}}),/freeze lost/);
@@ -59,7 +59,7 @@ test('loss of write freeze stops before next batch; owned-only rollback can be i
   assert.equal(remaining.length,1);
   assert.equal((await db.get(`migrationRuns/${plan.runId}`))!.data.status,'rolled-back');
 });
-test('authorization failure performs zero writes',options,async()=>{
+void test('authorization failure performs zero writes',options,async()=>{
   const {db,plan,checksum}=await setup(1);
   await assert.rejects(importRemoteManifest(db,plan,checksum,{authorizeWrites:async()=>{throw Error('not authorized');}}),/not authorized/);
   assert.equal((await db.inventoryWire()).length,0);

@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { FirestoreRest, encodeFirestoreFields } from '../lib/firestore-rest';
 import { applyReconciliation } from '../lib/firestore-reconciliation';
 import type { MigrationManifest } from '../lib/firestore-remote-migration';
-test('Interrupted reconciliation resumes safely and retains Firebase Auth and real orders',{skip:!process.env.FIRESTORE_EMULATOR_HOST},async()=>{
+void test('Interrupted reconciliation resumes safely and retains Firebase Auth and real orders',{skip:!process.env.FIRESTORE_EMULATOR_HOST},async()=>{
  const db=new FirestoreRest('demo-qr-menu-reconciliation',process.env.FIRESTORE_EMULATOR_HOST!);
  const id=randomUUID(),restaurant=`restaurants/${id}`,auth=restaurant+'/private/auth',order=restaurant+'/orders/real';
  const doc=(path:string,data:Record<string,unknown>)=>({path,fields:encodeFirestoreFields(data)});

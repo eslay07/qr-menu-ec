@@ -8,7 +8,7 @@ import { FirestoreRestaurantStore } from './firestore-store';
 import { firestoreId } from './firestore-rest';
 
 export const ownerLoginSchema = z.object({
-  email: z.string().trim().toLowerCase().email().max(254),
+  email: z.string().trim().toLowerCase().check(z.email()).max(254),
   password: z.string().min(1).max(128),
   turnstileToken: z.string().max(4096),
   rememberDevice: z.boolean().optional(),
@@ -128,7 +128,7 @@ export async function handleOwnerRecovery(request: Request, env: CentralEnv, loa
   try {
     const raw = await request.text();
     if (raw.length > 6000) return json({ error: 'Solicitud demasiado grande.' }, 413);
-    const input = z.object({ email: z.string().trim().toLowerCase().email().max(254), turnstileToken: z.string().max(4096) }).strict().parse(JSON.parse(raw));
+    const input = z.object({ email: z.string().trim().toLowerCase().check(z.email()).max(254), turnstileToken: z.string().max(4096) }).strict().parse(JSON.parse(raw));
     const hash = await digest(input.email);
     const rate = await security.rateLimitAccountAndIp(request, 'owner-email-recovery', hash, 3, 10, 3_600_000);
     if (!rate.allowed) return json({ error: 'Espera antes de solicitar otro enlace.' }, 429);
@@ -154,7 +154,7 @@ export async function handleOwnerRecovery(request: Request, env: CentralEnv, loa
 // Operator-supplied, one-time migration. Never reads the email or restaurant
 // from the request; the configuration is removed after deployment verification.
 async function migrateOwnerEmail(env: CentralEnv, security: AuthSecurity) {
-  const migration = z.object({ id: z.string().min(1), restaurantId: z.string().uuid(), email: z.string().trim().toLowerCase().email() })
+  const migration = z.object({ id: z.string().min(1), restaurantId: z.string().check(z.uuid()), email: z.string().trim().toLowerCase().check(z.email()) })
     .strict().parse(JSON.parse(env.OWNER_EMAIL_MIGRATION!));
   const firestore = localFirestore(env);
   if (firestore) {

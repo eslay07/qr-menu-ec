@@ -37,12 +37,17 @@ try {
     const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
     await Promise.race([navigator.serviceWorker.ready, new Promise((_, reject) => setTimeout(() => reject(Error('WORKER_TIMEOUT')), 15000))]);
     try {
-      const token = await Promise.race([sdk.getToken(instance, { vapidKey, serviceWorkerRegistration: registration }), new Promise((_, reject) => setTimeout(() => reject(Error('REGISTRATION_TIMEOUT')), 30000))]);
+      let stop;
+      const observed = new Promise((resolve,reject)=>{ stop=sdk.onRegistered(instance,{next:resolve,error:reject}); });
+      let fid;
+      try { await sdk.register(instance,{vapidKey,serviceWorkerRegistration:registration}); fid=await Promise.race([observed,new Promise((_,reject)=>setTimeout(()=>reject(Error('REGISTRATION_TIMEOUT')),30000))]); }
+      finally { stop?.(); }
+      window.__pushTest.fid=fid;
       window.__pushReceived = new Promise(resolve => sdk.onMessage(instance, payload => resolve(payload.data?.eventId)));
-      return { supported: true, token };
+      return { supported: true, fid };
     } catch (error) { return { supported: true, code: error.code || (error.message === 'REGISTRATION_TIMEOUT' ? error.message : 'REGISTRATION_FAILED'), diagnostic: String(error.message || '').replace(/https?:\/\/[^\s]+/g, '[url]').replace(/[A-Za-z0-9_:-]{35,}/g, '[redacted]').slice(0, 250) }; }
   }, { moduleUrl, vapidKey: env.VITE_FIREBASE_VAPID_KEY });
-  if (!outcome.token) {
+  if (!outcome.fid) {
     console.log(JSON.stringify({ registered: false, supported: outcome.supported, reason: outcome.code || 'UNSUPPORTED', diagnostic: outcome.diagnostic, productionChanged: false }));
     process.exitCode = 2; // Inconclusive environment check, never a passing receipt test.
   } else {
@@ -51,7 +56,7 @@ try {
     await require('firebase-tools/lib/requireAuth').requireAuth({ project, nonInteractive: true, ...auth.getProjectDefaultAccount(process.cwd()) });
     const { Client } = require('firebase-tools/lib/apiv2');
     const eventId = crypto.randomUUID();
-    const result = await new Client({ urlPrefix: 'https://fcm.googleapis.com', apiVersion: 'v1' }).post(`projects/${project}/messages:send`, { message: { token: outcome.token, data: { eventId, title: 'Prueba local QR Menu EC' }, webpush: { headers: { TTL: '30' } } } }, { skipLog: { reqBody: true, resBody: true }, resolveOnHTTPError: true });
+    const result = await new Client({ urlPrefix: 'https://fcm.googleapis.com', apiVersion: 'v1' }).post(`projects/${project}/messages:send`, { message: { fid: outcome.fid, data: { eventId, title: 'Prueba local QR Menu EC' }, webpush: { headers: { TTL: '30' } } } }, { skipLog: { reqBody: true, resBody: true }, resolveOnHTTPError: true });
     const received = result.status === 200 && await page.evaluate(async expected => Promise.race([window.__pushReceived.then(id => id === expected), new Promise(resolve => setTimeout(() => resolve(false), 30000))]), eventId);
     console.log(JSON.stringify({ registered: true, sendStatus: result.status, received, productionChanged: false }));
     if (!received) process.exitCode = 2;
@@ -64,7 +69,10 @@ try {
   const revoked = page && !page.isClosed() ? await page.evaluate(async () => {
     if (!window.__pushTest) return true;
     const { sdk, instance } = window.__pushTest;
-    return Promise.race([sdk.deleteToken(instance).then(() => true).catch(() => false), new Promise(resolve => setTimeout(() => resolve(false), 10000))]);
+    let stop;
+    const removed=new Promise(resolve=>{stop=sdk.onUnregistered(instance,()=>resolve(true));});
+    try { await sdk.unregister(instance); return window.__pushTest.fid ? await Promise.race([removed,new Promise(resolve=>setTimeout(()=>resolve(false),10000))]) : true; }
+    catch { return false; } finally { stop?.(); }
   }).catch(() => false) : null;
   console.log(JSON.stringify({ disposableTokenRevoked: revoked }));
   await browser?.close(); await server.close();
