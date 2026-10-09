@@ -8,7 +8,7 @@ export function useDialogBehavior(open: boolean, onClose: () => void) {
     const previous = document.activeElement as HTMLElement | null;
     const overflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    const dialog = () => [...document.querySelectorAll<HTMLElement>('[role="dialog"]')].at(-1);
+    const dialog = () => [...document.querySelectorAll<HTMLElement>('dialog[open], [role="dialog"]')].at(-1);
     const timer = requestAnimationFrame(() => {
       dialog()?.querySelector<HTMLElement>('button:not(:disabled), input:not(:disabled)')?.focus();
     });

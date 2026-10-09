@@ -18,7 +18,7 @@ import { FirestoreSecurityRepository } from '../lib/firestore-security';
 
 const fixture = createD1Fixture;
 
-test('D1 document provider needs no Google credential and preserves scoped paths and wire types',async()=>{
+void test('D1 document provider needs no Google credential and preserves scoped paths and wire types',async()=>{
   const {db,sql,sqlite}=fixture();
   assert.ok(localFirestore({DB:sql,DATA_PROVIDER:'d1-documents'}) instanceof D1DocumentStore);
   await db.commitWire([{path:'restaurants/a',fields:{at:{timestampValue:'2026-10-05T00:00:00Z'},n:{integerValue:'10'}}}]);
@@ -30,7 +30,7 @@ test('D1 document provider needs no Google credential and preserves scoped paths
   sqlite.close();
 });
 
-test('D1 batches rollback all writes on stale revision and duplicate create; masks preserve siblings',async()=>{
+void test('D1 batches rollback all writes on stale revision and duplicate create; masks preserve siblings',async()=>{
   const {db,sqlite}=fixture();
   await db.commit([{path:'restaurants/a',data:{active:true,name:'A'},exists:false}]);
   const original=await db.get('restaurants/a');
@@ -43,7 +43,7 @@ test('D1 batches rollback all writes on stale revision and duplicate create; mas
   sqlite.close();
 });
 
-test('D1 queries paginate composite cursors, filter dates/booleans and isolate restaurants',async()=>{
+void test('D1 queries paginate composite cursors, filter dates/booleans and isolate restaurants',async()=>{
   const {db,sqlite}=fixture();
   await db.commit(Array.from({length:5},(_,i)=>({path:`restaurants/a/orders/o${i}`,data:{createdAt:new Date(`2026-10-0${i+1}T00:00:00Z`),demo:false,total:i}})));
   await db.commit([{path:'restaurants/b/orders/secret',data:{createdAt:new Date(),demo:false,total:999}}]);
@@ -60,7 +60,7 @@ test('D1 queries paginate composite cursors, filter dates/booleans and isolate r
   sqlite.close();
 });
 
-test('D1 backup snapshot retries a concurrent mutation and rejects writes through its reader',async()=>{
+void test('D1 backup snapshot retries a concurrent mutation and rejects writes through its reader',async()=>{
   const {db,sqlite}=fixture();
   await db.commit([{path:'restaurants/a',data:{n:1}}]);
   let calls=0;
@@ -76,7 +76,7 @@ test('D1 backup snapshot retries a concurrent mutation and rejects writes throug
   sqlite.close();
 });
 
-test('D1 inventory includes orphan subcollections and respects excluded document trees',async()=>{
+void test('D1 inventory includes orphan subcollections and respects excluded document trees',async()=>{
   const {db,sqlite}=fixture();
   await db.commit([{path:'restaurants/a/private/auth',data:{secret:'cipher'}},{path:'platformConfig/creator',data:{enabled:true}}]);
   assert.equal((await db.inventoryWire()).length,2);
@@ -88,7 +88,7 @@ test('D1 inventory includes orphan subcollections and respects excluded document
   sqlite.close();
 });
 
-test('D1 supports 150-dish publication, encrypted WiFi, order cancellation and verified restoration',async()=>{
+void test('D1 supports 150-dish publication, encrypted WiFi, order cancellation and verified restoration',async()=>{
   const {db,sql,sqlite}=fixture(), rid=crypto.randomUUID();
   const security=new AuthSecurity({DB:sql,DATA_PROVIDER:'d1-documents',DATA_ENCRYPTION_KEY:Buffer.alloc(32,7).toString('base64')});
   const state: State={schemaVersion:1,restaurantId:rid,ownerId:`owner:${rid}`,draft:structuredClone(blankCatalog),settings:structuredClone(defaultSettings),published:null,license:null,password:{salt:'',hash:''},recoveryHash:'private',sessionEpoch:1,failures:{count:0,until:0},createdAt:new Date().toISOString(),access:{active:true,features:['orders'],maxDishes:150},security:{firebaseUid:`owner:${rid}`,emailHash:`email-${rid}`,emailCiphertext:'unchanged-cipher'}};
@@ -124,7 +124,7 @@ test('D1 supports 150-dish publication, encrypted WiFi, order cancellation and v
   sqlite.close();
 });
 
-test('D1 preserves remembered grants, creator challenges and atomic rate limits',async()=>{
+void test('D1 preserves remembered grants, creator challenges and atomic rate limits',async()=>{
   const {db,sql,sqlite}=fixture(),rid=crypto.randomUUID();
   const security=new AuthSecurity({DB:sql,DATA_PROVIDER:'d1-documents'});
   const session=await security.createSession('owner',rid);
@@ -150,7 +150,7 @@ test('D1 preserves remembered grants, creator challenges and atomic rate limits'
   sqlite.close();
 });
 
-test('D1 push delivers through FCM contract, preferences gate delivery, tokens stay encrypted',async()=>{
+void test('D1 push delivers through FCM contract, preferences gate delivery, tokens stay encrypted',async()=>{
   const {db,sql,sqlite}=fixture(),rid=crypto.randomUUID();
   const security=new AuthSecurity({DB:sql,DATA_PROVIDER:'d1-documents',DATA_ENCRYPTION_KEY:Buffer.alloc(32,8).toString('base64')});
   await db.commit([{path:`restaurants/${rid}`,data:{access:{active:true}}},{path:`restaurants/${rid}/private/auth`,data:{sessionEpoch:1}}]);
@@ -168,7 +168,7 @@ test('D1 push delivers through FCM contract, preferences gate delivery, tokens s
   sqlite.close();
 });
 
-test('D1 atomic operation identity accepts concurrent retry once and rejects changed payload',async()=>{
+void test('D1 atomic operation identity accepts concurrent retry once and rejects changed payload',async()=>{
  const {db,sqlite}=fixture(),rid=crypto.randomUUID(),orders=new FirestoreOrderStore(db);
  const order:OrderRecord={id:crypto.randomUUID(),restaurantId:rid,number:'IDEMPOTENT',status:'confirmed',demo:true,alias:'Ensayo',restaurantName:'Ficticio',menuVersion:1,currency:'USD',totalCents:500,createdAt:new Date().toISOString(),publicExpiresAt:new Date(Date.now()+3600000).toISOString(),cancelledAt:null,lines:[{id:'line',dishId:'dish',dishName:'Ensayo',quantity:1,basePriceCents:500,unitPriceCents:500,totalCents:500,note:'',options:[]}]};
  const operation={key:crypto.randomUUID(),payloadHash:'same',token:'token-a',order};
@@ -178,7 +178,7 @@ test('D1 atomic operation identity accepts concurrent retry once and rejects cha
  const second={...order,id:crypto.randomUUID()};await orders.createOnce(second,'hash-d',{...operation,key:crypto.randomUUID(),order:second});assert.equal((await db.all(`restaurants/${rid}/orders`)).length,2);
  sqlite.close();
 });
-test('D1 individual session revocation prevents its remembered device from returning and leaves another intact',async()=>{
+void test('D1 individual session revocation prevents its remembered device from returning and leaves another intact',async()=>{
  const {sql,sqlite}=fixture(),rid=crypto.randomUUID(),security=new AuthSecurity({DB:sql,DATA_PROVIDER:'d1-documents'});
  const first=await security.createSession('owner',rid),second=await security.createSession('owner',rid);
  const a=await security.createDevice(rid,first.sessionHash),b=await security.createDevice(rid,second.sessionHash);
@@ -187,13 +187,13 @@ test('D1 individual session revocation prevents its remembered device from retur
  assert.equal(await security.device(request(a.cookie)),null);assert.ok(await security.device(request(b.cookie)));assert.ok(await security.session(request(second.cookie),'owner',rid));sqlite.close();
 });
 
-test('D1 readable public aliases reserve atomically and retain canonical address after rename',async()=>{
+void test('D1 readable public aliases reserve atomically and retain canonical address after rename',async()=>{
  const {sql,sqlite}=fixture();const {DomainService}=await import('../lib/domains');const domains=new DomainService({DB:sql,DATA_PROVIDER:'d1-documents'});
  const a=crypto.randomUUID(),b=crypto.randomUUID();const urls=await Promise.all([domains.reservePublicPath(a,'Ñaña café!','https://menus.test'),domains.reservePublicPath(b,'Ñaña café!','https://menus.test')]);
  assert.deepEqual(new Set(urls),new Set(['https://menus.test/m/nana-cafe','https://menus.test/m/nana-cafe-2']));assert.equal(await domains.reservePublicPath(a,'Cambio nombre','https://menus.test'),urls[0]);sqlite.close();
 });
 
-test('ten owner reopen refreshes reuse a valid session and preserve the other device',async()=>{
+void test('ten owner reopen refreshes reuse a valid session and preserve the other device',async()=>{
  const {sql,sqlite}=fixture(),rid=crypto.randomUUID(),env={DB:sql,DATA_PROVIDER:'d1-documents' as const},security=new AuthSecurity(env);
  const first=await security.createSession('owner',rid),second=await security.createSession('owner',rid),device=await security.createDevice(rid,first.sessionHash);
  const {handleOwnerDevice}=await import('../lib/owner-auth');
@@ -205,12 +205,13 @@ test('ten owner reopen refreshes reuse a valid session and preserve the other de
  assert.ok(await security.session(new Request('https://example.test',{headers:{cookie:second.cookie.split(';')[0]}}),'owner',rid));sqlite.close();
 });
 
-test('workers.dev provisioning reserves ownership before upload and never overwrites an existing Worker',async()=>{
+void test('workers.dev provisioning reserves ownership before upload and never overwrites an existing Worker',async()=>{
  const {db,sql,sqlite}=fixture(),{DomainService}=await import('../lib/domains'),rid=crypto.randomUUID();
  const domains=new DomainService({DB:sql,DATA_PROVIDER:'d1-documents',CLOUDFLARE_ACCOUNT_ID:'test-account',CLOUDFLARE_API_TOKEN:'fictitious-token',CLOUDFLARE_WORKERS_SUBDOMAIN:'testing'});
  const original=globalThis.fetch,uploads:string[]=[];
  globalThis.fetch=async(url,init)=>{
-   const service=String(url).split('/').at(-1)!;
+   const requestUrl=typeof url==='string'?url:url instanceof URL?url.href:url.url;
+   const service=requestUrl.split('/').at(-1)!;
    if(!init?.method || init.method==='GET')return new Response(service==='mesa'?'{"success":true}':'{"success":false}',{status:service==='mesa'?200:404});
    assert.equal(init.method,'PUT');assert.equal(service,'mesa-2');
    const reserved=await db.get(`hostnames/${service}.testing.workers.dev`);assert.equal(reserved?.data.restaurantId,rid);assert.equal(reserved?.data.status,'provisioning');uploads.push(service);return Response.json({success:true});
@@ -229,15 +230,15 @@ void test('order API rejects publication changed between validation and atomic c
  const input={operationKey:crypto.randomUUID(),menuVersion:1,alias:'Ficticio',lines:[{dishId:'dish',quantity:1,selections:[],note:''}],expectedTotalCents:500};
  const request=(payload:unknown)=>handleApi(new Request('https://example.test/api/v1/orders',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(payload)}),{async read(){return {revision:1,state};},async readMenu(){return {revision:1,state};},async commit(){throw Error('Orders never save catalog');},async mediaGet(){return null;},async mediaPut(){}},{publicKey:'',setupToken:'',runtime:'cloud',ownerAccess:true,grantedFeatures:['orders'],orderStore:orders});
  try{
-   const rejected=await request(input);assert.equal(rejected.status,409);assert.match((await rejected.json() as any).error,/La carta cambió/);assert.equal((await db.all(`restaurants/${rid}/orders`)).length,0);assert.equal((await db.all(`restaurants/${rid}/orderOperations`)).length,0);assert.equal((await db.all(`restaurants/${rid}/notifications`)).length,0);
-   state.published!.version=2;state.published!.catalog.dishes[0].priceCents=1000;const acceptedInput={...input,menuVersion:2,expectedTotalCents:1000};const accepted=await request(acceptedInput);assert.equal(accepted.status,201);const acceptedBody=await accepted.json() as any;
+   const rejected=await request(input);assert.equal(rejected.status,409);assert.match((await rejected.json() as {error:string}).error,/La carta cambió/);assert.equal((await db.all(`restaurants/${rid}/orders`)).length,0);assert.equal((await db.all(`restaurants/${rid}/orderOperations`)).length,0);assert.equal((await db.all(`restaurants/${rid}/notifications`)).length,0);
+   state.published!.version=2;state.published!.catalog.dishes[0].priceCents=1000;const acceptedInput={...input,menuVersion:2,expectedTotalCents:1000};const accepted=await request(acceptedInput);assert.equal(accepted.status,201);const acceptedBody=await accepted.json() as {order:{id:string}};
    state.published!.version=3;state.published!.catalog.dishes[0].priceCents=1500;await original([{path:'restaurants/'+rid,data:{published:{version:3},publishedCatalogId:'v3'}}]);
-   const retry=await request(acceptedInput);assert.equal(retry.status,201);assert.equal((await retry.json() as any).order.id,acceptedBody.order.id);assert.equal((await db.all(`restaurants/${rid}/orders`)).length,1);
+   const retry=await request(acceptedInput);assert.equal(retry.status,201);assert.equal((await retry.json() as {order:{id:string}}).order.id,acceptedBody.order.id);assert.equal((await db.all(`restaurants/${rid}/orders`)).length,1);
    const operation=(await orders.operation(rid,input.operationKey))!;
    operation.order.publicExpiresAt=new Date(Date.now()-1000).toISOString();
    await original([{path:'restaurants/'+rid+'/orderOperations/'+input.operationKey,data:operation}]);
    const expired=await request(acceptedInput);assert.equal(expired.status,410);
-   const expiredBody=await expired.json() as any;assert.equal(expiredBody.order,undefined);assert.equal(expiredBody.publicUrl,undefined);
+   const expiredBody=await expired.json() as {order?:unknown;publicUrl?:unknown};assert.equal(expiredBody.order,undefined);assert.equal(expiredBody.publicUrl,undefined);
    assert.equal((await db.all('restaurants/'+rid+'/orders')).length,1);assert.ok(await orders.operation(rid,input.operationKey));
  }finally{sqlite.close();}
 });

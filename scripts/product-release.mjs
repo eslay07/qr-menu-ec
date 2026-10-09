@@ -105,9 +105,9 @@ if (mode === '--stage') {
   if(mode==='--activate'){
     try{
       const expected=await readFile('dist-worker/index.html','utf8');
-      const paths=Array.from(expected.matchAll(/(?:src|href)="(\/assets\/[^\"]+)"/g), match => match[1]);
+      const paths=Array.from(expected.matchAll(/(?:src|href)="(\/assets\/[^"]+)"/g), match => match[1]);
       const html=await waitForReleaseHtml(() => fetch(origin+'/owner',{signal:AbortSignal.timeout(60000)}),paths);
-      for(const match of expected.matchAll(/(?:src|href)="(\/assets\/[^\"]+)"/g)){
+      for(const match of expected.matchAll(/(?:src|href)="(\/assets\/[^"]+)"/g)){
         const path=match[1];if(!html.includes(path))throw Error('HTML release mismatch.');
         const result=await fetch(origin+path,{signal:AbortSignal.timeout(60000)});
         if(!result.ok || !result.headers.get('content-type')?.startsWith(assetMime(path)))throw Error('Asset content type invalid: '+path);
