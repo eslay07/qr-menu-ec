@@ -206,6 +206,27 @@ export class DomainService {
               'Cloudflare no pudo crear la dirección gratuita.',
           );
         }
+        const enabled = await fetch(scriptUrl + '/subdomain', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${this.env.CLOUDFLARE_API_TOKEN}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ enabled: true, previews_enabled: false }),
+          signal: AbortSignal.timeout(15000),
+        });
+        if (!enabled.ok || !(await enabled.json() as { success?: boolean }).success)
+          throw Error('Cloudflare no pudo activar la dirección workers.dev.');
+        // The public menu may not exist yet. The owner shell checks TLS and the
+        // CORE service route without exposing or publishing a restaurant draft.
+        let ready = false;
+        for (let attempt = 0; attempt < 3; attempt++) {
+          try {
+            const probe = await fetch(`https://${hostname}/owner`, { redirect: 'error', signal: AbortSignal.timeout(10000) });
+            ready = probe.ok && (probe.headers.get('content-type') || '').includes('text/html');
+            await probe.body?.cancel();
+            if (ready) break;
+          } catch { /* Propagation can precede TLS readiness. Keep the reservation pending. */ }
+          if (attempt < 2) await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)));
+        }
+        if (!ready) throw Error('La dirección necesita verificación HTTPS antes de activarse.');
         const now = new Date().toISOString();
         if (this.firestore) {
           await this.firestore.save(this.record(restaurantId, hostname, 'workers_dev', { status: 'active', provider: 'cloudflare_workers', serviceName }));

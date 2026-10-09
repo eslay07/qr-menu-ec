@@ -1,0 +1,969 @@
+{
+  "recordedAt": "2026-10-09T15:39:21.649Z",
+  "limitations": [
+    "Local fixture API, controlled 150ms; real recalculation function but no persistence, Firebase or Turnstile",
+    "Emulated network/CPU, automation overhead, no physical phone"
+  ],
+  "results": [
+    {
+      "size": 10,
+      "interaction": "cart-decrease",
+      "iteration": 1,
+      "ms": 346.22200000000066
+    },
+    {
+      "size": 10,
+      "interaction": "cart-remove",
+      "iteration": 1,
+      "ms": 155.57390000000032
+    },
+    {
+      "size": 10,
+      "interaction": "cart-empty",
+      "iteration": 1,
+      "ms": 265.0033000000003
+    },
+    {
+      "size": 10,
+      "interaction": "order-create",
+      "iteration": 1,
+      "ms": 755.6527000000006
+    },
+    {
+      "size": 10,
+      "interaction": "cart-decrease",
+      "iteration": 2,
+      "ms": 260.7709999999988
+    },
+    {
+      "size": 10,
+      "interaction": "cart-remove",
+      "iteration": 2,
+      "ms": 158.53989999999976
+    },
+    {
+      "size": 10,
+      "interaction": "cart-empty",
+      "iteration": 2,
+      "ms": 234.70919999999933
+    },
+    {
+      "size": 10,
+      "interaction": "order-create",
+      "iteration": 2,
+      "ms": 469.72669999999925
+    },
+    {
+      "size": 10,
+      "interaction": "cart-decrease",
+      "iteration": 3,
+      "ms": 267.4936999999991
+    },
+    {
+      "size": 10,
+      "interaction": "cart-remove",
+      "iteration": 3,
+      "ms": 221.98329999999987
+    },
+    {
+      "size": 10,
+      "interaction": "cart-empty",
+      "iteration": 3,
+      "ms": 249.73400000000038
+    },
+    {
+      "size": 10,
+      "interaction": "order-create",
+      "iteration": 3,
+      "ms": 471.53829999999834
+    },
+    {
+      "size": 10,
+      "interaction": "cart-decrease",
+      "iteration": 4,
+      "ms": 278.1748000000007
+    },
+    {
+      "size": 10,
+      "interaction": "cart-remove",
+      "iteration": 4,
+      "ms": 159.77530000000115
+    },
+    {
+      "size": 10,
+      "interaction": "cart-empty",
+      "iteration": 4,
+      "ms": 286.3629000000001
+    },
+    {
+      "size": 10,
+      "interaction": "order-create",
+      "iteration": 4,
+      "ms": 467.4527999999991
+    },
+    {
+      "size": 10,
+      "interaction": "cart-decrease",
+      "iteration": 5,
+      "ms": 307.5568999999996
+    },
+    {
+      "size": 10,
+      "interaction": "cart-remove",
+      "iteration": 5,
+      "ms": 155.91059999999925
+    },
+    {
+      "size": 10,
+      "interaction": "cart-empty",
+      "iteration": 5,
+      "ms": 228.971800000003
+    },
+    {
+      "size": 10,
+      "interaction": "order-create",
+      "iteration": 5,
+      "ms": 401.21529999999984
+    },
+    {
+      "size": 10,
+      "interaction": "cart-decrease",
+      "iteration": 6,
+      "ms": 347.6815999999999
+    },
+    {
+      "size": 10,
+      "interaction": "cart-remove",
+      "iteration": 6,
+      "ms": 198.01469999999972
+    },
+    {
+      "size": 10,
+      "interaction": "cart-empty",
+      "iteration": 6,
+      "ms": 248.65949999999793
+    },
+    {
+      "size": 10,
+      "interaction": "order-create",
+      "iteration": 6,
+      "ms": 453.6678000000029
+    },
+    {
+      "size": 10,
+      "interaction": "cart-decrease",
+      "iteration": 7,
+      "ms": 312.46700000000055
+    },
+    {
+      "size": 10,
+      "interaction": "cart-remove",
+      "iteration": 7,
+      "ms": 153.40030000000115
+    },
+    {
+      "size": 10,
+      "interaction": "cart-empty",
+      "iteration": 7,
+      "ms": 224.1322
+    },
+    {
+      "size": 10,
+      "interaction": "order-create",
+      "iteration": 7,
+      "ms": 531.7777999999998
+    },
+    {
+      "size": 10,
+      "interaction": "cart-decrease",
+      "iteration": 8,
+      "ms": 306.63590000000113
+    },
+    {
+      "size": 10,
+      "interaction": "cart-remove",
+      "iteration": 8,
+      "ms": 179.58830000000307
+    },
+    {
+      "size": 10,
+      "interaction": "cart-empty",
+      "iteration": 8,
+      "ms": 209.6195000000007
+    },
+    {
+      "size": 10,
+      "interaction": "order-create",
+      "iteration": 8,
+      "ms": 426.46740000000136
+    },
+    {
+      "size": 10,
+      "interaction": "cart-decrease",
+      "iteration": 9,
+      "ms": 248.04629999999452
+    },
+    {
+      "size": 10,
+      "interaction": "cart-remove",
+      "iteration": 9,
+      "ms": 192.06379999999626
+    },
+    {
+      "size": 10,
+      "interaction": "cart-empty",
+      "iteration": 9,
+      "ms": 274.0590999999986
+    },
+    {
+      "size": 10,
+      "interaction": "order-create",
+      "iteration": 9,
+      "ms": 491.6667000000016
+    },
+    {
+      "size": 10,
+      "interaction": "cart-decrease",
+      "iteration": 10,
+      "ms": 259.54269999999815
+    },
+    {
+      "size": 10,
+      "interaction": "cart-remove",
+      "iteration": 10,
+      "ms": 146.3481000000029
+    },
+    {
+      "size": 10,
+      "interaction": "cart-empty",
+      "iteration": 10,
+      "ms": 259.6218000000008
+    },
+    {
+      "size": 10,
+      "interaction": "order-create",
+      "iteration": 10,
+      "ms": 505.7845000000016
+    },
+    {
+      "size": 10,
+      "interaction": "cart-decrease",
+      "iteration": 11,
+      "ms": 255.9545999999973
+    },
+    {
+      "size": 10,
+      "interaction": "cart-remove",
+      "iteration": 11,
+      "ms": 157.72090000000026
+    },
+    {
+      "size": 10,
+      "interaction": "cart-empty",
+      "iteration": 11,
+      "ms": 268.98159999999916
+    },
+    {
+      "size": 10,
+      "interaction": "order-create",
+      "iteration": 11,
+      "ms": 429.72490000000107
+    },
+    {
+      "size": 10,
+      "interaction": "cart-decrease",
+      "iteration": 12,
+      "ms": 257.5801999999967
+    },
+    {
+      "size": 10,
+      "interaction": "cart-remove",
+      "iteration": 12,
+      "ms": 146.63849999999366
+    },
+    {
+      "size": 10,
+      "interaction": "cart-empty",
+      "iteration": 12,
+      "ms": 256.62199999999575
+    },
+    {
+      "size": 10,
+      "interaction": "order-create",
+      "iteration": 12,
+      "ms": 475.5336000000025
+    },
+    {
+      "size": 10,
+      "interaction": "cart-decrease",
+      "iteration": 13,
+      "ms": 356.217899999996
+    },
+    {
+      "size": 10,
+      "interaction": "cart-remove",
+      "iteration": 13,
+      "ms": 191.34919999999693
+    },
+    {
+      "size": 10,
+      "interaction": "cart-empty",
+      "iteration": 13,
+      "ms": 277.60280000000057
+    },
+    {
+      "size": 10,
+      "interaction": "order-create",
+      "iteration": 13,
+      "ms": 491.69860000000335
+    },
+    {
+      "size": 10,
+      "interaction": "cart-decrease",
+      "iteration": 14,
+      "ms": 270.2794999999969
+    },
+    {
+      "size": 10,
+      "interaction": "cart-remove",
+      "iteration": 14,
+      "ms": 162.97720000000118
+    },
+    {
+      "size": 10,
+      "interaction": "cart-empty",
+      "iteration": 14,
+      "ms": 234.15349999999307
+    },
+    {
+      "size": 10,
+      "interaction": "order-create",
+      "iteration": 14,
+      "ms": 535.6258999999991
+    },
+    {
+      "size": 10,
+      "interaction": "cart-decrease",
+      "iteration": 15,
+      "ms": 322.1790000000037
+    },
+    {
+      "size": 10,
+      "interaction": "cart-remove",
+      "iteration": 15,
+      "ms": 157.34320000000298
+    },
+    {
+      "size": 10,
+      "interaction": "cart-empty",
+      "iteration": 15,
+      "ms": 336.6716000000015
+    },
+    {
+      "size": 10,
+      "interaction": "order-create",
+      "iteration": 15,
+      "ms": 429.79499999999825
+    },
+    {
+      "size": 10,
+      "interaction": "cart-decrease",
+      "iteration": 16,
+      "ms": 275.6982999999964
+    },
+    {
+      "size": 10,
+      "interaction": "cart-remove",
+      "iteration": 16,
+      "ms": 137.85899999999674
+    },
+    {
+      "size": 10,
+      "interaction": "cart-empty",
+      "iteration": 16,
+      "ms": 235.2523000000001
+    },
+    {
+      "size": 10,
+      "interaction": "order-create",
+      "iteration": 16,
+      "ms": 482.53600000000733
+    },
+    {
+      "size": 10,
+      "interaction": "cart-decrease",
+      "iteration": 17,
+      "ms": 256.9447000000073
+    },
+    {
+      "size": 10,
+      "interaction": "cart-remove",
+      "iteration": 17,
+      "ms": 192.4258000000118
+    },
+    {
+      "size": 10,
+      "interaction": "cart-empty",
+      "iteration": 17,
+      "ms": 259.58750000000873
+    },
+    {
+      "size": 10,
+      "interaction": "order-create",
+      "iteration": 17,
+      "ms": 496.94430000000284
+    },
+    {
+      "size": 10,
+      "interaction": "cart-decrease",
+      "iteration": 18,
+      "ms": 259.9002999999939
+    },
+    {
+      "size": 10,
+      "interaction": "cart-remove",
+      "iteration": 18,
+      "ms": 153.63920000000508
+    },
+    {
+      "size": 10,
+      "interaction": "cart-empty",
+      "iteration": 18,
+      "ms": 229.57140000000072
+    },
+    {
+      "size": 10,
+      "interaction": "order-create",
+      "iteration": 18,
+      "ms": 495.770199999999
+    },
+    {
+      "size": 10,
+      "interaction": "cart-decrease",
+      "iteration": 19,
+      "ms": 256.777700000006
+    },
+    {
+      "size": 10,
+      "interaction": "cart-remove",
+      "iteration": 19,
+      "ms": 142.92300000000978
+    },
+    {
+      "size": 10,
+      "interaction": "cart-empty",
+      "iteration": 19,
+      "ms": 219.27000000000407
+    },
+    {
+      "size": 10,
+      "interaction": "order-create",
+      "iteration": 19,
+      "ms": 449.5543000000034
+    },
+    {
+      "size": 10,
+      "interaction": "cart-decrease",
+      "iteration": 20,
+      "ms": 258.88730000000214
+    },
+    {
+      "size": 10,
+      "interaction": "cart-remove",
+      "iteration": 20,
+      "ms": 148.5043999999907
+    },
+    {
+      "size": 10,
+      "interaction": "cart-empty",
+      "iteration": 20,
+      "ms": 259.6579000000056
+    },
+    {
+      "size": 10,
+      "interaction": "order-create",
+      "iteration": 20,
+      "ms": 445.5735999999888
+    },
+    {
+      "size": 40,
+      "interaction": "cart-decrease",
+      "iteration": 1,
+      "ms": 363.4247999999934
+    },
+    {
+      "size": 40,
+      "interaction": "cart-remove",
+      "iteration": 1,
+      "ms": 203.1197000000102
+    },
+    {
+      "size": 40,
+      "interaction": "cart-empty",
+      "iteration": 1,
+      "ms": 292.69229999999516
+    },
+    {
+      "size": 40,
+      "interaction": "order-create",
+      "iteration": 1,
+      "ms": 667.431700000001
+    },
+    {
+      "size": 40,
+      "interaction": "cart-decrease",
+      "iteration": 2,
+      "ms": 327.2520000000077
+    },
+    {
+      "size": 40,
+      "interaction": "cart-remove",
+      "iteration": 2,
+      "ms": 180.77240000000165
+    },
+    {
+      "size": 40,
+      "interaction": "cart-empty",
+      "iteration": 2,
+      "ms": 282.4320000000007
+    },
+    {
+      "size": 40,
+      "interaction": "order-create",
+      "iteration": 2,
+      "ms": 393.41939999999886
+    },
+    {
+      "size": 40,
+      "interaction": "cart-decrease",
+      "iteration": 3,
+      "ms": 473.5344000000041
+    },
+    {
+      "size": 40,
+      "interaction": "cart-remove",
+      "iteration": 3,
+      "ms": 287.8107000000018
+    },
+    {
+      "size": 40,
+      "interaction": "cart-empty",
+      "iteration": 3,
+      "ms": 381.9002999999939
+    },
+    {
+      "size": 40,
+      "interaction": "order-create",
+      "iteration": 3,
+      "ms": 606.8254999999917
+    },
+    {
+      "size": 40,
+      "interaction": "cart-decrease",
+      "iteration": 4,
+      "ms": 342.43369999999413
+    },
+    {
+      "size": 40,
+      "interaction": "cart-remove",
+      "iteration": 4,
+      "ms": 303.38589999999385
+    },
+    {
+      "size": 40,
+      "interaction": "cart-empty",
+      "iteration": 4,
+      "ms": 310.58490000000165
+    },
+    {
+      "size": 40,
+      "interaction": "order-create",
+      "iteration": 4,
+      "ms": 465.4233999999997
+    },
+    {
+      "size": 40,
+      "interaction": "cart-decrease",
+      "iteration": 5,
+      "ms": 342.2158000000054
+    },
+    {
+      "size": 40,
+      "interaction": "cart-remove",
+      "iteration": 5,
+      "ms": 217.5527000000002
+    },
+    {
+      "size": 40,
+      "interaction": "cart-empty",
+      "iteration": 5,
+      "ms": 900.1631000000052
+    },
+    {
+      "size": 40,
+      "interaction": "order-create",
+      "iteration": 5,
+      "ms": 601.5761999999959
+    },
+    {
+      "size": 40,
+      "interaction": "cart-decrease",
+      "iteration": 6,
+      "ms": 319.6143999999913
+    },
+    {
+      "size": 40,
+      "interaction": "cart-remove",
+      "iteration": 6,
+      "ms": 198.30820000001404
+    },
+    {
+      "size": 40,
+      "interaction": "cart-empty",
+      "iteration": 6,
+      "ms": 283.4948000000004
+    },
+    {
+      "size": 40,
+      "interaction": "order-create",
+      "iteration": 6,
+      "ms": 430.3634999999922
+    },
+    {
+      "size": 40,
+      "interaction": "cart-decrease",
+      "iteration": 7,
+      "ms": 259.69280000000435
+    },
+    {
+      "size": 40,
+      "interaction": "cart-remove",
+      "iteration": 7,
+      "ms": 146.34289999998873
+    },
+    {
+      "size": 40,
+      "interaction": "cart-empty",
+      "iteration": 7,
+      "ms": 235.3691000000108
+    },
+    {
+      "size": 40,
+      "interaction": "order-create",
+      "iteration": 7,
+      "ms": 454.96710000000894
+    },
+    {
+      "size": 40,
+      "interaction": "cart-decrease",
+      "iteration": 8,
+      "ms": 364.3210999999865
+    },
+    {
+      "size": 40,
+      "interaction": "cart-remove",
+      "iteration": 8,
+      "ms": 194.9557999999961
+    },
+    {
+      "size": 40,
+      "interaction": "cart-empty",
+      "iteration": 8,
+      "ms": 254.9418000000005
+    },
+    {
+      "size": 40,
+      "interaction": "order-create",
+      "iteration": 8,
+      "ms": 427.170100000003
+    },
+    {
+      "size": 40,
+      "interaction": "cart-decrease",
+      "iteration": 9,
+      "ms": 295.6738000000041
+    },
+    {
+      "size": 40,
+      "interaction": "cart-remove",
+      "iteration": 9,
+      "ms": 219.59270000000834
+    },
+    {
+      "size": 40,
+      "interaction": "cart-empty",
+      "iteration": 9,
+      "ms": 295.55079999999725
+    },
+    {
+      "size": 40,
+      "interaction": "order-create",
+      "iteration": 9,
+      "ms": 460.7841000000044
+    },
+    {
+      "size": 40,
+      "interaction": "cart-decrease",
+      "iteration": 10,
+      "ms": 336.611699999994
+    },
+    {
+      "size": 40,
+      "interaction": "cart-remove",
+      "iteration": 10,
+      "ms": 195.04159999999683
+    },
+    {
+      "size": 40,
+      "interaction": "cart-empty",
+      "iteration": 10,
+      "ms": 294.574099999998
+    },
+    {
+      "size": 40,
+      "interaction": "order-create",
+      "iteration": 10,
+      "ms": 489.8148999999976
+    },
+    {
+      "size": 40,
+      "interaction": "cart-decrease",
+      "iteration": 11,
+      "ms": 317.26050000000396
+    },
+    {
+      "size": 40,
+      "interaction": "cart-remove",
+      "iteration": 11,
+      "ms": 210.8002999999735
+    },
+    {
+      "size": 40,
+      "interaction": "cart-empty",
+      "iteration": 11,
+      "ms": 196.4728999999934
+    },
+    {
+      "size": 40,
+      "interaction": "order-create",
+      "iteration": 11,
+      "ms": 560.2874000000011
+    },
+    {
+      "size": 40,
+      "interaction": "cart-decrease",
+      "iteration": 12,
+      "ms": 328.1146000000008
+    },
+    {
+      "size": 40,
+      "interaction": "cart-remove",
+      "iteration": 12,
+      "ms": 220.4036999999953
+    },
+    {
+      "size": 40,
+      "interaction": "cart-empty",
+      "iteration": 12,
+      "ms": 275.8189999999886
+    },
+    {
+      "size": 40,
+      "interaction": "order-create",
+      "iteration": 12,
+      "ms": 419.35719999999856
+    },
+    {
+      "size": 40,
+      "interaction": "cart-decrease",
+      "iteration": 13,
+      "ms": 325.82180000000517
+    },
+    {
+      "size": 40,
+      "interaction": "cart-remove",
+      "iteration": 13,
+      "ms": 184.83660000000964
+    },
+    {
+      "size": 40,
+      "interaction": "cart-empty",
+      "iteration": 13,
+      "ms": 297.6137999999919
+    },
+    {
+      "size": 40,
+      "interaction": "order-create",
+      "iteration": 13,
+      "ms": 420.3098000000173
+    },
+    {
+      "size": 40,
+      "interaction": "cart-decrease",
+      "iteration": 14,
+      "ms": 405.95389999999315
+    },
+    {
+      "size": 40,
+      "interaction": "cart-remove",
+      "iteration": 14,
+      "ms": 196.97830000001704
+    },
+    {
+      "size": 40,
+      "interaction": "cart-empty",
+      "iteration": 14,
+      "ms": 278.2295999999915
+    },
+    {
+      "size": 40,
+      "interaction": "order-create",
+      "iteration": 14,
+      "ms": 403.61979999998584
+    },
+    {
+      "size": 40,
+      "interaction": "cart-decrease",
+      "iteration": 15,
+      "ms": 414.38829999999143
+    },
+    {
+      "size": 40,
+      "interaction": "cart-remove",
+      "iteration": 15,
+      "ms": 201.6085000000021
+    },
+    {
+      "size": 40,
+      "interaction": "cart-empty",
+      "iteration": 15,
+      "ms": 267.0905999999959
+    },
+    {
+      "size": 40,
+      "interaction": "order-create",
+      "iteration": 15,
+      "ms": 416.5845000000263
+    },
+    {
+      "size": 40,
+      "interaction": "cart-decrease",
+      "iteration": 16,
+      "ms": 289.32070000001113
+    },
+    {
+      "size": 40,
+      "interaction": "cart-remove",
+      "iteration": 16,
+      "ms": 136.16849999999977
+    },
+    {
+      "size": 40,
+      "interaction": "cart-empty",
+      "iteration": 16,
+      "ms": 319.51010000001406
+    },
+    {
+      "size": 40,
+      "interaction": "order-create",
+      "iteration": 16,
+      "ms": 458.70840000000317
+    },
+    {
+      "size": 40,
+      "interaction": "cart-decrease",
+      "iteration": 17,
+      "ms": 474.2274000000034
+    },
+    {
+      "size": 40,
+      "interaction": "cart-remove",
+      "iteration": 17,
+      "ms": 193.66169999999693
+    },
+    {
+      "size": 40,
+      "interaction": "cart-empty",
+      "iteration": 17,
+      "ms": 275.453199999989
+    },
+    {
+      "size": 40,
+      "interaction": "order-create",
+      "iteration": 17,
+      "ms": 500.7670999999973
+    },
+    {
+      "size": 40,
+      "interaction": "cart-decrease",
+      "iteration": 18,
+      "ms": 321.9475000000093
+    },
+    {
+      "size": 40,
+      "interaction": "cart-remove",
+      "iteration": 18,
+      "ms": 199.98240000000806
+    },
+    {
+      "size": 40,
+      "interaction": "cart-empty",
+      "iteration": 18,
+      "ms": 261.2543000000005
+    },
+    {
+      "size": 40,
+      "interaction": "order-create",
+      "iteration": 18,
+      "ms": 403.81950000001234
+    },
+    {
+      "size": 40,
+      "interaction": "cart-decrease",
+      "iteration": 19,
+      "ms": 352.48180000000866
+    },
+    {
+      "size": 40,
+      "interaction": "cart-remove",
+      "iteration": 19,
+      "ms": 171.97600000002421
+    },
+    {
+      "size": 40,
+      "interaction": "cart-empty",
+      "iteration": 19,
+      "ms": 286.52390000000014
+    },
+    {
+      "size": 40,
+      "interaction": "order-create",
+      "iteration": 19,
+      "ms": 474.32929999998305
+    },
+    {
+      "size": 40,
+      "interaction": "cart-decrease",
+      "iteration": 20,
+      "ms": 281.73850000000675
+    },
+    {
+      "size": 40,
+      "interaction": "cart-remove",
+      "iteration": 20,
+      "ms": 167.7562999999791
+    },
+    {
+      "size": 40,
+      "interaction": "cart-empty",
+      "iteration": 20,
+      "ms": 324.75459999998566
+    },
+    {
+      "size": 40,
+      "interaction": "order-create",
+      "iteration": 20,
+      "ms": 461.9582999999984
+    }
+  ]
+}

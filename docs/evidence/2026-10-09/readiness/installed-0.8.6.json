@@ -1,0 +1,11 @@
+{
+  "adbInstallUsed": false,
+  "installedApkSha256": "4cf8889329bf591573e0551085c8e4f71f4df1e56bb82d8a428694d2af233795",
+  "matchesDeployedApk": true,
+  "qrPhysicalScan": "Performed and confirmed by owner; public restaurant alias separately verified",
+  "checkedAt": "2026-10-09T15:40:12.0563346Z",
+  "phone": "Honor LNA-LX3",
+  "versionName": "0.8.6",
+  "versionCode": 17,
+  "tenReopenSequenceVersion": "0.8.5"
+}

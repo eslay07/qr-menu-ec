@@ -1,0 +1,63 @@
+{
+  "checkedAt": "2026-10-09T15:09:43.758Z",
+  "sourceCommit": "24d82c8596f1ba6d55f2a868c6ba6d45db99fc1d",
+  "versionId": "ca6c0ddb-6727-438f-909e-0a0917232597",
+  "rollbackVersion": "9d9d6bf3-85b5-4043-afec-bbdfdf90c6c7",
+  "traffic": 100,
+  "android": {
+    "versionCode": 17,
+    "versionName": "0.8.6",
+    "url": "https://qr-menu-ec.consola.workers.dev/downloads/qr-menu-ec.apk",
+    "sha256": "4cf8889329bf591573e0551085c8e4f71f4df1e56bb82d8a428694d2af233795",
+    "size": 8502129,
+    "certificateSha256": "0e76175d89b42ca667d1557fe1df8d47f44a2c5e79b4d9d570a863bf52d83b6c"
+  },
+  "aliases": [
+    {
+      "url": "https://qa-ficticio-octubre-2026.consola.workers.dev/api/v1/menu",
+      "status": 200,
+      "version": 14,
+      "dishes": 40
+    },
+    {
+      "url": "https://qr-menu-ec.consola.workers.dev/r/76d3def9-52e9-4779-b048-1242f45c634e/api/v1/menu",
+      "status": 200,
+      "version": 14,
+      "dishes": 40
+    },
+    {
+      "url": "https://qr-menu-ec.consola.workers.dev/m/qa-ficticio-octubre-2026/api/v1/menu",
+      "status": 200,
+      "version": 14,
+      "dishes": 40
+    }
+  ],
+  "privateChecks": [
+    {
+      "endpoint": "state",
+      "status": 401,
+      "cache": "no-store"
+    },
+    {
+      "endpoint": "orders",
+      "status": 401,
+      "cache": "no-store"
+    },
+    {
+      "endpoint": "sessions",
+      "status": 401,
+      "cache": "no-store"
+    },
+    {
+      "endpoint": "backups",
+      "status": 401,
+      "cache": "no-store"
+    },
+    {
+      "endpoint": "notifications",
+      "status": 401,
+      "cache": "no-store"
+    }
+  ],
+  "installedOnPhone": false
+}

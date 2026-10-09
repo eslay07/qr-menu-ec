@@ -1,0 +1,209 @@
+{
+  "limitations": [
+    "Mocked credentials/session API with 150 ms controlled RTT; no actual Firebase token or password validation",
+    "Android userAgent simulates WebView routing only, not physical Android",
+    "Durations include navigation and automation overhead"
+  ],
+  "results": [
+    {
+      "mode": "login",
+      "iteration": 1,
+      "ms": 2886.3181999999997
+    },
+    {
+      "mode": "login",
+      "iteration": 2,
+      "ms": 2044.7750999999998
+    },
+    {
+      "mode": "login",
+      "iteration": 3,
+      "ms": 2017.1041999999998
+    },
+    {
+      "mode": "login",
+      "iteration": 4,
+      "ms": 2053.509400000001
+    },
+    {
+      "mode": "login",
+      "iteration": 5,
+      "ms": 1983.278199999997
+    },
+    {
+      "mode": "login",
+      "iteration": 6,
+      "ms": 2101.1382999999987
+    },
+    {
+      "mode": "login",
+      "iteration": 7,
+      "ms": 2171.6406000000025
+    },
+    {
+      "mode": "login",
+      "iteration": 8,
+      "ms": 2036.5195000000022
+    },
+    {
+      "mode": "login",
+      "iteration": 9,
+      "ms": 2026.7657
+    },
+    {
+      "mode": "login",
+      "iteration": 10,
+      "ms": 2097.0323999999964
+    },
+    {
+      "mode": "login",
+      "iteration": 11,
+      "ms": 2095.632899999997
+    },
+    {
+      "mode": "login",
+      "iteration": 12,
+      "ms": 2030.1038000000044
+    },
+    {
+      "mode": "login",
+      "iteration": 13,
+      "ms": 1998.2406999999948
+    },
+    {
+      "mode": "login",
+      "iteration": 14,
+      "ms": 2071.119200000001
+    },
+    {
+      "mode": "login",
+      "iteration": 15,
+      "ms": 2131.6636
+    },
+    {
+      "mode": "login",
+      "iteration": 16,
+      "ms": 1771.4348000000027
+    },
+    {
+      "mode": "login",
+      "iteration": 17,
+      "ms": 1966.393299999996
+    },
+    {
+      "mode": "login",
+      "iteration": 18,
+      "ms": 1950.7373000000007
+    },
+    {
+      "mode": "login",
+      "iteration": 19,
+      "ms": 2184.890100000004
+    },
+    {
+      "mode": "login",
+      "iteration": 20,
+      "ms": 2031.921500000004
+    },
+    {
+      "mode": "remembered-refresh",
+      "iteration": 1,
+      "ms": 4723.303500000002
+    },
+    {
+      "mode": "remembered-refresh",
+      "iteration": 2,
+      "ms": 2306.1947999999975
+    },
+    {
+      "mode": "remembered-refresh",
+      "iteration": 3,
+      "ms": 2729.9642999999924
+    },
+    {
+      "mode": "remembered-refresh",
+      "iteration": 4,
+      "ms": 2751.9919999999984
+    },
+    {
+      "mode": "remembered-refresh",
+      "iteration": 5,
+      "ms": 2696.4755000000005
+    },
+    {
+      "mode": "remembered-refresh",
+      "iteration": 6,
+      "ms": 2745.4290000000037
+    },
+    {
+      "mode": "remembered-refresh",
+      "iteration": 7,
+      "ms": 2766.6566999999923
+    },
+    {
+      "mode": "remembered-refresh",
+      "iteration": 8,
+      "ms": 2461.3166999999958
+    },
+    {
+      "mode": "remembered-refresh",
+      "iteration": 9,
+      "ms": 2675.2901999999885
+    },
+    {
+      "mode": "remembered-refresh",
+      "iteration": 10,
+      "ms": 2702.133600000001
+    },
+    {
+      "mode": "remembered-refresh",
+      "iteration": 11,
+      "ms": 2688.8571999999986
+    },
+    {
+      "mode": "remembered-refresh",
+      "iteration": 12,
+      "ms": 2226.266499999998
+    },
+    {
+      "mode": "remembered-refresh",
+      "iteration": 13,
+      "ms": 2801.2060000000056
+    },
+    {
+      "mode": "remembered-refresh",
+      "iteration": 14,
+      "ms": 2944.419299999994
+    },
+    {
+      "mode": "remembered-refresh",
+      "iteration": 15,
+      "ms": 2633.2897999999986
+    },
+    {
+      "mode": "remembered-refresh",
+      "iteration": 16,
+      "ms": 2731.6281000000017
+    },
+    {
+      "mode": "remembered-refresh",
+      "iteration": 17,
+      "ms": 2804.1489999999903
+    },
+    {
+      "mode": "remembered-refresh",
+      "iteration": 18,
+      "ms": 2951.487300000008
+    },
+    {
+      "mode": "remembered-refresh",
+      "iteration": 19,
+      "ms": 2921.6600000000035
+    },
+    {
+      "mode": "remembered-refresh",
+      "iteration": 20,
+      "ms": 2859.0195999999996
+    }
+  ]
+}

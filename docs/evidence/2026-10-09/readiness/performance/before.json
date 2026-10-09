@@ -1,0 +1,958 @@
+{
+  "recordedAt": "2026-10-09T15:31:06.461Z",
+  "profile": {
+    "width": 390,
+    "cpu": 4,
+    "downloadMbps": 1.6,
+    "uploadKbps": 750,
+    "latencyMs": 150
+  },
+  "limitations": [
+    "Local built SPA with mocked public API; API endpoint does not measure real server latency",
+    "Browser automation duration includes locator/action overhead",
+    "usableMs includes networkidle 500 ms settle; LCP separate",
+    "No physical Android device measurement"
+  ],
+  "results": [
+    {
+      "size": 10,
+      "temperature": "cold",
+      "iteration": 1,
+      "automationSettledMs": 3162.2933,
+      "lcp": 2840,
+      "cls": 0.06454257541384965,
+      "usableMs": 2882.39999999851,
+      "cachedStaticResources": 0,
+      "transfer": 153037
+    },
+    {
+      "size": 10,
+      "temperature": "cold",
+      "iteration": 2,
+      "automationSettledMs": 2643.0449,
+      "lcp": 1972,
+      "cls": 0.06454257541384965,
+      "usableMs": 1962.1999999955297,
+      "cachedStaticResources": 0,
+      "transfer": 153037
+    },
+    {
+      "size": 10,
+      "temperature": "cold",
+      "iteration": 3,
+      "automationSettledMs": 2696.8665,
+      "lcp": 2080,
+      "cls": 0.06454257541384965,
+      "usableMs": 2071.39999999851,
+      "cachedStaticResources": 0,
+      "transfer": 153037
+    },
+    {
+      "size": 10,
+      "temperature": "cold",
+      "iteration": 4,
+      "automationSettledMs": 2540.5944,
+      "lcp": 1960,
+      "cls": 0.06454257541384965,
+      "usableMs": 1946.9000000059605,
+      "cachedStaticResources": 0,
+      "transfer": 153037
+    },
+    {
+      "size": 10,
+      "temperature": "cold",
+      "iteration": 5,
+      "automationSettledMs": 2596.8617000000013,
+      "lcp": 1980,
+      "cls": 0.06454257541384965,
+      "usableMs": 1967.3999999985099,
+      "cachedStaticResources": 0,
+      "transfer": 153037
+    },
+    {
+      "size": 10,
+      "temperature": "warm",
+      "iteration": 1,
+      "automationSettledMs": 1615.2734999999993,
+      "lcp": 1460,
+      "cls": 0.06454257541384965,
+      "usableMs": 1482.2000000029802,
+      "cachedStaticResources": 9,
+      "transfer": 2548
+    },
+    {
+      "size": 10,
+      "temperature": "warm",
+      "iteration": 2,
+      "automationSettledMs": 1721.9068000000007,
+      "lcp": 980,
+      "cls": 0.06454257541384965,
+      "usableMs": 970.2999999970198,
+      "cachedStaticResources": 9,
+      "transfer": 2548
+    },
+    {
+      "size": 10,
+      "temperature": "warm",
+      "iteration": 3,
+      "automationSettledMs": 1566.444199999998,
+      "lcp": 1428,
+      "cls": 0.06454257541384965,
+      "usableMs": 1440.8999999985099,
+      "cachedStaticResources": 9,
+      "transfer": 2548
+    },
+    {
+      "size": 10,
+      "temperature": "warm",
+      "iteration": 4,
+      "automationSettledMs": 1488.8847999999998,
+      "lcp": 1364,
+      "cls": 0.06454257541384965,
+      "usableMs": 1340.6000000014901,
+      "cachedStaticResources": 9,
+      "transfer": 2548
+    },
+    {
+      "size": 10,
+      "temperature": "warm",
+      "iteration": 5,
+      "automationSettledMs": 1579.2907999999989,
+      "lcp": 1404,
+      "cls": 0.06454257541384965,
+      "usableMs": 1430.8999999985099,
+      "cachedStaticResources": 9,
+      "transfer": 2548
+    },
+    {
+      "size": 10,
+      "interaction": "search",
+      "iteration": 1,
+      "ms": 419.6431999999986
+    },
+    {
+      "size": 10,
+      "interaction": "category",
+      "iteration": 1,
+      "ms": 494.7443999999996
+    },
+    {
+      "size": 10,
+      "interaction": "cart-add",
+      "iteration": 1,
+      "ms": 414.5521000000008
+    },
+    {
+      "size": 10,
+      "interaction": "search",
+      "iteration": 2,
+      "ms": 123.39449999999852
+    },
+    {
+      "size": 10,
+      "interaction": "category",
+      "iteration": 2,
+      "ms": 196.2455000000009
+    },
+    {
+      "size": 10,
+      "interaction": "cart-add",
+      "iteration": 2,
+      "ms": 305.5828999999976
+    },
+    {
+      "size": 10,
+      "interaction": "search",
+      "iteration": 3,
+      "ms": 106.39689999999973
+    },
+    {
+      "size": 10,
+      "interaction": "category",
+      "iteration": 3,
+      "ms": 420.3284999999996
+    },
+    {
+      "size": 10,
+      "interaction": "cart-add",
+      "iteration": 3,
+      "ms": 285.9939999999988
+    },
+    {
+      "size": 10,
+      "interaction": "search",
+      "iteration": 4,
+      "ms": 303.3790000000008
+    },
+    {
+      "size": 10,
+      "interaction": "category",
+      "iteration": 4,
+      "ms": 266.4278999999988
+    },
+    {
+      "size": 10,
+      "interaction": "cart-add",
+      "iteration": 4,
+      "ms": 210.45020000000295
+    },
+    {
+      "size": 10,
+      "interaction": "search",
+      "iteration": 5,
+      "ms": 111.03159999999843
+    },
+    {
+      "size": 10,
+      "interaction": "category",
+      "iteration": 5,
+      "ms": 151.54609999999957
+    },
+    {
+      "size": 10,
+      "interaction": "cart-add",
+      "iteration": 5,
+      "ms": 423.78589999999895
+    },
+    {
+      "size": 10,
+      "interaction": "search",
+      "iteration": 6,
+      "ms": 193.08499999999913
+    },
+    {
+      "size": 10,
+      "interaction": "category",
+      "iteration": 6,
+      "ms": 407.91189999999915
+    },
+    {
+      "size": 10,
+      "interaction": "cart-add",
+      "iteration": 6,
+      "ms": 283.1686000000009
+    },
+    {
+      "size": 10,
+      "interaction": "search",
+      "iteration": 7,
+      "ms": 128.26829999999973
+    },
+    {
+      "size": 10,
+      "interaction": "category",
+      "iteration": 7,
+      "ms": 155.64069999999992
+    },
+    {
+      "size": 10,
+      "interaction": "cart-add",
+      "iteration": 7,
+      "ms": 183.34170000000086
+    },
+    {
+      "size": 10,
+      "interaction": "search",
+      "iteration": 8,
+      "ms": 122.33400000000256
+    },
+    {
+      "size": 10,
+      "interaction": "category",
+      "iteration": 8,
+      "ms": 221.19440000000031
+    },
+    {
+      "size": 10,
+      "interaction": "cart-add",
+      "iteration": 8,
+      "ms": 348.5477000000028
+    },
+    {
+      "size": 10,
+      "interaction": "search",
+      "iteration": 9,
+      "ms": 191.8842999999979
+    },
+    {
+      "size": 10,
+      "interaction": "category",
+      "iteration": 9,
+      "ms": 326.76030000000173
+    },
+    {
+      "size": 10,
+      "interaction": "cart-add",
+      "iteration": 9,
+      "ms": 236.90030000000115
+    },
+    {
+      "size": 10,
+      "interaction": "search",
+      "iteration": 10,
+      "ms": 128.79849999999715
+    },
+    {
+      "size": 10,
+      "interaction": "category",
+      "iteration": 10,
+      "ms": 271.36529999999766
+    },
+    {
+      "size": 10,
+      "interaction": "cart-add",
+      "iteration": 10,
+      "ms": 254.4699000000037
+    },
+    {
+      "size": 10,
+      "interaction": "search",
+      "iteration": 11,
+      "ms": 172.46160000000236
+    },
+    {
+      "size": 10,
+      "interaction": "category",
+      "iteration": 11,
+      "ms": 104.75850000000355
+    },
+    {
+      "size": 10,
+      "interaction": "cart-add",
+      "iteration": 11,
+      "ms": 251.93829999999434
+    },
+    {
+      "size": 10,
+      "interaction": "search",
+      "iteration": 12,
+      "ms": 94.14129999999568
+    },
+    {
+      "size": 10,
+      "interaction": "category",
+      "iteration": 12,
+      "ms": 112.9739000000045
+    },
+    {
+      "size": 10,
+      "interaction": "cart-add",
+      "iteration": 12,
+      "ms": 250.3191999999981
+    },
+    {
+      "size": 10,
+      "interaction": "search",
+      "iteration": 13,
+      "ms": 73.66620000000694
+    },
+    {
+      "size": 10,
+      "interaction": "category",
+      "iteration": 13,
+      "ms": 219.98140000000421
+    },
+    {
+      "size": 10,
+      "interaction": "cart-add",
+      "iteration": 13,
+      "ms": 431.86149999999907
+    },
+    {
+      "size": 10,
+      "interaction": "search",
+      "iteration": 14,
+      "ms": 308.74000000000524
+    },
+    {
+      "size": 10,
+      "interaction": "category",
+      "iteration": 14,
+      "ms": 237.39279999999417
+    },
+    {
+      "size": 10,
+      "interaction": "cart-add",
+      "iteration": 14,
+      "ms": 380.2146999999968
+    },
+    {
+      "size": 10,
+      "interaction": "search",
+      "iteration": 15,
+      "ms": 217.63029999999708
+    },
+    {
+      "size": 10,
+      "interaction": "category",
+      "iteration": 15,
+      "ms": 186.09859999999753
+    },
+    {
+      "size": 10,
+      "interaction": "cart-add",
+      "iteration": 15,
+      "ms": 459.9841000000015
+    },
+    {
+      "size": 10,
+      "interaction": "search",
+      "iteration": 16,
+      "ms": 156.14449999999488
+    },
+    {
+      "size": 10,
+      "interaction": "category",
+      "iteration": 16,
+      "ms": 283.722299999994
+    },
+    {
+      "size": 10,
+      "interaction": "cart-add",
+      "iteration": 16,
+      "ms": 347.38819999999396
+    },
+    {
+      "size": 10,
+      "interaction": "search",
+      "iteration": 17,
+      "ms": 249.77060000000347
+    },
+    {
+      "size": 10,
+      "interaction": "category",
+      "iteration": 17,
+      "ms": 190.31580000000395
+    },
+    {
+      "size": 10,
+      "interaction": "cart-add",
+      "iteration": 17,
+      "ms": 319.4720000000016
+    },
+    {
+      "size": 10,
+      "interaction": "search",
+      "iteration": 18,
+      "ms": 136.887999999999
+    },
+    {
+      "size": 10,
+      "interaction": "category",
+      "iteration": 18,
+      "ms": 274.8894999999975
+    },
+    {
+      "size": 10,
+      "interaction": "cart-add",
+      "iteration": 18,
+      "ms": 304.46050000000105
+    },
+    {
+      "size": 10,
+      "interaction": "search",
+      "iteration": 19,
+      "ms": 230.63450000000012
+    },
+    {
+      "size": 10,
+      "interaction": "category",
+      "iteration": 19,
+      "ms": 141.48819999999978
+    },
+    {
+      "size": 10,
+      "interaction": "cart-add",
+      "iteration": 19,
+      "ms": 217.54589999999735
+    },
+    {
+      "size": 10,
+      "interaction": "search",
+      "iteration": 20,
+      "ms": 168.25039999999717
+    },
+    {
+      "size": 10,
+      "interaction": "category",
+      "iteration": 20,
+      "ms": 319.5619000000006
+    },
+    {
+      "size": 10,
+      "interaction": "cart-add",
+      "iteration": 20,
+      "ms": 362.75939999999537
+    },
+    {
+      "size": 40,
+      "temperature": "cold",
+      "iteration": 1,
+      "automationSettledMs": 3838.8906999999963,
+      "lcp": 3468,
+      "cls": 0.06454257541384965,
+      "usableMs": 3580.89999999851,
+      "cachedStaticResources": 0,
+      "transfer": 158857
+    },
+    {
+      "size": 40,
+      "temperature": "cold",
+      "iteration": 2,
+      "automationSettledMs": 2691.0532999999996,
+      "lcp": 2108,
+      "cls": 0.06454257541384965,
+      "usableMs": 2084,
+      "cachedStaticResources": 0,
+      "transfer": 158857
+    },
+    {
+      "size": 40,
+      "temperature": "cold",
+      "iteration": 3,
+      "automationSettledMs": 2634.2257000000027,
+      "lcp": 2016,
+      "cls": 0.06454257541384965,
+      "usableMs": 1989.2000000029802,
+      "cachedStaticResources": 0,
+      "transfer": 158857
+    },
+    {
+      "size": 40,
+      "temperature": "cold",
+      "iteration": 4,
+      "automationSettledMs": 2675.993000000002,
+      "lcp": 2108,
+      "cls": 0.06454257541384965,
+      "usableMs": 2104,
+      "cachedStaticResources": 0,
+      "transfer": 158857
+    },
+    {
+      "size": 40,
+      "temperature": "cold",
+      "iteration": 5,
+      "automationSettledMs": 2539.750200000002,
+      "lcp": 2044,
+      "cls": 0.06454257541384965,
+      "usableMs": 2024.8999999985099,
+      "cachedStaticResources": 0,
+      "transfer": 158857
+    },
+    {
+      "size": 40,
+      "temperature": "warm",
+      "iteration": 1,
+      "automationSettledMs": 1616.566700000003,
+      "lcp": 1488,
+      "cls": 0.06454257541384965,
+      "usableMs": 1482.8999999985099,
+      "cachedStaticResources": 9,
+      "transfer": 8368
+    },
+    {
+      "size": 40,
+      "temperature": "warm",
+      "iteration": 2,
+      "automationSettledMs": 1569.823000000004,
+      "lcp": 1444,
+      "cls": 0.06454257541384965,
+      "usableMs": 1435.7999999970198,
+      "cachedStaticResources": 9,
+      "transfer": 8368
+    },
+    {
+      "size": 40,
+      "temperature": "warm",
+      "iteration": 3,
+      "automationSettledMs": 1768.0624000000025,
+      "lcp": 1640,
+      "cls": 0.06454257541384965,
+      "usableMs": 1629.1999999955297,
+      "cachedStaticResources": 9,
+      "transfer": 8368
+    },
+    {
+      "size": 40,
+      "temperature": "warm",
+      "iteration": 4,
+      "automationSettledMs": 1867.5622000000003,
+      "lcp": 1228,
+      "cls": 0.06454257541384965,
+      "usableMs": 1199.6000000014901,
+      "cachedStaticResources": 9,
+      "transfer": 8368
+    },
+    {
+      "size": 40,
+      "temperature": "warm",
+      "iteration": 5,
+      "automationSettledMs": 1681.9604000000108,
+      "lcp": 1556,
+      "cls": 0.06454257541384965,
+      "usableMs": 1539.3000000044703,
+      "cachedStaticResources": 9,
+      "transfer": 8368
+    },
+    {
+      "size": 40,
+      "interaction": "search",
+      "iteration": 1,
+      "ms": 354.6414999999979
+    },
+    {
+      "size": 40,
+      "interaction": "category",
+      "iteration": 1,
+      "ms": 256.0896999999968
+    },
+    {
+      "size": 40,
+      "interaction": "cart-add",
+      "iteration": 1,
+      "ms": 474.52850000000035
+    },
+    {
+      "size": 40,
+      "interaction": "search",
+      "iteration": 2,
+      "ms": 181.83050000001094
+    },
+    {
+      "size": 40,
+      "interaction": "category",
+      "iteration": 2,
+      "ms": 239.6918000000005
+    },
+    {
+      "size": 40,
+      "interaction": "cart-add",
+      "iteration": 2,
+      "ms": 449.7014999999956
+    },
+    {
+      "size": 40,
+      "interaction": "search",
+      "iteration": 3,
+      "ms": 150.73449999999139
+    },
+    {
+      "size": 40,
+      "interaction": "category",
+      "iteration": 3,
+      "ms": 180.00899999999092
+    },
+    {
+      "size": 40,
+      "interaction": "cart-add",
+      "iteration": 3,
+      "ms": 413.3189999999886
+    },
+    {
+      "size": 40,
+      "interaction": "search",
+      "iteration": 4,
+      "ms": 130.3796000000002
+    },
+    {
+      "size": 40,
+      "interaction": "category",
+      "iteration": 4,
+      "ms": 153.98919999999634
+    },
+    {
+      "size": 40,
+      "interaction": "cart-add",
+      "iteration": 4,
+      "ms": 250.14029999999912
+    },
+    {
+      "size": 40,
+      "interaction": "search",
+      "iteration": 5,
+      "ms": 119.02109999999811
+    },
+    {
+      "size": 40,
+      "interaction": "category",
+      "iteration": 5,
+      "ms": 159.3905999999988
+    },
+    {
+      "size": 40,
+      "interaction": "cart-add",
+      "iteration": 5,
+      "ms": 520.6546000000089
+    },
+    {
+      "size": 40,
+      "interaction": "search",
+      "iteration": 6,
+      "ms": 267.14010000000417
+    },
+    {
+      "size": 40,
+      "interaction": "category",
+      "iteration": 6,
+      "ms": 226.54610000000685
+    },
+    {
+      "size": 40,
+      "interaction": "cart-add",
+      "iteration": 6,
+      "ms": 281.19520000000193
+    },
+    {
+      "size": 40,
+      "interaction": "search",
+      "iteration": 7,
+      "ms": 112.05310000000463
+    },
+    {
+      "size": 40,
+      "interaction": "category",
+      "iteration": 7,
+      "ms": 187.5685999999987
+    },
+    {
+      "size": 40,
+      "interaction": "cart-add",
+      "iteration": 7,
+      "ms": 286.9322000000102
+    },
+    {
+      "size": 40,
+      "interaction": "search",
+      "iteration": 8,
+      "ms": 107.28549999999814
+    },
+    {
+      "size": 40,
+      "interaction": "category",
+      "iteration": 8,
+      "ms": 256.8616000000038
+    },
+    {
+      "size": 40,
+      "interaction": "cart-add",
+      "iteration": 8,
+      "ms": 288.22030000000086
+    },
+    {
+      "size": 40,
+      "interaction": "search",
+      "iteration": 9,
+      "ms": 241.70990000000165
+    },
+    {
+      "size": 40,
+      "interaction": "category",
+      "iteration": 9,
+      "ms": 241.64349999999104
+    },
+    {
+      "size": 40,
+      "interaction": "cart-add",
+      "iteration": 9,
+      "ms": 286.9116999999969
+    },
+    {
+      "size": 40,
+      "interaction": "search",
+      "iteration": 10,
+      "ms": 203.71740000000864
+    },
+    {
+      "size": 40,
+      "interaction": "category",
+      "iteration": 10,
+      "ms": 289.36990000000515
+    },
+    {
+      "size": 40,
+      "interaction": "cart-add",
+      "iteration": 10,
+      "ms": 288.43859999999404
+    },
+    {
+      "size": 40,
+      "interaction": "search",
+      "iteration": 11,
+      "ms": 105.02429999999003
+    },
+    {
+      "size": 40,
+      "interaction": "category",
+      "iteration": 11,
+      "ms": 339.7295000000013
+    },
+    {
+      "size": 40,
+      "interaction": "cart-add",
+      "iteration": 11,
+      "ms": 282.4411000000109
+    },
+    {
+      "size": 40,
+      "interaction": "search",
+      "iteration": 12,
+      "ms": 191.87889999999607
+    },
+    {
+      "size": 40,
+      "interaction": "category",
+      "iteration": 12,
+      "ms": 217.99160000000848
+    },
+    {
+      "size": 40,
+      "interaction": "cart-add",
+      "iteration": 12,
+      "ms": 330.61329999999725
+    },
+    {
+      "size": 40,
+      "interaction": "search",
+      "iteration": 13,
+      "ms": 125.81369999999879
+    },
+    {
+      "size": 40,
+      "interaction": "category",
+      "iteration": 13,
+      "ms": 200.02790000000095
+    },
+    {
+      "size": 40,
+      "interaction": "cart-add",
+      "iteration": 13,
+      "ms": 420.73219999999856
+    },
+    {
+      "size": 40,
+      "interaction": "search",
+      "iteration": 14,
+      "ms": 119.81179999999586
+    },
+    {
+      "size": 40,
+      "interaction": "category",
+      "iteration": 14,
+      "ms": 247.4213000000018
+    },
+    {
+      "size": 40,
+      "interaction": "cart-add",
+      "iteration": 14,
+      "ms": 290.156799999997
+    },
+    {
+      "size": 40,
+      "interaction": "search",
+      "iteration": 15,
+      "ms": 104.54230000000098
+    },
+    {
+      "size": 40,
+      "interaction": "category",
+      "iteration": 15,
+      "ms": 204.16180000000168
+    },
+    {
+      "size": 40,
+      "interaction": "cart-add",
+      "iteration": 15,
+      "ms": 319.20470000000205
+    },
+    {
+      "size": 40,
+      "interaction": "search",
+      "iteration": 16,
+      "ms": 176.94349999999395
+    },
+    {
+      "size": 40,
+      "interaction": "category",
+      "iteration": 16,
+      "ms": 177.96740000000864
+    },
+    {
+      "size": 40,
+      "interaction": "cart-add",
+      "iteration": 16,
+      "ms": 219.6137000000017
+    },
+    {
+      "size": 40,
+      "interaction": "search",
+      "iteration": 17,
+      "ms": 132.38890000000538
+    },
+    {
+      "size": 40,
+      "interaction": "category",
+      "iteration": 17,
+      "ms": 189.9369000000006
+    },
+    {
+      "size": 40,
+      "interaction": "cart-add",
+      "iteration": 17,
+      "ms": 253.8591999999917
+    },
+    {
+      "size": 40,
+      "interaction": "search",
+      "iteration": 18,
+      "ms": 155.46949999999197
+    },
+    {
+      "size": 40,
+      "interaction": "category",
+      "iteration": 18,
+      "ms": 278.09969999999157
+    },
+    {
+      "size": 40,
+      "interaction": "cart-add",
+      "iteration": 18,
+      "ms": 281.50449999999546
+    },
+    {
+      "size": 40,
+      "interaction": "search",
+      "iteration": 19,
+      "ms": 81.89289999999164
+    },
+    {
+      "size": 40,
+      "interaction": "category",
+      "iteration": 19,
+      "ms": 151.33299999999872
+    },
+    {
+      "size": 40,
+      "interaction": "cart-add",
+      "iteration": 19,
+      "ms": 241.65080000000307
+    },
+    {
+      "size": 40,
+      "interaction": "search",
+      "iteration": 20,
+      "ms": 113.44229999999516
+    },
+    {
+      "size": 40,
+      "interaction": "category",
+      "iteration": 20,
+      "ms": 164.25650000000314
+    },
+    {
+      "size": 40,
+      "interaction": "cart-add",
+      "iteration": 20,
+      "ms": 484.16290000001027
+    }
+  ]
+}

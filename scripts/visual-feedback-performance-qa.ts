@@ -1,3 +1,4 @@
+import { performanceFixture } from './performance-fixture';
 import { chromium } from '@playwright/test';
 const outputDir = process.env.QA_OUTPUT_DIR || 'outputs/mobile-performance';
 import { mkdir, writeFile } from 'node:fs/promises';
@@ -5,8 +6,10 @@ import { demoCatalog } from '../lib/contracts';
 type Sample={size:number;interaction:'search'|'category'|'cart-add';iteration:number;eventToMutationMs:number;visualMs:number};
 const phase=process.env.QA_PHASE || 'before';
 if(!['before','after'].includes(phase))throw Error('QA_PHASE must be before or after');
-const base=process.env.QA_URL || (phase==='before'?'http://127.0.0.1:4181':'http://127.0.0.1:4185');
-if(!/^https?:$/.test(new URL(base).protocol)||!['localhost','127.0.0.1'].includes(new URL(base).hostname))throw Error('Synthetic fixtures require loopback preview');
+const sourceBase=process.env.QA_URL || (phase==='before'?'http://127.0.0.1:4181':'http://127.0.0.1:4185');
+if(!/^https?:$/.test(new URL(sourceBase).protocol)||!['localhost','127.0.0.1'].includes(new URL(sourceBase).hostname))throw Error('Synthetic fixtures require loopback preview');
+const fixture = await performanceFixture(sourceBase);
+const base = fixture.base;
 const browser=await chromium.launch(),samples:Sample[]=[];
 try {
  for(const size of [10,40]) {
@@ -15,7 +18,7 @@ try {
   const context=await browser.newContext({viewport:{width:390,height:844}}),page=await context.newPage();
   await page.addInitScript('window.__name = (fn) => fn;');
   await page.route('**/*',route=>['localhost','127.0.0.1'].includes(new URL(route.request().url()).hostname)?route.continue():route.abort());
-  await page.route('**/api/v1/menu',route=>route.fulfill({json:{catalog,ordersEnabled:true,version:1}}));
+  fixture.route('**/api/v1/menu',route=>route.fulfill({json:{catalog,ordersEnabled:true,version:1}}));
   const cdp=await context.newCDPSession(page);await cdp.send('Network.enable');
   await cdp.send('Network.emulateNetworkConditions',{offline:false,latency:150,downloadThroughput:1600000/8,uploadThroughput:750000/8});
   await cdp.send('Emulation.setCPUThrottlingRate',{rate:4});
@@ -63,4 +66,4 @@ try {
  await mkdir(outputDir,{recursive:true});
  await writeFile(outputDir+'/visual-'+phase+'.json',JSON.stringify({phase,base,recordedAt:new Date().toISOString(),profile:{width:390,cpu:4,downloadMbps:1.6,uploadKbps:750,rttMs:150},method:'Browser capture listener starts performance.now at input/click. MutationObserver waits for expected DOM result, then two requestAnimationFrame callbacks. Playwright only triggers actions; its locator/action duration is outside the measured interval.',limitations:['Loopback fixed built bundle with mocked fictional public API and no photos; not production or physical Android.','Two animation frames are a presentation opportunity proxy, not observed pixels or INP.','Starts at browser event capture; does not include hardware input latency or browser queue before dispatch.','One page load per catalog; this run measures interactions only. The 40-product catalog uses the existing first 30-card rendering window.','Network emulation applies to preview resources; fixture response is mocked.'],summary,samples},null,2));
  console.log(JSON.stringify({phase,measurements:samples.length,summary}));
-} finally {await browser.close();}
+} finally {await browser.close(); await fixture.close();}

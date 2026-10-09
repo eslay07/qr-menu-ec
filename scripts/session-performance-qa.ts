@@ -1,9 +1,12 @@
+import { performanceFixture } from './performance-fixture';
 import { chromium } from '@playwright/test';
 const outputDir = process.env.QA_OUTPUT_DIR || 'outputs/mobile-performance';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { demoCatalog, defaultSettings } from '../lib/contracts';
-const base = process.env.QA_URL || 'http://127.0.0.1:4181';
-if (!/^(localhost|127\.0\.0\.1)$/.test(new URL(base).hostname)) throw Error('Local fixtures only');
+const sourceBase = process.env.QA_URL || 'http://127.0.0.1:4181';
+if (!/^(localhost|127\.0\.0\.1)$/.test(new URL(sourceBase).hostname)) throw Error('Local fixtures only');
+const fixture = await performanceFixture(sourceBase);
+const base = fixture.base;
 const browser = await chromium.launch();
 const results: unknown[] = [];
 try {
@@ -14,8 +17,8 @@ try {
     await cdp.send('Network.enable');
     await cdp.send('Network.emulateNetworkConditions', { offline: false, latency: 150, downloadThroughput: 200000, uploadThroughput: 93750 });
     await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
-    await page.route('**/api/**', async route => {
-      await new Promise(resolve => setTimeout(resolve, 150));
+    fixture.route('**/api/**', async route => {
+
       const path = new URL(route.request().url()).pathname;
       if (path === '/api/owner/login') return route.fulfill({ json: route.request().method() === 'POST' ? { ownerUrl: '/' } : { turnstileSiteKey: null } });
       if (path.endsWith('device-session/refresh')) return route.fulfill({ json: { ownerUrl: '/' } });
@@ -41,4 +44,4 @@ try {
   await mkdir(outputDir, { recursive: true });
   await writeFile(`${outputDir}/session-${process.env.QA_PHASE || 'before'}.json`, JSON.stringify({ limitations: ['Mocked credentials/session API with 150 ms controlled RTT; no actual Firebase token or password validation', 'Android userAgent simulates WebView routing only, not physical Android', 'Durations include navigation and automation overhead'], results }, null, 2));
   console.log('40 synthetic login/reopen measurements');
-} finally { await browser.close(); }
+} finally { await browser.close(); await fixture.close(); }

@@ -1,0 +1,877 @@
+{
+  "profile": {
+    "width": 390,
+    "cpu": 4,
+    "downloadMbps": 1.6,
+    "uploadKbps": 750,
+    "rttMs": 150
+  },
+  "limitations": [
+    "Mocked authenticated session and API: no real Firebase login/refresh",
+    "HTTP fixtures with emulated 150 ms RTT; not a server benchmark",
+    "Interaction includes browser automation overhead",
+    "Orders open includes 200 ms fixed settle, not valid latency target"
+  ],
+  "results": [
+    {
+      "size": 10,
+      "temperature": "cold",
+      "iteration": 1,
+      "interaction": "panel-open",
+      "ms": 3705.8054
+    },
+    {
+      "size": 10,
+      "temperature": "cold",
+      "iteration": 2,
+      "interaction": "panel-open",
+      "ms": 2564.3342000000002
+    },
+    {
+      "size": 10,
+      "temperature": "cold",
+      "iteration": 3,
+      "interaction": "panel-open",
+      "ms": 2320.4230000000007
+    },
+    {
+      "size": 10,
+      "temperature": "cold",
+      "iteration": 4,
+      "interaction": "panel-open",
+      "ms": 2513.5534000000007
+    },
+    {
+      "size": 10,
+      "temperature": "cold",
+      "iteration": 5,
+      "interaction": "panel-open",
+      "ms": 2535.9393
+    },
+    {
+      "size": 10,
+      "temperature": "warm",
+      "iteration": 1,
+      "interaction": "panel-open",
+      "ms": 1575.5260999999991
+    },
+    {
+      "size": 10,
+      "temperature": "warm",
+      "iteration": 2,
+      "interaction": "panel-open",
+      "ms": 1515.1769999999997
+    },
+    {
+      "size": 10,
+      "temperature": "warm",
+      "iteration": 3,
+      "interaction": "panel-open",
+      "ms": 1542.6791000000012
+    },
+    {
+      "size": 10,
+      "temperature": "warm",
+      "iteration": 4,
+      "interaction": "panel-open",
+      "ms": 1504.224900000001
+    },
+    {
+      "size": 10,
+      "temperature": "warm",
+      "iteration": 5,
+      "interaction": "panel-open",
+      "ms": 1497.8572999999997
+    },
+    {
+      "size": 10,
+      "interaction": "save",
+      "iteration": 1,
+      "ms": 1171.5393999999978
+    },
+    {
+      "size": 10,
+      "interaction": "publish",
+      "iteration": 1,
+      "ms": 1584.5697
+    },
+    {
+      "size": 10,
+      "interaction": "orders-open",
+      "iteration": 1,
+      "ms": 386.98769999999786
+    },
+    {
+      "size": 10,
+      "interaction": "save",
+      "iteration": 2,
+      "ms": 821.1431999999986
+    },
+    {
+      "size": 10,
+      "interaction": "publish",
+      "iteration": 2,
+      "ms": 1414.9189000000006
+    },
+    {
+      "size": 10,
+      "interaction": "orders-open",
+      "iteration": 2,
+      "ms": 328.52930000000197
+    },
+    {
+      "size": 10,
+      "interaction": "save",
+      "iteration": 3,
+      "ms": 763.1767
+    },
+    {
+      "size": 10,
+      "interaction": "publish",
+      "iteration": 3,
+      "ms": 1352.9150999999983
+    },
+    {
+      "size": 10,
+      "interaction": "orders-open",
+      "iteration": 3,
+      "ms": 316.79129999999714
+    },
+    {
+      "size": 10,
+      "interaction": "save",
+      "iteration": 4,
+      "ms": 811.6444999999985
+    },
+    {
+      "size": 10,
+      "interaction": "publish",
+      "iteration": 4,
+      "ms": 1318.3566999999966
+    },
+    {
+      "size": 10,
+      "interaction": "orders-open",
+      "iteration": 4,
+      "ms": 318.6261000000013
+    },
+    {
+      "size": 10,
+      "interaction": "save",
+      "iteration": 5,
+      "ms": 821.4882999999973
+    },
+    {
+      "size": 10,
+      "interaction": "publish",
+      "iteration": 5,
+      "ms": 1590.170299999998
+    },
+    {
+      "size": 10,
+      "interaction": "orders-open",
+      "iteration": 5,
+      "ms": 336.06090000000404
+    },
+    {
+      "size": 10,
+      "interaction": "save",
+      "iteration": 6,
+      "ms": 874.0959000000003
+    },
+    {
+      "size": 10,
+      "interaction": "publish",
+      "iteration": 6,
+      "ms": 1408.7238999999972
+    },
+    {
+      "size": 10,
+      "interaction": "orders-open",
+      "iteration": 6,
+      "ms": 303.674500000001
+    },
+    {
+      "size": 10,
+      "interaction": "save",
+      "iteration": 7,
+      "ms": 804.5877000000037
+    },
+    {
+      "size": 10,
+      "interaction": "publish",
+      "iteration": 7,
+      "ms": 1370.8123999999953
+    },
+    {
+      "size": 10,
+      "interaction": "orders-open",
+      "iteration": 7,
+      "ms": 319.6307000000015
+    },
+    {
+      "size": 10,
+      "interaction": "save",
+      "iteration": 8,
+      "ms": 909.2062000000005
+    },
+    {
+      "size": 10,
+      "interaction": "publish",
+      "iteration": 8,
+      "ms": 1320.7033999999985
+    },
+    {
+      "size": 10,
+      "interaction": "orders-open",
+      "iteration": 8,
+      "ms": 361.2713999999978
+    },
+    {
+      "size": 10,
+      "interaction": "save",
+      "iteration": 9,
+      "ms": 760.6961999999985
+    },
+    {
+      "size": 10,
+      "interaction": "publish",
+      "iteration": 9,
+      "ms": 1289.012499999997
+    },
+    {
+      "size": 10,
+      "interaction": "orders-open",
+      "iteration": 9,
+      "ms": 330.27270000000135
+    },
+    {
+      "size": 10,
+      "interaction": "save",
+      "iteration": 10,
+      "ms": 785.6863000000012
+    },
+    {
+      "size": 10,
+      "interaction": "publish",
+      "iteration": 10,
+      "ms": 1435.8182000000015
+    },
+    {
+      "size": 10,
+      "interaction": "orders-open",
+      "iteration": 10,
+      "ms": 321.5485000000044
+    },
+    {
+      "size": 10,
+      "interaction": "save",
+      "iteration": 11,
+      "ms": 916.0769999999975
+    },
+    {
+      "size": 10,
+      "interaction": "publish",
+      "iteration": 11,
+      "ms": 1478.1631000000052
+    },
+    {
+      "size": 10,
+      "interaction": "orders-open",
+      "iteration": 11,
+      "ms": 351.3070000000007
+    },
+    {
+      "size": 10,
+      "interaction": "save",
+      "iteration": 12,
+      "ms": 786.1844999999958
+    },
+    {
+      "size": 10,
+      "interaction": "publish",
+      "iteration": 12,
+      "ms": 1378.336000000003
+    },
+    {
+      "size": 10,
+      "interaction": "orders-open",
+      "iteration": 12,
+      "ms": 332.0781000000061
+    },
+    {
+      "size": 10,
+      "interaction": "save",
+      "iteration": 13,
+      "ms": 1377.4465000000055
+    },
+    {
+      "size": 10,
+      "interaction": "publish",
+      "iteration": 13,
+      "ms": 1293.0086999999985
+    },
+    {
+      "size": 10,
+      "interaction": "orders-open",
+      "iteration": 13,
+      "ms": 323.7185000000027
+    },
+    {
+      "size": 10,
+      "interaction": "save",
+      "iteration": 14,
+      "ms": 806.1132999999973
+    },
+    {
+      "size": 10,
+      "interaction": "publish",
+      "iteration": 14,
+      "ms": 1315.905700000003
+    },
+    {
+      "size": 10,
+      "interaction": "orders-open",
+      "iteration": 14,
+      "ms": 340.6947999999975
+    },
+    {
+      "size": 10,
+      "interaction": "save",
+      "iteration": 15,
+      "ms": 969.7067999999999
+    },
+    {
+      "size": 10,
+      "interaction": "publish",
+      "iteration": 15,
+      "ms": 1454.1914000000033
+    },
+    {
+      "size": 10,
+      "interaction": "orders-open",
+      "iteration": 15,
+      "ms": 306.44890000000305
+    },
+    {
+      "size": 10,
+      "interaction": "save",
+      "iteration": 16,
+      "ms": 846.3179999999993
+    },
+    {
+      "size": 10,
+      "interaction": "publish",
+      "iteration": 16,
+      "ms": 1345.1794000000082
+    },
+    {
+      "size": 10,
+      "interaction": "orders-open",
+      "iteration": 16,
+      "ms": 309.093200000003
+    },
+    {
+      "size": 10,
+      "interaction": "save",
+      "iteration": 17,
+      "ms": 994.1190999999963
+    },
+    {
+      "size": 10,
+      "interaction": "publish",
+      "iteration": 17,
+      "ms": 1469.9339999999938
+    },
+    {
+      "size": 10,
+      "interaction": "orders-open",
+      "iteration": 17,
+      "ms": 311.0188000000053
+    },
+    {
+      "size": 10,
+      "interaction": "save",
+      "iteration": 18,
+      "ms": 833.8080000000045
+    },
+    {
+      "size": 10,
+      "interaction": "publish",
+      "iteration": 18,
+      "ms": 1335.1437000000005
+    },
+    {
+      "size": 10,
+      "interaction": "orders-open",
+      "iteration": 18,
+      "ms": 357.837400000004
+    },
+    {
+      "size": 10,
+      "interaction": "save",
+      "iteration": 19,
+      "ms": 819.1386000000057
+    },
+    {
+      "size": 10,
+      "interaction": "publish",
+      "iteration": 19,
+      "ms": 1306.005799999999
+    },
+    {
+      "size": 10,
+      "interaction": "orders-open",
+      "iteration": 19,
+      "ms": 322.82880000000296
+    },
+    {
+      "size": 10,
+      "interaction": "save",
+      "iteration": 20,
+      "ms": 757.2114000000001
+    },
+    {
+      "size": 10,
+      "interaction": "publish",
+      "iteration": 20,
+      "ms": 1383.8709999999992
+    },
+    {
+      "size": 10,
+      "interaction": "orders-open",
+      "iteration": 20,
+      "ms": 332.3289999999979
+    },
+    {
+      "size": 40,
+      "temperature": "cold",
+      "iteration": 1,
+      "interaction": "panel-open",
+      "ms": 3773.294599999994
+    },
+    {
+      "size": 40,
+      "temperature": "cold",
+      "iteration": 2,
+      "interaction": "panel-open",
+      "ms": 2581.6322000000073
+    },
+    {
+      "size": 40,
+      "temperature": "cold",
+      "iteration": 3,
+      "interaction": "panel-open",
+      "ms": 2575.4639000000025
+    },
+    {
+      "size": 40,
+      "temperature": "cold",
+      "iteration": 4,
+      "interaction": "panel-open",
+      "ms": 2589.2514999999985
+    },
+    {
+      "size": 40,
+      "temperature": "cold",
+      "iteration": 5,
+      "interaction": "panel-open",
+      "ms": 2616.5481
+    },
+    {
+      "size": 40,
+      "temperature": "warm",
+      "iteration": 1,
+      "interaction": "panel-open",
+      "ms": 1606.473100000003
+    },
+    {
+      "size": 40,
+      "temperature": "warm",
+      "iteration": 2,
+      "interaction": "panel-open",
+      "ms": 1553.3044999999984
+    },
+    {
+      "size": 40,
+      "temperature": "warm",
+      "iteration": 3,
+      "interaction": "panel-open",
+      "ms": 1597.4949999999953
+    },
+    {
+      "size": 40,
+      "temperature": "warm",
+      "iteration": 4,
+      "interaction": "panel-open",
+      "ms": 1700.642599999992
+    },
+    {
+      "size": 40,
+      "temperature": "warm",
+      "iteration": 5,
+      "interaction": "panel-open",
+      "ms": 1507.8292000000074
+    },
+    {
+      "size": 40,
+      "interaction": "save",
+      "iteration": 1,
+      "ms": 1247.5065000000031
+    },
+    {
+      "size": 40,
+      "interaction": "publish",
+      "iteration": 1,
+      "ms": 1286.9603999999963
+    },
+    {
+      "size": 40,
+      "interaction": "orders-open",
+      "iteration": 1,
+      "ms": 482.21070000001055
+    },
+    {
+      "size": 40,
+      "interaction": "save",
+      "iteration": 2,
+      "ms": 1123.8291000000027
+    },
+    {
+      "size": 40,
+      "interaction": "publish",
+      "iteration": 2,
+      "ms": 1862.2570000000123
+    },
+    {
+      "size": 40,
+      "interaction": "orders-open",
+      "iteration": 2,
+      "ms": 374.46689999999944
+    },
+    {
+      "size": 40,
+      "interaction": "save",
+      "iteration": 3,
+      "ms": 1201.6958999999915
+    },
+    {
+      "size": 40,
+      "interaction": "publish",
+      "iteration": 3,
+      "ms": 1354.9410000000062
+    },
+    {
+      "size": 40,
+      "interaction": "orders-open",
+      "iteration": 3,
+      "ms": 356.4640000000072
+    },
+    {
+      "size": 40,
+      "interaction": "save",
+      "iteration": 4,
+      "ms": 1096.4533999999985
+    },
+    {
+      "size": 40,
+      "interaction": "publish",
+      "iteration": 4,
+      "ms": 1745.1347999999998
+    },
+    {
+      "size": 40,
+      "interaction": "orders-open",
+      "iteration": 4,
+      "ms": 363.18189999999595
+    },
+    {
+      "size": 40,
+      "interaction": "save",
+      "iteration": 5,
+      "ms": 1255.3171000000002
+    },
+    {
+      "size": 40,
+      "interaction": "publish",
+      "iteration": 5,
+      "ms": 1809.4128000000055
+    },
+    {
+      "size": 40,
+      "interaction": "orders-open",
+      "iteration": 5,
+      "ms": 331.5691999999981
+    },
+    {
+      "size": 40,
+      "interaction": "save",
+      "iteration": 6,
+      "ms": 1182.5651999999973
+    },
+    {
+      "size": 40,
+      "interaction": "publish",
+      "iteration": 6,
+      "ms": 1853.8123999999953
+    },
+    {
+      "size": 40,
+      "interaction": "orders-open",
+      "iteration": 6,
+      "ms": 385.0478000000003
+    },
+    {
+      "size": 40,
+      "interaction": "save",
+      "iteration": 7,
+      "ms": 1244.919299999994
+    },
+    {
+      "size": 40,
+      "interaction": "publish",
+      "iteration": 7,
+      "ms": 1335.229600000006
+    },
+    {
+      "size": 40,
+      "interaction": "orders-open",
+      "iteration": 7,
+      "ms": 360.09859999999753
+    },
+    {
+      "size": 40,
+      "interaction": "save",
+      "iteration": 8,
+      "ms": 1127.1137000000017
+    },
+    {
+      "size": 40,
+      "interaction": "publish",
+      "iteration": 8,
+      "ms": 1360.7638000000006
+    },
+    {
+      "size": 40,
+      "interaction": "orders-open",
+      "iteration": 8,
+      "ms": 364.81909999999334
+    },
+    {
+      "size": 40,
+      "interaction": "save",
+      "iteration": 9,
+      "ms": 1083.4900999999954
+    },
+    {
+      "size": 40,
+      "interaction": "publish",
+      "iteration": 9,
+      "ms": 1228.4023999999918
+    },
+    {
+      "size": 40,
+      "interaction": "orders-open",
+      "iteration": 9,
+      "ms": 354.6448000000091
+    },
+    {
+      "size": 40,
+      "interaction": "save",
+      "iteration": 10,
+      "ms": 1263.6579999999958
+    },
+    {
+      "size": 40,
+      "interaction": "publish",
+      "iteration": 10,
+      "ms": 1468.2562000000034
+    },
+    {
+      "size": 40,
+      "interaction": "orders-open",
+      "iteration": 10,
+      "ms": 287.20409999997355
+    },
+    {
+      "size": 40,
+      "interaction": "save",
+      "iteration": 11,
+      "ms": 1336.2321999999986
+    },
+    {
+      "size": 40,
+      "interaction": "publish",
+      "iteration": 11,
+      "ms": 1346.1915000000154
+    },
+    {
+      "size": 40,
+      "interaction": "orders-open",
+      "iteration": 11,
+      "ms": 431.0411000000022
+    },
+    {
+      "size": 40,
+      "interaction": "save",
+      "iteration": 12,
+      "ms": 1222.147800000006
+    },
+    {
+      "size": 40,
+      "interaction": "publish",
+      "iteration": 12,
+      "ms": 1603.958100000018
+    },
+    {
+      "size": 40,
+      "interaction": "orders-open",
+      "iteration": 12,
+      "ms": 379.6591999999946
+    },
+    {
+      "size": 40,
+      "interaction": "save",
+      "iteration": 13,
+      "ms": 1343.0335999999952
+    },
+    {
+      "size": 40,
+      "interaction": "publish",
+      "iteration": 13,
+      "ms": 1383.9942000000156
+    },
+    {
+      "size": 40,
+      "interaction": "orders-open",
+      "iteration": 13,
+      "ms": 369.71180000001914
+    },
+    {
+      "size": 40,
+      "interaction": "save",
+      "iteration": 14,
+      "ms": 1387.945699999982
+    },
+    {
+      "size": 40,
+      "interaction": "publish",
+      "iteration": 14,
+      "ms": 1489.3479999999981
+    },
+    {
+      "size": 40,
+      "interaction": "orders-open",
+      "iteration": 14,
+      "ms": 404.37690000000293
+    },
+    {
+      "size": 40,
+      "interaction": "save",
+      "iteration": 15,
+      "ms": 1388.1558000000077
+    },
+    {
+      "size": 40,
+      "interaction": "publish",
+      "iteration": 15,
+      "ms": 1197.6999999999825
+    },
+    {
+      "size": 40,
+      "interaction": "orders-open",
+      "iteration": 15,
+      "ms": 403.1964999999909
+    },
+    {
+      "size": 40,
+      "interaction": "save",
+      "iteration": 16,
+      "ms": 1272.148600000015
+    },
+    {
+      "size": 40,
+      "interaction": "publish",
+      "iteration": 16,
+      "ms": 1324.8555000000051
+    },
+    {
+      "size": 40,
+      "interaction": "orders-open",
+      "iteration": 16,
+      "ms": 339.4751999999862
+    },
+    {
+      "size": 40,
+      "interaction": "save",
+      "iteration": 17,
+      "ms": 1224.804999999993
+    },
+    {
+      "size": 40,
+      "interaction": "publish",
+      "iteration": 17,
+      "ms": 1814.0192999999854
+    },
+    {
+      "size": 40,
+      "interaction": "orders-open",
+      "iteration": 17,
+      "ms": 364.08340000000317
+    },
+    {
+      "size": 40,
+      "interaction": "save",
+      "iteration": 18,
+      "ms": 992.6575000000012
+    },
+    {
+      "size": 40,
+      "interaction": "publish",
+      "iteration": 18,
+      "ms": 1139.3601000000199
+    },
+    {
+      "size": 40,
+      "interaction": "orders-open",
+      "iteration": 18,
+      "ms": 336.9369000000006
+    },
+    {
+      "size": 40,
+      "interaction": "save",
+      "iteration": 19,
+      "ms": 1036.3880000000063
+    },
+    {
+      "size": 40,
+      "interaction": "publish",
+      "iteration": 19,
+      "ms": 1207.3912000000128
+    },
+    {
+      "size": 40,
+      "interaction": "orders-open",
+      "iteration": 19,
+      "ms": 332.0299000000232
+    },
+    {
+      "size": 40,
+      "interaction": "save",
+      "iteration": 20,
+      "ms": 1200.5646000000124
+    },
+    {
+      "size": 40,
+      "interaction": "publish",
+      "iteration": 20,
+      "ms": 1163.1255000000237
+    },
+    {
+      "size": 40,
+      "interaction": "orders-open",
+      "iteration": 20,
+      "ms": 412.83229999998
+    }
+  ]
+}

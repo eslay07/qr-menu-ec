@@ -1,9 +1,12 @@
+import { performanceFixture } from './performance-fixture';
 import { chromium, expect } from '@playwright/test';
 const outputDir = process.env.QA_OUTPUT_DIR || 'outputs/mobile-performance';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { demoCatalog, defaultSettings } from '../lib/contracts';
-const base = process.env.QA_URL || 'http://127.0.0.1:4181';
-if (!/^(localhost|127\.0\.0\.1)$/.test(new URL(base).hostname)) throw Error('Local fixtures only');
+const sourceBase = process.env.QA_URL || 'http://127.0.0.1:4181';
+if (!/^(localhost|127\.0\.0\.1)$/.test(new URL(sourceBase).hostname)) throw Error('Local fixtures only');
+const fixture = await performanceFixture(sourceBase);
+const base = fixture.base;
 const browser = await chromium.launch();
 const results: unknown[] = [];
 try {
@@ -20,13 +23,13 @@ try {
     await cdp.send('Network.enable');
     await cdp.send('Network.emulateNetworkConditions', { offline: false, latency: 150, downloadThroughput: 200000, uploadThroughput: 93750 });
     await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
-    await page.route('**/api/**', async route => {
+    fixture.route('**/api/**', async route => {
       const path = new URL(route.request().url()).pathname;
-      // Explicit controlled API RTT; this is synthetic, not backend timing.
-      await new Promise(resolve => setTimeout(resolve, 150));
+      // HTTP fixtures pass through the browser's controlled 150 ms RTT.
+
       if (path.endsWith('/session')) return route.fulfill({ json: { authenticated: true, configured: true, runtime: 'cloud', csrfToken: 'qa-csrf' } });
       if (path.endsWith('/state')) return route.fulfill({ json: { restaurantId: '11111111-1111-4111-8111-111111111111', revision, draft, settings: defaultSettings, published: { version: 1, catalog: draft }, role: 'owner', features: ['orders', 'promotions'], entitlements: { reports: true }, maxDishes: 40 } });
-      if (path.endsWith('/draft')) { draft = route.request().postDataJSON().catalog; revision++; return route.fulfill({ json: { ok: true, revision } }); }
+      if (path.endsWith('/draft')) { draft = route.request().postDataJSON<{catalog:typeof draft}>().catalog; revision++; return route.fulfill({ json: { ok: true, revision } }); }
       if (path.endsWith('/publish')) { revision++; return route.fulfill({ json: { ok: true, revision } }); }
       if (path.endsWith('/menu')) return route.fulfill({ json: { catalog: draft, ordersEnabled: true } });
       if (path.includes('/reports/orders')) return route.fulfill({ json: { orders: [], totalCents: 0, totalOrders: 0 } });
@@ -59,6 +62,6 @@ try {
     await context.close();
   }
   await mkdir(outputDir, { recursive: true });
-  await writeFile(`${outputDir}/owner-${process.env.QA_PHASE || 'before'}.json`, JSON.stringify({ profile: { width: 390, cpu: 4, downloadMbps: 1.6, uploadKbps: 750, rttMs: 150 }, limitations: ['Mocked authenticated session and API: no real Firebase login/refresh', 'API fixture adds controlled 150 ms per response; not server benchmark', 'Interaction includes browser automation overhead', 'Orders open includes 200 ms fixed settle, not valid latency target'], results }, null, 2));
+  await writeFile(`${outputDir}/owner-${process.env.QA_PHASE || 'before'}.json`, JSON.stringify({ profile: { width: 390, cpu: 4, downloadMbps: 1.6, uploadKbps: 750, rttMs: 150 }, limitations: ['Mocked authenticated session and API: no real Firebase login/refresh', 'HTTP fixtures with emulated 150 ms RTT; not a server benchmark', 'Interaction includes browser automation overhead', 'Orders open includes 200 ms fixed settle, not valid latency target'], results }, null, 2));
   console.log(`Owner performance: ${results.length} measurements`);
-} finally { await browser.close(); }
+} finally { await browser.close(); await fixture.close(); }
