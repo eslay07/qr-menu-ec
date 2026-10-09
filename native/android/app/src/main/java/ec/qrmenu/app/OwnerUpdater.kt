@@ -16,7 +16,8 @@ import java.util.concurrent.Executors
 /** Internet update is optional; Android remains responsible for install consent. */
 class OwnerUpdater(private val activity: OwnerActivity, private val host: String, private val unlocked: () -> Boolean) {
     private val worker = Executors.newSingleThreadExecutor()
-    private var checked = false
+    private val checkGate = UpdateCheckGate()
+    @Volatile private var downloading = false
     @Volatile private var stopped = false
     private var pending: File? = null
     private var dialog: AlertDialog? = null
@@ -37,8 +38,7 @@ class OwnerUpdater(private val activity: OwnerActivity, private val host: String
         }
     }
     fun check() {
-        if (checked || stopped || !unlocked()) return
-        checked = true
+        if (stopped || !unlocked() || downloading || pending != null || dialog?.isShowing == true || !checkGate.begin()) return
         worker.execute {
             try {
                 val c = connection("https://$host/downloads/android-release.json")
@@ -51,14 +51,16 @@ class OwnerUpdater(private val activity: OwnerActivity, private val host: String
                 require(uri.scheme == "https" && uri.host == host && uri.port == -1 && uri.userInfo == null && uri.fragment == null)
                 if (release.code <= BuildConfig.VERSION_CODE) return@execute
                 activity.runOnUiThread {
-                    if (!stopped && unlocked()) dialog = AlertDialog.Builder(activity).setTitle("Actualización disponible")
+                    if (!stopped && unlocked() && !downloading && pending == null && dialog?.isShowing != true) dialog = AlertDialog.Builder(activity).setTitle("Actualización disponible")
                         .setMessage("QR Menu EC ${release.name}. Puedes continuar usando la app y actualizar cuando quieras.")
                         .setPositiveButton("Actualizar") { _, _ -> download(release) }.setNegativeButton("Ahora no", null).show()
                 }
             } catch (_: Exception) { /* Offline or invalid metadata never blocks access. */ }
+            finally { checkGate.complete(); activity.runOnUiThread { if (!stopped) check() } }
         }
     }
     private fun download(release: Release) {
+        downloading = true
         if (unlocked()) Toast.makeText(activity, "Descargando actualización; puedes seguir usando la app", Toast.LENGTH_LONG).show()
         worker.execute {
             val directory = File(activity.cacheDir, "updates").apply { mkdirs() }
@@ -84,7 +86,7 @@ class OwnerUpdater(private val activity: OwnerActivity, private val host: String
             } catch (_: Exception) {
                 file.delete()
                 activity.runOnUiThread { if (!stopped && unlocked()) Toast.makeText(activity, "No se pudo verificar la actualización. Inténtalo en la próxima apertura.", Toast.LENGTH_LONG).show() }
-            } finally { activeConnection?.disconnect() }
+            } finally { activeConnection?.disconnect(); downloading = false }
         }
     }
     fun installPending() {
@@ -103,6 +105,7 @@ class OwnerUpdater(private val activity: OwnerActivity, private val host: String
             activity.startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(uri, "application/vnd.android.package-archive").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
         } catch (_: Exception) { Toast.makeText(activity, "No se pudo abrir el instalador de Android.", Toast.LENGTH_LONG).show() }
     }
+    fun background() { checkGate.background() }
     fun hide() { dialog?.dismiss(); dialog = null }
     fun destroy() { stopped = true; hide(); worker.shutdownNow() }
 }

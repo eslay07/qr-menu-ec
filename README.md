@@ -54,4 +54,4 @@ Consulta [deployment/cloudflare/README.md](deployment/cloudflare/README.md) para
 
 La foto de encebollado es únicamente ilustrativa y no representa un producto real.
 
-La APK actual es la versión0.8.4 (código15), firmada con el certificado original: volver entre secciones y actualización voluntaria por Internet. Conserva WebViewHTTPS y desbloqueo local. Las versiones anteriores requieren una primera instalación manual del APK nuevo. [Actualización vigente del editor y APK](docs/owner-editor-update-2026-10-08.md).
+La APK del seguimiento Android es la versión 0.8.5 (código 16), firmada con el certificado original: volver entre secciones y actualización voluntaria por Internet. Conserva WebViewHTTPS y desbloqueo local. Las versiones anteriores requieren una primera instalación manual del APK nuevo. [Pruebas físicas y seguimiento Android](docs/android-physical-2026-10-08.md).
