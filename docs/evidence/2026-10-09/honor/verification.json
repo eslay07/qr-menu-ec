@@ -1,0 +1,40 @@
+{
+  "checkedAt": "2026-10-09T08:37:54.629Z",
+  "types": {
+    "passed": true
+  },
+  "workerBuild": {
+    "passed": true
+  },
+  "tests": {
+    "total": 176,
+    "passed": 157,
+    "skipped": 19,
+    "failed": 0
+  },
+  "firestoreEmulator": {
+    "total": 184,
+    "passed": 184,
+    "skipped": 0,
+    "failed": 0,
+    "project": "demo-qr-menu-ec",
+    "productionDataUsed": false
+  },
+  "operatorTests": {
+    "passed": 6,
+    "failed": 0
+  },
+  "lint": {
+    "globalPassed": false,
+    "errors": 406,
+    "warnings": 5,
+    "modifiedOperatorFilesPassed": true,
+    "rulesDisabled": false
+  },
+  "logsSha256": {
+    "outputs/honor-tests-2026-10-09.txt": "288e41b7189f792b4466019c552053c9ac9edaf7186d894b81bb8fe7933144e4",
+    "outputs/honor-emulator-2026-10-09.txt": "5a6f9abfeebe00fc3a10d799320571dcf5b60c0193ebde6c19f2ae7376f088c5",
+    "outputs/honor-build-2026-10-09.txt": "7c893451680691d2cc385736e6ad8bed2e9e05715b7d8c4cbcd242568433bf09",
+    "outputs/honor-global-lint-2026-10-09.txt": "e5930086cf35e7bfc9507f9c9ffdf17bd425eda6430b03e1abd89dd56deb0544"
+  }
+}

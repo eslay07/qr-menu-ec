@@ -1,0 +1,20 @@
+{
+  "checkedAt": "2026-10-09T04:14:38.827Z",
+  "sourceCommit": "9b811fdc5e2c30ee2ecf498650fba4eb27f3137f",
+  "versionId": "9d9d6bf3-85b5-4043-afec-bbdfdf90c6c7",
+  "traffic": 100,
+  "metadataStatus": 200,
+  "metadataCacheControl": "no-store",
+  "apkStatus": 200,
+  "apkMime": "application/vnd.android.package-archive",
+  "versionCode": 16,
+  "versionName": "0.8.5",
+  "url": "https://qr-menu-ec.consola.workers.dev/downloads/qr-menu-ec.apk",
+  "sha256": "aa57f0efa246a68020586099b7c67b46d2be8a44c7fea2b2a6e496a462928080",
+  "size": 8502129,
+  "certificateSha256": "0e76175d89b42ca667d1557fe1df8d47f44a2c5e79b4d9d570a863bf52d83b6c",
+  "servedSha256": "aa57f0efa246a68020586099b7c67b46d2be8a44c7fea2b2a6e496a462928080",
+  "bytes": 8502129,
+  "privateStatus": 401,
+  "installedOnPhone": false
+}

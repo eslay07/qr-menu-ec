@@ -1,0 +1,29 @@
+{
+  "versionName": "0.8.5",
+  "versionCode": 16,
+  "package": "ec.qrmenu.app",
+  "artifact": "native/android/app/build/outputs/apk/release/app-release-unsigned.apk",
+  "unsignedSha256": "d888848fe736b46b5ffc856afbbbecdfcbabba55e33c370b42298b56a0e07c0f",
+  "build": "assembleRelease lintRelease testReleaseUnitTest successful (final guard included)",
+  "lint": {
+    "errors": 0,
+    "warnings": 16
+  },
+  "tests": {
+    "passed": 8,
+    "failed": 0,
+    "skipped": 0,
+    "suites": [
+      "AndroidWindowPolicyTest",
+      "UpdatePolicyTest"
+    ]
+  },
+  "physicalVerification": "Not performed by this agent; parent coordinates Honor acceptance",
+  "signed": "Parent will sign original identity",
+  "changes": [
+    "root safe insets system bars/cutout/IME",
+    "foreground update recheck with in-flight coalescing",
+    "no overlapping update dialogs"
+  ],
+  "branch": "fix/android-safe-area-recheck"
+}

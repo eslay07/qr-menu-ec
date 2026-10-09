@@ -1,0 +1,48 @@
+{
+  "checkedAt": "2026-10-09T08:32:21.645Z",
+  "versionId": "9d9d6bf3-85b5-4043-afec-bbdfdf90c6c7",
+  "sourceCommit": "9b811fdc5e2c30ee2ecf498650fba4eb27f3137f",
+  "device": {
+    "model": "Honor LNA-LX3",
+    "android": "16",
+    "webView": "153.0.8010.36",
+    "versionName": "0.8.5",
+    "versionCode": 16
+  },
+  "update": {
+    "viaInternet": true,
+    "adbInstallUsed": false,
+    "androidPermissionAndInstallerConfirmedByUser": true
+  },
+  "tenReopens": {
+    "performedBy": "User; native unlock on each reopen",
+    "userConfirmedCompleted": true,
+    "automaticallyPerformed": false,
+    "activeBefore": 1,
+    "activeAfter": 1,
+    "finalCartaScreenshotVerified": true
+  },
+  "physicalChecks": {
+    "backSettingsToCarta": true,
+    "headerOutsideSystemBars": true,
+    "keyboardFieldVisible": true,
+    "remoteChangeNotice": true,
+    "reloadCancelPreservesLocalDraft": true,
+    "reloadConfirmLoadsSavedRemoteDraft": true,
+    "sessionPreserved": true,
+    "templateOptionsReadOnly": true,
+    "colorsAndContrastReadOnly": true
+  },
+  "cleanup": {
+    "method": "Owner browser Save draft then Honor reload; independent read-only D1 verification",
+    "verified": true,
+    "publishedVersion": 13,
+    "publicationUnchanged": true
+  },
+  "notVerified": [
+    "Physical camera QR scan",
+    "Native browser zoom 200%",
+    "Physical performance under specified lab throttling",
+    "Offline physical update retry"
+  ]
+}

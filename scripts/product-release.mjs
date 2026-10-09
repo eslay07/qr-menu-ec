@@ -6,16 +6,30 @@ import { isDeepStrictEqual } from 'node:util';
 import { cf } from './d1-transition-operator.mjs';
 import { assetDescriptor, assetPart, assetMime, waitForReleaseHtml } from './release-assets.mjs';
 import { checkedAndroidRelease } from './android-release.mjs';
+import { persistThenReadCandidate, readCreatedVersion, requireVerifiedCandidateIdentity } from './candidate-version.mjs';
 
 const output = 'work/product-release';
 const base = '/workers/scripts/qr-menu-ec';
 const hash = value => createHash('sha256').update(value).digest('hex');
 const mode = process.argv[2];
 const origin = 'https://qr-menu-ec.consola.workers.dev';
-if (!['--stage', '--activate', '--rollback'].includes(mode)) throw Error('Select stage, activate or rollback.');
+if (!['--stage', '--recover-stage', '--activate', '--rollback'].includes(mode)) throw Error('Select stage, recover-stage, activate or rollback.');
 await mkdir(output, { recursive: true });
 async function active() { return (await cf(base + '/deployments')).deployments[0].versions; }
+async function completeStage(pending, original, checked, before) {
+  if (checked.id !== pending.versionId) throw Error('Candidate verification identity mismatch.');
+  for (const binding of original.resources.bindings.filter(b => b.name !== 'ASSETS')) if (!isDeepStrictEqual(binding, checked.resources.bindings.find(b => b.name === binding.name))) throw Error('Binding changed: ' + binding.name);
+  requireVerifiedCandidateIdentity(pending.versionId, checked.id, before, await active());
+  const receipt = { ...pending, bindingsPreserved: true, productionUnchanged: true };
+  await writeFile(output + '/version.json', JSON.stringify(receipt, null, 2));
+  await writeFile(output + '/pending-version.json', JSON.stringify({ ...pending, verificationCompleted: true }, null, 2));
+  console.log(JSON.stringify(receipt));
+}
 if (mode === '--stage') {
+  let unresolved;
+  try { unresolved = JSON.parse(await readFile(output + '/pending-version.json', 'utf8')); }
+  catch (error) { if (error.code !== 'ENOENT') throw error; }
+  if (unresolved && !unresolved.verificationCompleted) throw Error('Unverified candidate exists; use --recover-stage without creating another version.');
   const before = await active();
   if (before.length !== 1 || before[0].percentage !== 100) throw Error('Ambiguous production baseline.');
   const parent = before[0].version_id;
@@ -84,11 +98,20 @@ if (mode === '--stage') {
     assets: { jwt, config: { run_worker_first: true, html_handling: runtime.assets?.html_handling, not_found_handling: runtime.assets?.not_found_handling } },
     annotations: { 'workers/message': 'Product readiness; preserved production bindings; staged with zero traffic' },
   });
-  const checked = await cf(base + '/versions/' + candidate.id);
-  for (const binding of original.resources.bindings.filter(b => b.name !== 'ASSETS')) if (!isDeepStrictEqual(binding, checked.resources.bindings.find(b => b.name === binding.name))) throw Error('Binding changed: ' + binding.name);
-  const receipt = { stagedAt: new Date().toISOString(), versionId: candidate.id, parentVersion: parent, workerSha256: hash(worker), assetManifestSha256: hash(JSON.stringify(manifest)), apkSha256: apkHash, bindingsPreserved: true, productionUnchanged: isDeepStrictEqual(before, await active()) };
-  await writeFile(output + '/version.json', JSON.stringify(receipt, null, 2));
-  console.log(JSON.stringify(receipt));
+  const pending = { stagedAt: new Date().toISOString(), versionId: candidate.id, parentVersion: parent, workerSha256: hash(worker), assetManifestSha256: hash(JSON.stringify(manifest)), apkSha256: apkHash };
+  const checked = await persistThenReadCandidate(pending,
+    value => writeFile(output + '/pending-version.json', JSON.stringify(value, null, 2)),
+    () => cf(base + '/versions/' + candidate.id, 'GET', undefined, false));
+  await completeStage(pending, original, checked, before);
+} else if (mode === '--recover-stage') {
+  const pending = JSON.parse(await readFile(output + '/pending-version.json', 'utf8'));
+  const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
+  if (!uuid.test(pending.versionId) || !uuid.test(pending.parentVersion)) throw Error('Invalid pending version identity.');
+  const before = await active();
+  if (before.length !== 1 || before[0].percentage !== 100 || before[0].version_id !== pending.parentVersion) throw Error('Production changed; refusing stage recovery.');
+  const original = await cf(base + '/versions/' + pending.parentVersion);
+  const checked = await readCreatedVersion(() => cf(base + '/versions/' + pending.versionId, 'GET', undefined, false));
+  await completeStage(pending, original, checked, before);
 } else {
   const receipt = JSON.parse(await readFile(output + '/version.json', 'utf8'));
   const target = mode === '--rollback' ? receipt.parentVersion : receipt.versionId;

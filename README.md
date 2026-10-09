@@ -8,7 +8,7 @@ El panel permite crear, renombrar, ordenar y eliminar categorías con reasignaci
 
 La carta muestra información pública aceptada, horarios de Ecuador y un carrito que cuenta unidades. La solicitud de WhatsApp revalida importes y no registra un pedido ni envía mensajes. La confirmación interna conserva una identidad de operación para evitar duplicados en reintentos. Los permisos y límites se comprueban en servidor.
 
-Aceptación más reciente: [producción, APK físico y pendientes](docs/owner-validation-2026-10-08.md).
+Aceptación más reciente: [Android físico y producción del 09-10-2026](docs/android-physical-2026-10-09.md); [editor, rendimiento y pendientes anteriores](docs/owner-validation-2026-10-08.md).
 
 Entrega vigente: [informe de producción del 08-10-2026](docs/product-release-2026-10-08.md), [mediciones reproducibles](docs/performance-release-2026-10-08.md) y [guía de incorporación](docs/restaurant-onboarding.md). El informe distingue producción, emulación, Android y limitaciones pendientes.
 
@@ -54,4 +54,4 @@ Consulta [deployment/cloudflare/README.md](deployment/cloudflare/README.md) para
 
 La foto de encebollado es únicamente ilustrativa y no representa un producto real.
 
-La APK del seguimiento Android es la versión 0.8.5 (código 16), firmada con el certificado original: volver entre secciones y actualización voluntaria por Internet. Conserva WebViewHTTPS y desbloqueo local. Las versiones anteriores requieren una primera instalación manual del APK nuevo. [Pruebas físicas y seguimiento Android](docs/android-physical-2026-10-08.md).
+La APK del seguimiento Android es la versión 0.8.5 (código 16), firmada con el certificado original: volver entre secciones y actualización voluntaria por Internet. Conserva WebViewHTTPS y desbloqueo local. La actualización OTA desde 0.8.4 se verificó en Honor físico mediante aviso, descarga por Internet e instalador con confirmación del usuario. [Pruebas físicas y pendientes Android](docs/android-physical-2026-10-09.md).

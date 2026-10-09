@@ -12,6 +12,18 @@ El servicio `qr-menu-ec` utiliza D1 Documents para datos operativos, D1 históri
 6. Registrar aceptación crítica y respaldo verificado en `work/product-release/acceptance.json`, con el `versionId` exacto del recibo. Ejecutar `--activate` y comprobar la versión realmente servida y los recorridos productivos con datos ficticios.
 7. Ante fallo crítico, ejecutar `node scripts/product-release.mjs --rollback`. Comprueba que la versión candidata siga activa y restaura al 100 % su versión anterior. No restaurar bases de datos de ensayo sobre producción.
 
+Si Cloudflare crea el candidato pero su lectura inmediata responde HTTP 404 con el código único `100146`, el operador reintenta solamente ese GET hasta cinco veces, con esperas de 1, 2, 3 y 4 segundos. No reintenta errores de autorización, otros códigos 404 ni fallos de red; tampoco repite la creación del candidato. Cada petición conserva su timeout existente.
+
+Antes del primer GET guarda `work/product-release/pending-version.json` con la identidad del candidato, la versión padre y los hashes del Worker, manifiesto de assets y APK. Si la verificación no termina, conservar ese archivo y ejecutar desde la raíz del mismo proyecto:
+
+```sh
+node scripts/product-release.mjs --recover-stage
+```
+
+La recuperación consulta el candidato ya creado y su padre, verifica identidad, bindings y que la producción siga exactamente en la versión padre al 100 %. No sube assets, crea versiones ni modifica tráfico. Solo después de aprobar escribe `version.json` y marca el pendiente verificado. Un nuevo `--stage` rechaza un pendiente sin verificar para evitar crear otro candidato. Si la producción cambió o hay diferencias, detenerse y revisar el estado; no borrar el pendiente para eludir la comprobación. Recuperar el staging no activa la versión: siguen siendo obligatorias aceptación, respaldo y `--activate`.
+
+Los recibos contienen identidades y hashes, sin tokens ni valores de secretos. Mantener `work/` privado y fuera del repositorio. El fallo antes de poder persistir el recibo requiere inspección del operador; no asumir que el POST de creación falló ni repetirlo automáticamente.
+
 La URL legible `/m/nombre` funciona sin aprovisionamiento externo. Los subdominios nuevos requieren permisos de Cloudflare y verificación real de TLS/rutas; no interpretar esa ruta como un subdominio. El GET del panel de dirección no aprovisiona recursos. Las URL de versiones previas permanecen deshabilitadas.
 
 La dirección principal configurada es `https://qr-menu-ec.consola.workers.dev`.
