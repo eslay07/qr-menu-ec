@@ -6,6 +6,7 @@ import { ApplicationRepository } from '../lib/application-repository';
 import { FirebaseAuthProvider } from '../lib/firebase-auth-provider';
 import { handleCreatorApi, type CentralEnv } from '../lib/central-api';
 import type { State } from '../lib/store';
+import { blankCatalog, defaultSettings } from '../lib/contracts';
 
 for (const initialUploadFailure of [false, true]) void test(initialUploadFailure ? 'failed initial Worker upload keeps one created access and a readable fallback; retry refuses to overwrite the reserved Worker' : 'external hostname failure returns created access and a readable fallback; retry reuses the restaurant and Firebase account', async t => {
   const {sql, db, sqlite} = createD1Fixture();
@@ -77,5 +78,40 @@ for (const initialUploadFailure of [false, true]) void test(initialUploadFailure
     assert.equal(after?.revision,before?.revision);
     assert.equal(after?.data,before?.data);
   } finally { sqlite.close(); }
+});
+
+void test('hostname status reads are private and never provision or mutate a pending reservation', async t => {
+  const {sql, db, sqlite} = createD1Fixture();
+  const env: CentralEnv = {DB:sql,DATA_PROVIDER:'d1-documents',DATA_ENCRYPTION_KEY:Buffer.alloc(32,9).toString('base64'),CREATOR_SETUP_TOKEN:'',CLOUDFLARE_ACCOUNT_ID:'fictitious-account',CLOUDFLARE_API_TOKEN:'fictitious-token',CLOUDFLARE_WORKERS_SUBDOMAIN:'testing'};
+  const repository = new ApplicationRepository(env);
+  const id = crypto.randomUUID();
+  const state: State = {schemaVersion:1,restaurantId:id,ownerId:crypto.randomUUID(),draft:structuredClone(blankCatalog),settings:{...defaultSettings,webUrl:'https://menu.test/m/mesa-ficticia'},published:null,license:null,password:{salt:'fixture',hash:'fixture'},recoveryHash:'fixture',sessionEpoch:0,failures:{count:0,until:0},createdAt:new Date().toISOString()};
+  await repository.commit('__creator__',{password:{salt:'fixture',hash:'fixture'},sessionEpoch:0,failures:{count:0,until:0}},null);
+  await repository.commit(id,state,null);
+  const path = 'hostnames/mesa-ficticia.testing.workers.dev';
+  await db.commit([{path,data:{restaurantId:id,hostname:'mesa-ficticia.testing.workers.dev',kind:'workers_dev',status:'error',cloudflareId:null,validation:null,provider:'workers_dev',serviceName:'mesa-ficticia',priority:10,lastError:'TLS pending',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()},exists:false}]);
+  const grant = await new AuthSecurity(env).createSession('creator',null);
+  let externalRequests = 0;
+  t.mock.method(globalThis,'fetch',async () => {externalRequests++;throw Error('A status read must not contact Cloudflare.');});
+  const url = 'https://menu.test/api/creator/restaurants/'+id+'/hostname';
+  const before = await db.get(path);
+  try {
+    const anonymous = await handleCreatorApi(new Request(url),env);
+    assert.equal(anonymous.status,401);
+    assert.equal(anonymous.headers.get('cache-control'),'no-store');
+    for (let attempt=0;attempt<2;attempt++) {
+      const response = await handleCreatorApi(new Request(url,{headers:{cookie:grant.cookie.split(';')[0]}}),env);
+      assert.equal(response.status,200);
+      assert.equal(response.headers.get('cache-control'),'no-store');
+      const result = await response.json() as {primaryUrl:string|null;aliases:Array<{restaurantId:string;status:string}>};
+      assert.equal(result.primaryUrl,null);
+      assert.equal(result.aliases.length,1);
+      assert.equal(result.aliases[0].restaurantId,id);
+      assert.equal(result.aliases[0].status,'error');
+    }
+    assert.equal(externalRequests,0);
+    assert.deepEqual(await db.get(path),before);
+    assert.equal((await repository.read(id))?.revision,0);
+  } finally {sqlite.close();}
 });
 

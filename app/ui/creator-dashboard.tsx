@@ -59,14 +59,15 @@ type DomainSettings = {baseHostname:string;status:string};
 type CreatorResponse<P extends string> = P extends 'session' ? SessionState : P extends 'firebase/client-token' ? {customToken:string} : P extends 'restaurants' ? {restaurants:Restaurant[];code:string;recovery:string;ownerUrl:string;menuUrl:string;warning?:string} : P extends 'domain-settings' ? DomainSettings : P extends 'mail-failures' ? {failures:Array<{id:string;createdAt:string;status:string;expired:boolean}>} : P extends `restaurants/${string}/hostname${string}` | `restaurants/${string}/custom-domain${string}` ? ManagedDomain : AuthResult & {ok:boolean;recovery:string;code:string};
 let creatorCsrfToken = '';
 async function creatorApi<P extends string>(path: P, method = 'GET', data?: unknown): Promise<CreatorResponse<P>> {
+  const mutation = !['GET', 'HEAD'].includes(method);
   const headers: Record<string, string> =
-    data === undefined ? {} : { 'Content-Type': 'application/json' };
+    mutation || data !== undefined ? { 'Content-Type': 'application/json' } : {};
   if (!['GET', 'HEAD'].includes(method) && creatorCsrfToken)
     headers['X-CSRF-Token'] = creatorCsrfToken;
   const response = await fetch(`/api/creator/${path}`, {
     method,
     headers,
-    ...(data === undefined ? {} : {body: JSON.stringify(data)}),
+    ...(mutation || data !== undefined ? {body: JSON.stringify(data ?? {})} : {}),
   });
   const body = (await response.json()) as {csrfToken?:string;error?:string};
   if (body?.csrfToken) creatorCsrfToken = body.csrfToken;
@@ -684,7 +685,7 @@ function RestaurantDomains({ restaurant }: { restaurant: Restaurant }) {
       onToggle={(event) => {
         if (event.currentTarget.open && !domain)
           void run(() =>
-            creatorApi(`restaurants/${restaurant.id}/hostname`, 'POST'),
+            creatorApi(`restaurants/${restaurant.id}/hostname`, 'GET'),
           );
       }}
     >
