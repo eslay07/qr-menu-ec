@@ -144,7 +144,9 @@ export class DomainService {
     let ready = false;
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        const probe = await fetch(`https://${hostname}/owner`, { redirect: 'error', signal: AbortSignal.timeout(10000) });
+          // Workers supports manual/follow only. A 3xx response fails probe.ok,
+          // so manual keeps verification on this exact HTTPS hostname.
+          const probe = await fetch(`https://${hostname}/owner`, { redirect: 'manual', signal: AbortSignal.timeout(10000) });
         ready = probe.ok && (probe.headers.get('content-type') || '').includes('text/html');
         await probe.body?.cancel();
         if (ready) break;

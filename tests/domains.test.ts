@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DomainService } from '../lib/domains';
+import { createD1Fixture } from './d1-fixture';
 
 type HostRow = {
   hostname: string;
@@ -153,4 +154,35 @@ void test('custom hostname waits for both hostname and certificate', async () =>
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+void test('workers.dev HTTPS verification uses manual redirects and never activates a redirect target', async t => {
+  const {sql, db, sqlite} = createD1Fixture();
+  const id = crypto.randomUUID();
+  const domains = new DomainService({DB:sql,DATA_PROVIDER:'d1-documents',CLOUDFLARE_ACCOUNT_ID:'fictitious-account',CLOUDFLARE_API_TOKEN:'fictitious-token',CLOUDFLARE_WORKERS_SUBDOMAIN:'testing'});
+  let redirected = true, uploads = 0, probes = 0;
+  t.mock.method(globalThis,'fetch',async (input:RequestInfo|URL,init?:RequestInit) => {
+    const url = typeof input==='string'?input:input instanceof URL?input.href:input.url;
+    if(url==='https://mesa-manual.testing.workers.dev/owner') {
+      probes++;
+      assert.equal(init?.redirect,'manual');
+      if(init?.redirect!=='manual')throw TypeError('Invalid redirect value must be follow or manual');
+      return redirected ? new Response('<html>Redirect destination</html>',{status:302,headers:{location:'https://different-restaurant.invalid/owner','content-type':'text/html'}}) : new Response('<html>Owner</html>',{headers:{'content-type':'text/html'}});
+    }
+    if(url.endsWith('/settings'))return Response.json({success:true,result:{bindings:[{type:'service',name:'CORE',service:'qr-menu-ec',environment:'production'}]}});
+    if(url.endsWith('/subdomain'))return Response.json({success:true});
+    if(init?.method==='PUT'){uploads++;return Response.json({success:true});}
+    return Response.json({success:false},{status:404});
+  });
+  try {
+    await assert.rejects(domains.provisionFree(id,'Mesa Manual','https://menus.test'),/verificación HTTPS/);
+    assert.equal(probes,3);
+    assert.equal(uploads,1);
+    assert.equal((await db.get('hostnames/mesa-manual.testing.workers.dev'))?.data.status,'error');
+    redirected = false;
+    assert.equal(await domains.provisionFree(id,'Nombre cambiado','https://menus.test'),'https://mesa-manual.testing.workers.dev/menu');
+    assert.equal(probes,4);
+    assert.equal(uploads,1);
+    assert.equal((await db.get('hostnames/mesa-manual.testing.workers.dev'))?.data.status,'active');
+  } finally {sqlite.close();}
 });
