@@ -552,14 +552,31 @@ export async function handleCreatorApi(
       const result = await new ApplicationRepository(env).commit(id, state, null);
       if (!result)
         throw Error('No se pudo crear el restaurante.');
-      settings.webUrl = await new DomainService(env).provisionFree(
-        id,
-        input.name,
-        url.origin,
-      );
+      // The access already exists. External provisioning must not turn this
+      // into an ambiguous failed signup or encourage a second account.
+      const domains = new DomainService(env);
+      const warnings: string[] = [];
+      try {
+        settings.webUrl = await domains.reservePublicPath(id, input.name, url.origin);
+      } catch {
+        warnings.push('No se pudo reservar la ruta legible; el enlace anterior del restaurante se conserva.');
+      }
+      try {
+        const provisionedUrl = await domains.provisionFree(id, input.name, url.origin);
+        // An unconfigured provider returns the legacy fallback; keep the
+        // readable reservation already created for this restaurant instead.
+        if (provisionedUrl !== `${url.origin}/r/${id}/menu`)
+          settings.webUrl = provisionedUrl;
+      } catch {
+        warnings.push('No se pudo activar el subdominio. Usa la ruta pública disponible y reintenta la dirección desde esta ficha; no crees otra cuenta.');
+      }
       state.settings = settings;
-      if (!await new ApplicationRepository(env).commit(id, state, 0))
-        throw Error('La configuración cambió mientras se creaba la dirección. Recarga.');
+      try {
+        if (!await new ApplicationRepository(env).commit(id, state, 0))
+          warnings.push('Otro cambio guardó la configuración; recarga la ficha antes de continuar.');
+      } catch {
+        warnings.push('El acceso está creado, pero no se pudo guardar la dirección en la configuración. Recarga esta ficha para comprobarla.');
+      }
       return json(
         {
           id,
@@ -567,6 +584,7 @@ export async function handleCreatorApi(
           recovery,
           ownerUrl: `${url.origin}/r/${id}/`,
           menuUrl: settings.webUrl,
+          ...(warnings.length ? { warning: 'El acceso del dueño se creó. ' + warnings.join(' ') } : {}),
         },
         201,
       );
