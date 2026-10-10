@@ -631,6 +631,11 @@ export async function handleCreatorApi(
     const hostnameMatch = path.match(
       /^restaurants\/([a-f0-9-]{36})\/hostname$/,
     );
+    if (hostnameMatch && method === 'GET') {
+      if (!await new ApplicationRepository(env).read(hostnameMatch[1]))
+        return json({ error: 'Restaurante no encontrado.' }, 404);
+      return json(await new DomainService(env).get(hostnameMatch[1]));
+    }
     if (hostnameMatch && method === 'POST') {
       const row = await new ApplicationRepository(env).read(hostnameMatch[1]);
       if (!row) return json({ error: 'Restaurante no encontrado.' }, 404);

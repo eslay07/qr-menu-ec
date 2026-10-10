@@ -28,6 +28,8 @@ La URL legible `/m/nombre` funciona sin aprovisionamiento externo. Los subdomini
 
 La dirección principal configurada es `https://qr-menu-ec.consola.workers.dev`.
 
+Para la primera entrega que verifica HTTPS desde el Worker hacia otro Worker de la misma cuenta, configura `QR_MENU_ENABLE_PUBLIC_FETCH=true` al ejecutar `--stage`. Añade únicamente `global_fetch_strictly_public` a los flags actuales y verifica que la fecha y los demás flags se conserven; siguientes entregas lo heredan. No elimina la validación TLS, HTTP ni del binding CORE. [Documentación oficial de fetch entre Workers](https://developers.cloudflare.com/workers/runtime-apis/fetch/). Si falta la variable, staging conserva íntegramente el runtime anterior.
+
 1. `npm ci` y `npm run build:worker`.
 2. Inicia sesión con Wrangler en la cuenta de Cloudflare; crea una base D1 y copia su nombre e identificador en `wrangler.jsonc`.
 3. Aplica las migraciones de `drizzle/` en orden, incluida `0003_security_promotions_domains.sql` para sesiones, límites, auditoría y hostnames ampliados y `0004_owner_email_index.sql` para el acceso único por correo.

@@ -7,6 +7,7 @@ import { cf } from './d1-transition-operator.mjs';
 import { assetDescriptor, assetPart, assetMime, waitForReleaseHtml } from './release-assets.mjs';
 import { checkedAndroidRelease } from './android-release.mjs';
 import { persistThenReadCandidate, readCreatedVersion, requireVerifiedCandidateIdentity } from './candidate-version.mjs';
+import { releaseCompatibilityFlags } from './release-runtime.mjs';
 
 const output = 'work/product-release';
 const base = '/workers/scripts/qr-menu-ec';
@@ -19,6 +20,10 @@ async function active() { return (await cf(base + '/deployments')).deployments[0
 async function completeStage(pending, original, checked, before) {
   if (checked.id !== pending.versionId) throw Error('Candidate verification identity mismatch.');
   for (const binding of original.resources.bindings.filter(b => b.name !== 'ASSETS')) if (!isDeepStrictEqual(binding, checked.resources.bindings.find(b => b.name === binding.name))) throw Error('Binding changed: ' + binding.name);
+  const oldRuntime = original.resources.script_runtime;
+  const newRuntime = checked.resources.script_runtime;
+  const expectedFlags = releaseCompatibilityFlags(oldRuntime.compatibility_flags, pending.publicFetchEnabled ? 'true' : undefined);
+  if (oldRuntime.compatibility_date !== newRuntime.compatibility_date || !isDeepStrictEqual([...expectedFlags].sort((a,b)=>a.localeCompare(b)), [...newRuntime.compatibility_flags].sort((a,b)=>a.localeCompare(b)))) throw Error('Runtime compatibility changed unexpectedly.');
   requireVerifiedCandidateIdentity(pending.versionId, checked.id, before, await active());
   const receipt = { ...pending, bindingsPreserved: true, productionUnchanged: true };
   await writeFile(output + '/version.json', JSON.stringify(receipt, null, 2));
@@ -94,11 +99,11 @@ if (mode === '--stage') {
   const candidate = await cf('/workers/workers/qr-menu-ec/versions?deploy=false', 'POST', {
     main_module: 'worker.js', modules: [{ name: 'worker.js', content_type: 'application/javascript+module', content_base64: worker.toString('base64') }],
     bindings: original.resources.bindings.map(({name}) => ({ name, type: 'inherit', version_id: parent })),
-    compatibility_date: runtime.compatibility_date, compatibility_flags: runtime.compatibility_flags,
+    compatibility_date: runtime.compatibility_date, compatibility_flags: releaseCompatibilityFlags(runtime.compatibility_flags, process.env.QR_MENU_ENABLE_PUBLIC_FETCH),
     assets: { jwt, config: { run_worker_first: true, html_handling: runtime.assets?.html_handling, not_found_handling: runtime.assets?.not_found_handling } },
     annotations: { 'workers/message': 'Product readiness; preserved production bindings; staged with zero traffic' },
   });
-  const pending = { stagedAt: new Date().toISOString(), versionId: candidate.id, parentVersion: parent, workerSha256: hash(worker), assetManifestSha256: hash(JSON.stringify(manifest)), apkSha256: apkHash };
+  const pending = { stagedAt: new Date().toISOString(), versionId: candidate.id, parentVersion: parent, workerSha256: hash(worker), assetManifestSha256: hash(JSON.stringify(manifest)), apkSha256: apkHash, publicFetchEnabled: process.env.QR_MENU_ENABLE_PUBLIC_FETCH === 'true' };
   const checked = await persistThenReadCandidate(pending,
     value => writeFile(output + '/pending-version.json', JSON.stringify(value, null, 2)),
     () => cf(base + '/versions/' + candidate.id, 'GET', undefined, false));
