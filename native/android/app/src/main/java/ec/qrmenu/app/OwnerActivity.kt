@@ -78,6 +78,9 @@ class OwnerActivity : Activity() {
         val progress = ProgressBar(this).apply { visibility = View.GONE }
         webView = WebView(this).apply {
             settings.javaScriptEnabled = true
+            settings.setSupportZoom(true)
+            settings.builtInZoomControls = true
+            settings.displayZoomControls = false
             pushBridge = OwnerPushBridge(this@OwnerActivity, this, platformHost).also { it.attach() }
             printBridge = OwnerPrintBridge(this@OwnerActivity, this, platformHost).also { it.attach() }
             val hasScreenLock = (getSystemService(KEYGUARD_SERVICE) as KeyguardManager).isDeviceSecure

@@ -36,6 +36,7 @@ type Credentials = {
   recovery: string;
   ownerUrl?: string;
   menuUrl?: string;
+  warning?: string;
 };
 type ManagedDomain = {
   primaryUrl?: string | null;
@@ -55,7 +56,7 @@ const featureOptions: { value: Feature; label: string }[] = [
 ];
 
 type DomainSettings = {baseHostname:string;status:string};
-type CreatorResponse<P extends string> = P extends 'session' ? SessionState : P extends 'firebase/client-token' ? {customToken:string} : P extends 'restaurants' ? {restaurants:Restaurant[];code:string;recovery:string;ownerUrl:string;menuUrl:string} : P extends 'domain-settings' ? DomainSettings : P extends 'mail-failures' ? {failures:Array<{id:string;createdAt:string;status:string;expired:boolean}>} : P extends `restaurants/${string}/hostname${string}` | `restaurants/${string}/custom-domain${string}` ? ManagedDomain : AuthResult & {ok:boolean;recovery:string;code:string};
+type CreatorResponse<P extends string> = P extends 'session' ? SessionState : P extends 'firebase/client-token' ? {customToken:string} : P extends 'restaurants' ? {restaurants:Restaurant[];code:string;recovery:string;ownerUrl:string;menuUrl:string;warning?:string} : P extends 'domain-settings' ? DomainSettings : P extends 'mail-failures' ? {failures:Array<{id:string;createdAt:string;status:string;expired:boolean}>} : P extends `restaurants/${string}/hostname${string}` | `restaurants/${string}/custom-domain${string}` ? ManagedDomain : AuthResult & {ok:boolean;recovery:string;code:string};
 let creatorCsrfToken = '';
 async function creatorApi<P extends string>(path: P, method = 'GET', data?: unknown): Promise<CreatorResponse<P>> {
   const headers: Record<string, string> =
@@ -183,6 +184,7 @@ export default function CreatorDashboard() {
         recovery: result.recovery,
         ownerUrl: result.ownerUrl,
         menuUrl: result.menuUrl,
+        warning: result.warning,
       });
       form.reset();
       await load();
@@ -383,6 +385,7 @@ export default function CreatorDashboard() {
               <h2>{credentials.title}</h2>
               <p>Estos datos sensibles se muestran una sola vez.</p>
             </div>
+            {credentials.warning && <p className="notice warning" role="alert">{credentials.warning}</p>}
             <button
               className="icon-button"
               onClick={() => setCredentials(null)}
@@ -688,6 +691,8 @@ function RestaurantDomains({ restaurant }: { restaurant: Restaurant }) {
       <summary>Administrar direcciones y dominio propio</summary>
       {busy && <output >Consultando Cloudflare…</output>}
       {error && <div className="notice error" role="alert">{error}</div>}
+      <button type="button" className="btn" disabled={busy} onClick={() => void run(() => creatorApi(`restaurants/${restaurant.id}/hostname`, 'POST'))}>Reintentar dirección del restaurante</button>
+      <p className="muted">Este intento conserva el acceso, el correo y el restaurante. Si la provisión sigue fallando, requiere revisión del operador; no crees otra cuenta.</p>
       {domain?.primaryUrl && (
         <p>
           Dirección principal: <a href={domain.primaryUrl}>{domain.primaryUrl}</a>

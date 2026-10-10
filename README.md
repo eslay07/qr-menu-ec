@@ -54,4 +54,4 @@ Consulta [deployment/cloudflare/README.md](deployment/cloudflare/README.md) para
 
 La foto de encebollado es únicamente ilustrativa y no representa un producto real.
 
-La APK vigente es la versión 0.8.6 (código 17), firmada con el certificado original: volver entre secciones y actualización voluntaria por Internet. Conserva WebViewHTTPS y desbloqueo local. La actualización OTA desde 0.8.4 se verificó en Honor físico mediante aviso, descarga por Internet e instalador con confirmación del usuario. [Pruebas físicas y pendientes Android](docs/android-physical-2026-10-09.md).
+La APK 0.8.7 (código 18), firmada con el certificado original, agrega zoom por pellizco. Conserva navegación entre secciones, actualización voluntaria por Internet, WebView HTTPS y desbloqueo local. La actualización OTA desde 0.8.4 se verificó en Honor físico mediante aviso, descarga por Internet e instalador con confirmación del usuario. La disponibilidad y aceptación de cada versión deben comprobarse con el recibo de despliegue; el build por sí solo no acredita instalación. [Pruebas físicas anteriores](docs/android-physical-2026-10-09.md).

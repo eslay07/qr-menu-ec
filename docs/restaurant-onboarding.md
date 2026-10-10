@@ -1,5 +1,7 @@
 # Incorporar y mantener un restaurante
 
+Si el alta muestra «El acceso del dueño se creó» junto con una advertencia de subdominio, utiliza el acceso entregado y la ruta pública legible. No crees otra cuenta: abre la ficha y pulsa **Reintentar dirección del restaurante**. El reintento conserva el restaurante, su correo y el QR canónico. Si Cloudflare nunca llegó a crear el Worker, solicita revisión al operador; el reintento no sobrescribe recursos ajenos. La ruta legible funciona independientemente del subdominio.
+
 Guía canónica del editor preparado el 7–8 de octubre de 2026. La disponibilidad depende de los permisos concedidos por el creador y comprobados en servidor. Contrasta la versión servida con el informe final de despliegue: las pruebas locales con API simulada no acreditan recorridos productivos.
 
 1. **Habilitar acceso.** El creador entra en `/creator`, crea el restaurante y asigna el correo de acceso del dueño y una contraseña segura mediante el flujo existente. Comprueba los límites y permisos asignados. Entrega las credenciales por el canal seguro habitual; nunca las incluyas en el QR. El dueño entra en `/owner` con su correo y contraseña.
