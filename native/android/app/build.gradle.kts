@@ -22,7 +22,7 @@ android { namespace="ec.qrmenu.app"; compileSdk=35
 }
 dependencies {
  testImplementation("junit:junit:4.13.2")
- implementation("androidx.core:core:1.15.0")
+ implementation("androidx.core:core:1.19.1")
  implementation("com.google.firebase:firebase-messaging:25.1.3")
  implementation("androidx.webkit:webkit:1.12.1")
 }
